@@ -14,6 +14,5 @@ xcuserdata/
 .DS_Store
 
 # Swift Package Manager
+# NOTE: Packages/ is NOT ignored - Packages/NookLibrary is this project's source.
 .build/
-Packages/
-Package.resolved

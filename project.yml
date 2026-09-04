@@ -2,17 +2,24 @@ name: Nook
 options:
   bundleIdPrefix: com.nicolasblunck
   deploymentTarget:
-    iOS: "17.0"
-    macOS: "14.0"
+    iOS: "26.0"
+    macOS: "26.0"
 settings:
-  SWIFT_VERSION: "5.0"
+  SWIFT_VERSION: "6.0"
+  SWIFT_STRICT_CONCURRENCY: complete
+packages:
+  NookLibrary:
+    path: Packages/NookLibrary
 targets:
   Nook-iOS:
     type: application
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "26.0"
     sources: [Nook/Sources]
     resources: [Nook/Resources]
+    dependencies:
+      - package: NookLibrary
+        product: NookLibrary
     info:
       path: Nook/Sources/iOS-Info.plist
       properties:
@@ -28,9 +35,12 @@ targets:
   Nook-macOS:
     type: application
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "26.0"
     sources: [Nook/Sources]
     resources: [Nook/Resources]
+    dependencies:
+      - package: NookLibrary
+        product: NookLibrary
     settings:
       base:
         PRODUCT_NAME: Nook
@@ -40,6 +50,7 @@ targets:
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
 schemes:
   Nook-iOS:
     build:
