@@ -1,0 +1,59 @@
+name: Nook
+options:
+  bundleIdPrefix: com.nicolasblunck
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+settings:
+  SWIFT_VERSION: "5.0"
+targets:
+  Nook-iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [Nook/Sources]
+    resources: [Nook/Resources]
+    info:
+      path: Nook/Sources/iOS-Info.plist
+      properties:
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_NAME: Nook
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+  Nook-macOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [Nook/Sources]
+    resources: [Nook/Resources]
+    settings:
+      base:
+        PRODUCT_NAME: Nook
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_HARDENED_RUNTIME: YES
+schemes:
+  Nook-iOS:
+    build:
+      targets:
+        Nook-iOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Nook-macOS:
+    build:
+      targets:
+        Nook-macOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
