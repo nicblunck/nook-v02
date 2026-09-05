@@ -12,11 +12,11 @@ import NookLibrary
 @Observable
 final class LibraryModel {
     let library: Library
+    let settings: AppSettings
 
     // MARK: Navigation state
 
     var scope: LibraryScope = .inbox { didSet { onScopeChanged(from: oldValue) } }
-    var sort: ObjectSort = .default { didSet { Task { await refreshContents() } } }
     var searchText: String = "" { didSet { scheduleSearchRefresh() } }
     var selection: Set<ObjectID> = []
     var previewedObjectID: ObjectID?
@@ -42,8 +42,24 @@ final class LibraryModel {
 
     private var searchTask: Task<Void, Never>?
 
-    init(library: Library) {
+    // MARK: Presentation
+    //
+    // The arrangement on screen: a location's remembered settings if it has
+    // any, otherwise the global default. Changes are temporary unless the user
+    // has asked this location to remember them.
+
+    private(set) var preferences: LocationViewPreferences = .systemDefault
+    private(set) var isRememberingLocation = false
+    private(set) var canRememberLocation = false
+
+    var sort: ObjectSort { preferences.sort }
+    var viewMode: LibraryViewMode { preferences.viewMode }
+    var foldersFirst: Bool { preferences.foldersFirst }
+
+    init(library: Library, settings: AppSettings) {
         self.library = library
+        self.settings = settings
+        self.preferences = settings.defaultPreferences
     }
 
     private var service: LibraryService { library.service }
@@ -52,6 +68,72 @@ final class LibraryModel {
 
     func refreshAll() async {
         await refreshSidebar()
+        await loadPreferences()
+        await refreshContents()
+    }
+
+    // MARK: Presentation
+
+    /// Loads whatever this location has been asked to remember, falling back to
+    /// the global default so an unremembered location never inherits the last
+    /// one's arrangement.
+    func loadPreferences() async {
+        canRememberLocation = await service.canRememberPreferences(for: scope)
+        if let remembered = await service.rememberedPreferences(for: scope) {
+            preferences = remembered
+            isRememberingLocation = true
+        } else {
+            preferences = settings.defaultPreferences
+            isRememberingLocation = false
+        }
+    }
+
+    func setViewMode(_ mode: LibraryViewMode) async {
+        var updated = preferences
+        updated.viewMode = mode
+        await apply(updated)
+    }
+
+    func setSort(_ sort: ObjectSort) async {
+        var updated = preferences
+        updated.sort = sort
+        await apply(updated)
+    }
+
+    func setFoldersFirst(_ foldersFirst: Bool) async {
+        var updated = preferences
+        updated.foldersFirst = foldersFirst
+        await apply(updated)
+    }
+
+    /// Turning this on makes the current arrangement this location's own.
+    /// Turning it off leaves what is on screen alone but stops persisting it,
+    /// so the location follows the global default again next time.
+    func setRememberingLocation(_ isRemembering: Bool) async {
+        guard canRememberLocation else { return }
+        isRememberingLocation = isRemembering
+        do {
+            if isRemembering {
+                try await service.rememberPreferences(preferences, for: scope)
+            } else {
+                try await service.forgetPreferences(for: scope)
+            }
+        } catch {
+            alert = LibraryAlert(title: "Couldn't save this view", message: error.localizedDescription)
+        }
+    }
+
+    /// Promotes the current arrangement to the global default. Explicit, so a
+    /// one-off change in one folder never silently becomes the rule everywhere.
+    func useCurrentPreferencesAsDefault() {
+        settings.defaultPreferences = preferences
+    }
+
+    private func apply(_ updated: LocationViewPreferences) async {
+        preferences = updated
+        if isRememberingLocation {
+            try? await service.rememberPreferences(updated, for: scope)
+        }
         await refreshContents()
     }
 
@@ -96,7 +178,10 @@ final class LibraryModel {
         guard previous != scope else { return }
         selection = []
         searchText = ""
-        Task { await refreshContents() }
+        Task {
+            await loadPreferences()
+            await refreshContents()
+        }
     }
 
     /// Search runs after a short pause so typing does not re-query per keystroke.
@@ -143,8 +228,7 @@ final class LibraryModel {
 
     // MARK: Mutations
 
-    func createFolder(named name: String) async {
-        let parent: FolderID? = if case .folder(let id) = scope { id } else { nil }
+    func createFolder(named name: String, in parent: FolderID?) async {
         await perform { try await self.library.service.createFolder(named: name, in: parent) }
     }
 
@@ -182,6 +266,73 @@ final class LibraryModel {
         await perform { try await self.library.service.updateObject(id, title: title, notes: notes) }
     }
 
+    // MARK: Collections
+
+    func createCollection(named name: String, adding ids: [ObjectID] = []) async {
+        await perform {
+            let created = try await self.library.service.createCollection(named: name)
+            if !ids.isEmpty {
+                try await self.library.service.addObjects(ids, toCollection: created.id)
+            }
+        }
+    }
+
+    func addToCollection(_ collection: CollectionID, objects ids: [ObjectID]) async {
+        await perform { try await self.library.service.addObjects(ids, toCollection: collection) }
+    }
+
+    /// Removes membership only — the objects stay exactly where they live.
+    func removeFromCollection(_ collection: CollectionID, objects ids: [ObjectID]) async {
+        await perform { try await self.library.service.removeObjects(ids, fromCollection: collection) }
+    }
+
+    func renameCollection(_ id: CollectionID, to name: String) async {
+        await perform { try await self.library.service.renameCollection(id, to: name) }
+    }
+
+    func deleteCollection(_ id: CollectionID) async {
+        if case .collection(id) = scope { scope = .inbox }
+        await perform { try await self.library.service.deleteCollection(id) }
+    }
+
+    /// Drops `moved` in ahead of `target` in the collection's manual order.
+    func reorder(_ moved: [ObjectID], before target: ObjectID) async {
+        guard case .collection(let id) = scope, !moved.contains(target) else { return }
+        var order = contents.objects.map(\.id)
+        order.removeAll { moved.contains($0) }
+        guard let index = order.firstIndex(of: target) else { return }
+        order.insert(contentsOf: moved, at: index)
+        await perform { try await self.library.service.reorderCollection(id, objectOrder: order) }
+    }
+
+    // MARK: Appearance
+
+    func setAppearance(_ appearance: EntityAppearance, for reference: LibraryReference) async {
+        await perform {
+            switch reference {
+            case .folder(let id):
+                try await self.library.service.setAppearance(appearance, forFolder: id)
+            case .collection(let id):
+                try await self.library.service.setAppearance(appearance, forCollection: id)
+            case .tag(let id):
+                try await self.library.service.setAppearance(appearance, forTag: id)
+            case .object:
+                break
+            }
+        }
+    }
+
+    // MARK: Tags
+
+    func renameTag(_ id: TagID, to name: String) async {
+        await perform { try await self.library.service.renameTag(id, to: name) }
+    }
+
+    func deleteTag(_ id: TagID) async {
+        if case .tag(id) = scope { scope = .inbox }
+        await perform { try await self.library.service.deleteTag(id) }
+    }
+
     func addTag(_ name: String, to ids: [ObjectID]) async {
         await perform { try await self.library.service.addTag(named: name, to: ids) }
     }
@@ -200,6 +351,34 @@ final class LibraryModel {
     }
 
     // MARK: Derived
+
+    /// The canvas as one ordered sequence.
+    ///
+    /// With Folders First on, locations lead and their contents follow. With it
+    /// off, folders sort inline among the objects — but only by a key both
+    /// kinds actually have, so sorting by size or duration keeps folders first
+    /// rather than inventing a value for them.
+    var canvasItems: [CanvasItem] {
+        let folders = contents.folders.map(CanvasItem.folder)
+        let objects = contents.objects.map(CanvasItem.object)
+
+        guard !preferences.foldersFirst, !folders.isEmpty else {
+            return folders + objects
+        }
+
+        switch sort.field {
+        case .name:
+            let merged = (folders + objects).sorted {
+                $0.sortName.localizedStandardCompare($1.sortName) == .orderedAscending
+            }
+            return sort.ascending ? merged : merged.reversed()
+        case .dateAdded:
+            let merged = (folders + objects).sorted { $0.sortDate < $1.sortDate }
+            return sort.ascending ? merged : merged.reversed()
+        case .dateCreated, .kind, .size, .manual:
+            return folders + objects
+        }
+    }
 
     var selectedObjects: [ObjectSnapshot] {
         contents.objects.filter { selection.contains($0.id) }
@@ -242,6 +421,33 @@ final class LibraryModel {
         let target = index + offset
         guard contents.objects.indices.contains(target) else { return nil }
         return contents.objects[target]
+    }
+}
+
+/// A row in the canvas: a location or a thing.
+enum CanvasItem: Identifiable, Hashable {
+    case folder(FolderSnapshot)
+    case object(ObjectSnapshot)
+
+    var id: UUID {
+        switch self {
+        case .folder(let folder): folder.id.uuid
+        case .object(let object): object.id.uuid
+        }
+    }
+
+    var sortName: String {
+        switch self {
+        case .folder(let folder): folder.name
+        case .object(let object): object.title
+        }
+    }
+
+    var sortDate: Date {
+        switch self {
+        case .folder(let folder): folder.dateAdded
+        case .object(let object): object.dateAdded
+        }
     }
 }
 

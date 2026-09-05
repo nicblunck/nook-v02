@@ -36,7 +36,10 @@ public final class LibraryCollection {
 
     public var isSmart: Bool = false
     public var ruleData: Data?
-    public var savedSortRaw: String?
+
+    /// Remembered presentation, nil while the collection follows the global
+    /// default. A smart collection's saved sort lives here too.
+    public var rememberedPreferencesData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \CollectionMembership.collection)
     public var memberships: [CollectionMembership]? = []

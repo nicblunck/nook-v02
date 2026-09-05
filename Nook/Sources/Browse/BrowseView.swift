@@ -8,6 +8,8 @@ struct BrowseView: View {
     @Bindable var model: LibraryModel
     @State private var isImporterPresented = false
     @State private var isDropTargeted = false
+    @State private var newCollectionTargets: [ObjectID]?
+    @State private var draftCollectionName = ""
 
     var body: some View {
         ZStack {
@@ -34,6 +36,17 @@ struct BrowseView: View {
             guard case .success(let urls) = result else { return }
             Task { await model.importFiles(at: urls) }
         }
+        .alert("New Collection", isPresented: newCollectionBinding) {
+            TextField("Name", text: $draftCollectionName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") {
+                let name = draftCollectionName
+                let targets = newCollectionTargets ?? []
+                Task { await model.createCollection(named: name, adding: targets) }
+            }
+        } message: {
+            Text("Collections gather items from anywhere without moving them.")
+        }
     }
 
     // MARK: Canvas
@@ -44,24 +57,11 @@ struct BrowseView: View {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 16)],
-                              spacing: 16) {
-                        // Folders First: locations lead, then their contents.
-                        ForEach(model.contents.folders) { folder in
-                            FolderCard(folder: folder) { model.scope = .folder(folder.id) }
-                        }
-                        ForEach(model.contents.objects) { object in
-                            ObjectCard(
-                                object: object,
-                                isSelected: model.selection.contains(object.id),
-                                onOpen: { open(object) },
-                                onSelect: { modifiers in select(object, modifiers: modifiers) }
-                            )
-                            .contextMenu { ObjectMenu(model: model, objects: contextTargets(for: object)) }
-                            .draggable(ObjectTransfer(id: object.id))
-                        }
+                    switch model.viewMode {
+                    case .grid: gridCanvas
+                    case .masonry: masonryCanvas
+                    case .list: listCanvas
                     }
-                    .padding(20)
                 }
                 #if os(macOS)
                 .onTapGesture { model.selection = [] }
@@ -73,6 +73,67 @@ struct BrowseView: View {
             return true
         } isTargeted: { isDropTargeted = $0 }
         .overlay { if isDropTargeted { dropIndicator } }
+    }
+
+    private var gridCanvas: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 16)], spacing: 16) {
+            ForEach(model.canvasItems) { item in
+                switch item {
+                case .folder(let folder):
+                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
+                        .modifier(FolderDropTarget(model: model, folder: folder))
+                case .object(let object):
+                    ObjectCard(
+                        object: object,
+                        isSelected: model.selection.contains(object.id),
+                        onOpen: { open(object) },
+                        onSelect: { select(object, modifiers: $0) }
+                    )
+                    .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
+                                                 select: { select(object, modifiers: $0) },
+                                                 newCollection: startNewCollection))
+                }
+            }
+        }
+        .padding(20)
+    }
+
+    private var masonryCanvas: some View {
+        MasonryLayout(minimumColumnWidth: 168, spacing: 14) {
+            ForEach(model.canvasItems) { item in
+                switch item {
+                case .folder(let folder):
+                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
+                        .modifier(FolderDropTarget(model: model, folder: folder))
+                case .object(let object):
+                    ObjectMasonryCard(object: object, isSelected: model.selection.contains(object.id))
+                        .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
+                                                     select: { select(object, modifiers: $0) },
+                                                     newCollection: startNewCollection))
+                }
+            }
+        }
+        .padding(20)
+    }
+
+    private var listCanvas: some View {
+        LazyVStack(spacing: 1) {
+            ForEach(model.canvasItems) { item in
+                switch item {
+                case .folder(let folder):
+                    FolderListRow(folder: folder)
+                        .onTapGesture(count: 2) { model.scope = .folder(folder.id) }
+                        .modifier(FolderDropTarget(model: model, folder: folder))
+                case .object(let object):
+                    ObjectListRow(object: object, isSelected: model.selection.contains(object.id))
+                        .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
+                                                     select: { select(object, modifiers: $0) },
+                                                     newCollection: startNewCollection))
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 
     private var dropIndicator: some View {
@@ -102,19 +163,41 @@ struct BrowseView: View {
     private var toolbarContent: some ToolbarContent {
         if model.previewedObjectID == nil {
             ToolbarItem {
+                Picker("View", selection: viewModeBinding) {
+                    ForEach(LibraryViewMode.allCases) { mode in
+                        Label(mode.displayName, systemImage: mode.symbolName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+            }
+
+            ToolbarItem {
                 Menu {
                     Picker("Sort By", selection: sortFieldBinding) {
                         ForEach(sortFields, id: \.self) { field in
                             Text(field.displayName).tag(field)
                         }
                     }
-                    Divider()
                     Picker("Order", selection: sortAscendingBinding) {
                         Text("Ascending").tag(true)
                         Text("Descending").tag(false)
                     }
+
+                    Divider()
+                    Toggle("Folders First", isOn: foldersFirstBinding)
+
+                    Divider()
+                    // A change stays temporary unless the user says otherwise,
+                    // so no location quietly acquires a permanent exception.
+                    if model.canRememberLocation {
+                        Toggle("Remember for This Location", isOn: rememberBinding)
+                    }
+                    Button("Use as Default Everywhere") {
+                        model.useCurrentPreferencesAsDefault()
+                    }
                 } label: {
-                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                    Label("View Options", systemImage: "arrow.up.arrow.down")
                 }
             }
 
@@ -136,21 +219,52 @@ struct BrowseView: View {
         return fields
     }
 
+    // MARK: Bindings
+
+    private var viewModeBinding: Binding<LibraryViewMode> {
+        Binding(get: { model.viewMode },
+                set: { mode in Task { await model.setViewMode(mode) } })
+    }
+
     private var sortFieldBinding: Binding<ObjectSortField> {
         Binding(get: { model.sort.field },
-                set: { model.sort = ObjectSort(field: $0, ascending: model.sort.ascending) })
+                set: { field in
+                    Task { await model.setSort(ObjectSort(field: field, ascending: model.sort.ascending)) }
+                })
     }
 
     private var sortAscendingBinding: Binding<Bool> {
         Binding(get: { model.sort.ascending },
-                set: { model.sort = ObjectSort(field: model.sort.field, ascending: $0) })
+                set: { ascending in
+                    Task { await model.setSort(ObjectSort(field: model.sort.field, ascending: ascending)) }
+                })
+    }
+
+    private var foldersFirstBinding: Binding<Bool> {
+        Binding(get: { model.foldersFirst },
+                set: { value in Task { await model.setFoldersFirst(value) } })
+    }
+
+    private var rememberBinding: Binding<Bool> {
+        Binding(get: { model.isRememberingLocation },
+                set: { value in Task { await model.setRememberingLocation(value) } })
+    }
+
+    private var newCollectionBinding: Binding<Bool> {
+        Binding(get: { newCollectionTargets != nil },
+                set: { if !$0 { newCollectionTargets = nil } })
     }
 
     // MARK: Actions
 
+    private func startNewCollection(with ids: [ObjectID]) {
+        draftCollectionName = ""
+        newCollectionTargets = ids
+    }
+
     private func open(_ object: ObjectSnapshot) {
-        // A link is a pointer to the live web, not stored content, so it opens
-        // where the user's browsing actually happens.
+        // A link points at the live web rather than at stored content, so it
+        // opens where the user's browsing actually happens.
         if object.kind == .link, let url = object.sourceURL {
             OpenExternally.open(url)
             return
@@ -181,12 +295,6 @@ struct BrowseView: View {
         return Set(ids[min(start, end)...max(start, end)])
     }
 
-    /// Acting on an unselected item should act on that item, not on a stale
-    /// selection somewhere else in the grid.
-    private func contextTargets(for object: ObjectSnapshot) -> [ObjectSnapshot] {
-        model.selection.contains(object.id) ? model.selectedObjects : [object]
-    }
-
     // MARK: Copy
 
     private var title: String {
@@ -211,6 +319,7 @@ struct BrowseView: View {
         case .inbox: return "Inbox Zero"
         case .favorites: return "No Favorites"
         case .recentlyDeleted: return "Nothing Deleted"
+        case .collection: return "Empty Collection"
         default: return "Nothing Here Yet"
         }
     }
@@ -221,6 +330,7 @@ struct BrowseView: View {
         case .inbox: return "tray"
         case .favorites: return "star"
         case .recentlyDeleted: return "trash"
+        case .collection: return "rectangle.stack"
         default: return "square.grid.2x2"
         }
     }
@@ -233,7 +343,73 @@ struct BrowseView: View {
         case .inbox: return "Anything you import without choosing a folder waits here."
         case .favorites: return "Items you favorite show up here."
         case .recentlyDeleted: return "Deleted items stay here for 30 days before they're removed."
+        case .collection: return "Drag items here, or use Add to Collection, to gather them without moving them."
         default: return "Drag files in, or import them, to get started."
+        }
+    }
+}
+
+/// Selection, opening, dragging, reordering and the context menu — applied
+/// identically in all three view modes so behaviour never depends on layout.
+struct ObjectItemBehavior: ViewModifier {
+    let model: LibraryModel
+    let object: ObjectSnapshot
+    let open: () -> Void
+    let select: (EventModifiers) -> Void
+    let newCollection: ([ObjectID]) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onTapGesture(count: 2) { open() }
+            .onTapGesture { select([]) }
+            #if os(macOS)
+            .simultaneousGesture(TapGesture().modifiers(.command).onEnded { select(.command) })
+            .simultaneousGesture(TapGesture().modifiers(.shift).onEnded { select(.shift) })
+            #endif
+            .contextMenu {
+                ObjectMenu(model: model, objects: targets, newCollection: newCollection)
+            }
+            .draggable(ObjectTransfer(id: object.id))
+            .modifier(ManualReorderTarget(model: model, object: object))
+    }
+
+    private var targets: [ObjectSnapshot] {
+        model.selection.contains(object.id) ? model.selectedObjects : [object]
+    }
+}
+
+/// In a manually ordered collection, dropping one item onto another moves it
+/// ahead of that item. Elsewhere there is no manual order to rearrange.
+private struct ManualReorderTarget: ViewModifier {
+    let model: LibraryModel
+    let object: ObjectSnapshot
+
+    private var isActive: Bool {
+        if case .collection = model.scope { return model.sort.field == .manual }
+        return false
+    }
+
+    func body(content: Content) -> some View {
+        if isActive {
+            content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                Task { await model.reorder(transfers.map(\.id), before: object.id) }
+                return true
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Dropping objects on a folder relocates them: this is the true hierarchy.
+struct FolderDropTarget: ViewModifier {
+    let model: LibraryModel
+    let folder: FolderSnapshot
+
+    func body(content: Content) -> some View {
+        content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
+            Task { await model.move(transfers.map(\.id), to: folder.id) }
+            return true
         }
     }
 }

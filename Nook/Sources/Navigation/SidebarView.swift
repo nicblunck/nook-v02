@@ -7,9 +7,10 @@ import NookLibrary
 /// Objects never appear here — the sidebar names places, not things.
 struct SidebarView: View {
     @Bindable var model: LibraryModel
-    @State private var renamingFolder: FolderSnapshot?
-    @State private var isCreatingFolder = false
+
+    @State private var namingPrompt: NamingPrompt?
     @State private var draftName = ""
+    @State private var editingAppearance: AppearanceTarget?
 
     var body: some View {
         List(selection: selectionBinding) {
@@ -22,9 +23,7 @@ struct SidebarView: View {
 
             Section("Folders") {
                 if model.folderTree.isEmpty {
-                    Text("No folders yet")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
+                    Text("No folders yet").font(.callout).foregroundStyle(.tertiary)
                 } else {
                     OutlineGroup(model.folderTree, children: \.outlineChildren) { node in
                         folderRow(node.folder)
@@ -32,16 +31,12 @@ struct SidebarView: View {
                 }
             }
 
-            if !model.collections.isEmpty {
-                Section("Collections") {
+            Section("Collections") {
+                if model.collections.isEmpty {
+                    Text("No collections yet").font(.callout).foregroundStyle(.tertiary)
+                } else {
                     ForEach(model.collections) { collection in
-                        Label {
-                            Text(collection.name)
-                        } icon: {
-                            Image(systemName: collection.appearance.symbolName ?? "rectangle.stack")
-                                .foregroundStyle(Color(hex: collection.appearance.colorHex) ?? .accentColor)
-                        }
-                        .tag(LibraryScope.collection(collection.id))
+                        collectionRow(collection)
                     }
                 }
             }
@@ -56,15 +51,7 @@ struct SidebarView: View {
             if !model.tags.isEmpty {
                 Section("Tags") {
                     ForEach(model.tags) { tag in
-                        Label {
-                            Text(tag.name)
-                            Spacer()
-                            Text("\(tag.objectCount)").foregroundStyle(.tertiary)
-                        } icon: {
-                            Image(systemName: tag.appearance.symbolName ?? "tag")
-                                .foregroundStyle(Color(hex: tag.appearance.colorHex) ?? .secondary)
-                        }
-                        .tag(LibraryScope.tag(tag.id))
+                        tagRow(tag)
                     }
                 }
             }
@@ -77,29 +64,28 @@ struct SidebarView: View {
         .navigationTitle("Nook")
         .toolbar {
             ToolbarItem {
-                Button("New Folder", systemImage: "folder.badge.plus") {
-                    draftName = ""
-                    isCreatingFolder = true
+                Menu {
+                    Button("New Folder…", systemImage: "folder.badge.plus") {
+                        prompt(.newFolder(parent: currentFolderID), initial: "")
+                    }
+                    Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
+                        prompt(.newCollection, initial: "")
+                    }
+                } label: {
+                    Label("New", systemImage: "plus")
                 }
             }
         }
-        .alert("New Folder", isPresented: $isCreatingFolder) {
-            TextField("Name", text: $draftName)
+        .alert(namingPrompt?.title ?? "", isPresented: namingBinding) {
+            TextField(namingPrompt?.placeholder ?? "Name", text: $draftName)
             Button("Cancel", role: .cancel) {}
-            Button("Create") {
-                let name = draftName
-                Task { await model.createFolder(named: name) }
-            }
+            Button(namingPrompt?.confirmTitle ?? "Save") { commitNaming() }
         } message: {
-            Text(newFolderDestinationDescription)
+            if let message = namingPrompt?.message { Text(message) }
         }
-        .alert("Rename Folder", isPresented: renamingBinding) {
-            TextField("Name", text: $draftName)
-            Button("Cancel", role: .cancel) {}
-            Button("Rename") {
-                guard let folder = renamingFolder else { return }
-                let name = draftName
-                Task { await model.rename(folder: folder.id, to: name) }
+        .sheet(item: $editingAppearance) { target in
+            AppearanceEditor(title: target.title, appearance: target.appearance) { appearance in
+                Task { await model.setAppearance(appearance, for: target.reference) }
             }
         }
     }
@@ -130,54 +116,189 @@ struct SidebarView: View {
                 }
             }
         } icon: {
-            Image(systemName: folder.appearance.symbolName ?? "folder")
-                .foregroundStyle(Color(hex: folder.appearance.colorHex) ?? .accentColor)
+            EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
         }
         .tag(LibraryScope.folder(folder.id))
         .contextMenu {
-            Button("Rename…") {
-                draftName = folder.name
-                renamingFolder = folder
-            }
-            Button("New Subfolder…") {
-                draftName = ""
-                model.scope = .folder(folder.id)
-                isCreatingFolder = true
+            Button("Rename…") { prompt(.renameFolder(folder.id), initial: folder.name) }
+            Button("New Subfolder…") { prompt(.newFolder(parent: folder.id), initial: "") }
+            Button("Customize…") {
+                editingAppearance = AppearanceTarget(
+                    reference: .folder(folder.id), title: folder.name, appearance: folder.appearance
+                )
             }
             Divider()
             Button("Delete Folder", role: .destructive) {
                 Task { await model.deleteFolder(folder.id) }
             }
         }
-        // Dropping objects onto a folder moves them; this is the true
-        // hierarchy, so the move is a real relocation.
+        // Dropping objects onto a folder moves them: this is the true
+        // hierarchy, so the drop is a real relocation.
         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
             Task { await model.move(transfers.map(\.id), to: folder.id) }
             return true
         }
     }
 
+    private func collectionRow(_ collection: CollectionSnapshot) -> some View {
+        Label {
+            HStack {
+                Text(collection.name)
+                if collection.memberCount > 0 {
+                    Spacer()
+                    Text("\(collection.memberCount)").foregroundStyle(.tertiary).monospacedDigit()
+                }
+            }
+        } icon: {
+            EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
+        }
+        .tag(LibraryScope.collection(collection.id))
+        .contextMenu {
+            Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
+            Button("Customize…") {
+                editingAppearance = AppearanceTarget(
+                    reference: .collection(collection.id),
+                    title: collection.name,
+                    appearance: collection.appearance
+                )
+            }
+            Divider()
+            Button("Delete Collection", role: .destructive) {
+                Task { await model.deleteCollection(collection.id) }
+            }
+        }
+        // A drop here adds a membership. Nothing moves.
+        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+            Task { await model.addToCollection(collection.id, objects: transfers.map(\.id)) }
+            return true
+        }
+    }
+
+    private func tagRow(_ tag: TagSnapshot) -> some View {
+        Label {
+            HStack {
+                Text(tag.name)
+                Spacer()
+                Text("\(tag.objectCount)").foregroundStyle(.tertiary).monospacedDigit()
+            }
+        } icon: {
+            EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
+        }
+        .tag(LibraryScope.tag(tag.id))
+        .contextMenu {
+            Button("Rename…") { prompt(.renameTag(tag.id), initial: tag.name) }
+            Button("Customize…") {
+                editingAppearance = AppearanceTarget(
+                    reference: .tag(tag.id), title: tag.name, appearance: tag.appearance
+                )
+            }
+            Divider()
+            Button("Delete Tag", role: .destructive) {
+                Task { await model.deleteTag(tag.id) }
+            }
+        }
+        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+            Task { await model.addTag(tag.name, to: transfers.map(\.id)) }
+            return true
+        }
+    }
+
+    // MARK: Naming
+
+    private func prompt(_ kind: NamingPrompt, initial: String) {
+        draftName = initial
+        namingPrompt = kind
+    }
+
+    private func commitNaming() {
+        guard let namingPrompt else { return }
+        let name = draftName
+        Task {
+            switch namingPrompt {
+            case .newFolder(let parent):
+                await model.createFolder(named: name, in: parent)
+            case .renameFolder(let id):
+                await model.rename(folder: id, to: name)
+            case .newCollection:
+                await model.createCollection(named: name)
+            case .renameCollection(let id):
+                await model.renameCollection(id, to: name)
+            case .renameTag(let id):
+                await model.renameTag(id, to: name)
+            }
+        }
+    }
+
+    private var currentFolderID: FolderID? {
+        if case .folder(let id) = model.scope { return id }
+        return nil
+    }
+
     // MARK: Bindings
 
     private var selectionBinding: Binding<LibraryScope?> {
-        Binding(
-            get: { model.scope },
-            set: { if let value = $0 { model.scope = value } }
-        )
+        Binding(get: { model.scope }, set: { if let value = $0 { model.scope = value } })
     }
 
-    private var renamingBinding: Binding<Bool> {
-        Binding(
-            get: { renamingFolder != nil },
-            set: { if !$0 { renamingFolder = nil } }
-        )
+    private var namingBinding: Binding<Bool> {
+        Binding(get: { namingPrompt != nil }, set: { if !$0 { namingPrompt = nil } })
     }
+}
 
-    private var newFolderDestinationDescription: String {
-        if case .folder(let id) = model.scope,
-           let parent = model.allFolders.first(where: { $0.folder.id == id })?.folder {
-            return "Inside “\(parent.name)”."
+/// The rename/create prompts the sidebar can raise.
+private enum NamingPrompt: Identifiable {
+    case newFolder(parent: FolderID?)
+    case renameFolder(FolderID)
+    case newCollection
+    case renameCollection(CollectionID)
+    case renameTag(TagID)
+
+    var id: String {
+        switch self {
+        case .newFolder(let parent): "newFolder-\(parent?.description ?? "root")"
+        case .renameFolder(let id): "renameFolder-\(id)"
+        case .newCollection: "newCollection"
+        case .renameCollection(let id): "renameCollection-\(id)"
+        case .renameTag(let id): "renameTag-\(id)"
         }
-        return "At the top level of your library."
     }
+
+    var title: String {
+        switch self {
+        case .newFolder: "New Folder"
+        case .renameFolder: "Rename Folder"
+        case .newCollection: "New Collection"
+        case .renameCollection: "Rename Collection"
+        case .renameTag: "Rename Tag"
+        }
+    }
+
+    var confirmTitle: String {
+        switch self {
+        case .newFolder, .newCollection: "Create"
+        default: "Rename"
+        }
+    }
+
+    var placeholder: String { "Name" }
+
+    var message: String? {
+        switch self {
+        case .newFolder(let parent):
+            parent == nil ? "At the top level of your library." : "Inside the selected folder."
+        case .newCollection:
+            "Collections gather items from anywhere without moving them."
+        default:
+            nil
+        }
+    }
+}
+
+/// The entity whose appearance is being edited.
+struct AppearanceTarget: Identifiable {
+    let reference: LibraryReference
+    let title: String
+    let appearance: EntityAppearance
+
+    var id: UUID { reference.uuid }
 }

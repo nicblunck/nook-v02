@@ -83,9 +83,7 @@ struct FolderCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill((Color(hex: folder.appearance.colorHex) ?? .accentColor).opacity(0.14))
-                Image(systemName: folder.appearance.symbolName ?? "folder.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(Color(hex: folder.appearance.colorHex) ?? .accentColor)
+                EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 34)
             }
             .frame(height: 132)
             .frame(maxWidth: .infinity)

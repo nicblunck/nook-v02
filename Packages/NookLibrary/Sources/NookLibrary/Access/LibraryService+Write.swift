@@ -227,6 +227,14 @@ public extension LibraryService {
         try didMutate()
     }
 
+    func setAppearance(_ appearance: EntityAppearance, forTag id: TagID) throws {
+        guard let target = tag(withIdentifier: id.uuid) else { throw LibraryError.tagNotFound(id) }
+        target.colorHex = appearance.colorHex
+        target.symbolName = appearance.symbolName
+        target.emoji = appearance.emoji
+        try didMutate()
+    }
+
     func deleteTag(_ id: TagID) throws {
         guard let target = tag(withIdentifier: id.uuid) else { throw LibraryError.tagNotFound(id) }
         context.delete(target)

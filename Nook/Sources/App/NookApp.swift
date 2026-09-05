@@ -3,11 +3,13 @@ import NookLibrary
 
 @main
 struct NookApp: App {
+    @State private var settings = AppSettings()
     @State private var loader = LibraryLoader()
 
     var body: some Scene {
         WindowGroup {
-            RootView(loader: loader)
+            RootView(loader: loader, settings: settings)
+                .tint(settings.accentColor)
             #if os(macOS)
                 .frame(minWidth: 860, minHeight: 560)
             #endif
@@ -31,14 +33,14 @@ final class LibraryLoader {
 
     private(set) var state: State = .loading
 
-    func load() async {
+    func load(settings: AppSettings) async {
         guard case .loading = state else { return }
         do {
             let locations = try LibraryLocations.applicationDefault()
             let library = try await Library.bootstrap(locations: locations)
             // Objects past their retention window go now rather than lingering.
             try? await library.service.purgeExpiredDeletions()
-            let model = LibraryModel(library: library)
+            let model = LibraryModel(library: library, settings: settings)
             await model.refreshAll()
             state = .ready(model)
         } catch {
@@ -49,6 +51,7 @@ final class LibraryLoader {
 
 struct RootView: View {
     let loader: LibraryLoader
+    let settings: AppSettings
 
     var body: some View {
         Group {
@@ -65,6 +68,6 @@ struct RootView: View {
                 )
             }
         }
-        .task { await loader.load() }
+        .task { await loader.load(settings: settings) }
     }
 }

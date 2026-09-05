@@ -20,6 +20,13 @@ public final class Folder {
     public var symbolName: String?
     public var emoji: String?
 
+    // MARK: Remembered presentation
+    //
+    // Nil means this folder has no opinion and follows the global default.
+    // A value only appears once the user explicitly asks to remember it.
+
+    public var rememberedPreferencesData: Data?
+
     // MARK: Privacy
 
     /// Folder privacy inherits down the true hierarchy and reaches descendants

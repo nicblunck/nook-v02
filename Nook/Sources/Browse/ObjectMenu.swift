@@ -6,6 +6,7 @@ import NookLibrary
 struct ObjectMenu: View {
     let model: LibraryModel
     let objects: [ObjectSnapshot]
+    var newCollection: (([ObjectID]) -> Void)?
 
     private var ids: [ObjectID] { objects.map(\.id) }
     private var isDeletedScope: Bool { model.scope == .recentlyDeleted }
@@ -43,6 +44,27 @@ struct ObjectMenu: View {
                             Task { await model.move(ids, to: entry.folder.id) }
                         }
                     }
+                }
+            }
+
+            // Adding to a collection never changes where an object lives, which
+            // is why this is a separate action from Move To rather than a mode
+            // of it.
+            Menu("Add to Collection", systemImage: "rectangle.stack.badge.plus") {
+                if let newCollection {
+                    Button("New Collection…") { newCollection(ids) }
+                    if !model.collections.isEmpty { Divider() }
+                }
+                ForEach(model.collections) { collection in
+                    Button(collection.name) {
+                        Task { await model.addToCollection(collection.id, objects: ids) }
+                    }
+                }
+            }
+
+            if case .collection(let id) = model.scope {
+                Button("Remove from Collection", systemImage: "minus.circle") {
+                    Task { await model.removeFromCollection(id, objects: ids) }
                 }
             }
 
