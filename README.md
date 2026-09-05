@@ -33,6 +33,7 @@ Nook/ShareExtension    iOS share sheet, writing into the same library
 | `Access/`  | `LibraryService` — the Library Access API                             |
 | `Import/`  | Classification and file-metadata extraction                           |
 | `Search/`  | Text extraction feeding the derived store                             |
+| `Intelligence/` | The read-only tool surface and the provider abstraction          |
 
 Three decisions shape everything else:
 
@@ -52,6 +53,19 @@ snapshot simply arrives without its blob, filename or notes.
 optionals everywhere, optional relationships with explicit inverses — so
 turning on mirroring later is a configuration change, not a migration.
 
+### External access
+
+`LibraryToolSurface` is the one surface external consumers talk to — an MCP
+adapter, an on-device model, a hosted one. It is read-only by construction
+rather than by policy: there are no write operations to call. Every result
+comes back through `LibraryService`, so the privacy broker has already run, and
+digests deliberately carry no filesystem paths — a path is useless to a model
+and a way around the library's own rules.
+
+`IntelligenceProvider` keeps any single vendor from becoming the permanent
+interface. Providers declare whether they process content remotely, because the
+user is entitled to know that before choosing one.
+
 ## Not on yet
 
 **iCloud sync** is a one-line switch — `Library.bootstrap(locations:syncMode:)` —
@@ -64,6 +78,10 @@ would cover the metadata store only; originals stay behind `BlobStore`.
 extension to write into the app's library. Until it does, both fall back to
 their own Application Support directory and the extension saves somewhere the
 app cannot see.
+
+**No intelligence provider is implemented.** The abstraction and the tool
+surface are built and tested; nothing plugs into them yet. That ordering is the
+spec's: the library has to be useful on its own before it is useful to a model.
 
 **Hidden and Locked have no UI.** Enforcement is built and tested throughout,
 but nothing yet raises the access context above `.standard`, so there is no way

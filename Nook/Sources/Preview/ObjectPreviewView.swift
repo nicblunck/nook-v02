@@ -43,6 +43,7 @@ struct ObjectPreviewView: View {
                 DocumentPreview(url: resolvedURL)
             case .file, .link:
                 GenericPreview(object: object, url: resolvedURL)
+                    .id(resolvedURL)
             }
         } else {
             ProgressView().controlSize(.large)
@@ -160,17 +161,28 @@ private struct MediaPreview: View {
     }
 }
 
+/// Anything without a reader of its own falls through to Quick Look, which
+/// covers most documents. Only a type Quick Look cannot render either shows a
+/// placeholder.
 private struct GenericPreview: View {
     let object: ObjectSnapshot
     let url: URL
 
     var body: some View {
-        ContentUnavailableView {
-            Label(object.title, systemImage: object.kind.symbolName)
-        } description: {
-            Text(Format.caption(for: object))
-        } actions: {
-            Button("Open in Default App") { OpenExternally.open(url) }
+        if canPreview {
+            QuickLookPreview(url: url)
+        } else {
+            ContentUnavailableView {
+                Label(object.title, systemImage: object.kind.symbolName)
+            } description: {
+                Text(Format.caption(for: object))
+            } actions: {
+                Button("Open in Default App") { OpenExternally.open(url) }
+            }
         }
+    }
+
+    private var canPreview: Bool {
+        QuickLookPreview.canPreview(url)
     }
 }
