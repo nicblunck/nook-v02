@@ -143,8 +143,21 @@ public extension LibraryService {
 
     // MARK: Counts
 
+    /// How many objects a scope holds, for the sidebar's badges.
+    ///
+    /// Counting resolves privacy but stops there — building a snapshot walks
+    /// an object's tags, collection memberships and blob, which is a great deal
+    /// of work to then discard and only keep the tally of.
     func objectCount(in scope: LibraryScope, access: AccessContext = .standard) -> Int {
-        objects(matching: ObjectQuery(scope: scope), in: access).count
+        candidateObjects(for: scope).count { object in
+            if scope.showsDeleted {
+                guard object.deletedAt != nil else { return false }
+            } else {
+                guard object.deletedAt == nil else { return false }
+            }
+            let privacy = PrivacyResolver.effectivePrivacy(of: object)
+            return broker.allowsDiscovery(of: privacy, in: access)
+        }
     }
 }
 

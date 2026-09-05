@@ -8,56 +8,92 @@ struct LibraryWindow: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     private var navigator: AppNavigator { .shared }
 
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+
     var body: some View {
+        shell
+            .environment(\.thumbnailLoader, model.library.thumbnails)
+            .alert(item: $model.alert) { alert in
+                Alert(title: Text(alert.title), message: Text(alert.message))
+            }
+            .overlay(alignment: .bottom) {
+                if let progress = model.importProgress {
+                    ImportProgressBar(progress: progress)
+                        .padding()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.smooth(duration: 0.25), value: model.importProgress?.completed)
+            // Global Search floats above whatever is on screen; it does not
+            // navigate the canvas to get there.
+            .overlay {
+                if model.isGlobalSearchPresented {
+                    ZStack {
+                        Color.black.opacity(0.18)
+                            .ignoresSafeArea()
+                            .onTapGesture { model.isGlobalSearchPresented = false }
+                        GlobalSearchView(model: model) {
+                            model.isGlobalSearchPresented = false
+                        }
+                        .padding(40)
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .animation(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
+            .sheet(isPresented: $model.isSettingsPresented) {
+                NavigationStack { SettingsView(settings: model.settings) }
+            }
+            .modifier(NamingPromptModifier(model: model))
+            .focusedSceneValue(\.libraryModel, model)
+            // Picks up whatever an intent asked for, including a request that
+            // arrived while the app was still launching.
+            .task(id: navigator.pending) {
+                guard let request = navigator.take() else { return }
+                await model.handle(request)
+            }
+            .environment(model)
+    }
+
+    @ViewBuilder
+    private var shell: some View {
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            CompactLibraryView(model: model)
+        } else {
+            splitView
+        }
+        #else
+        splitView
+        #endif
+    }
+
+    private var splitView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(model: model)
             #if os(macOS)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
             #endif
         } detail: {
-            BrowseView(model: model)
+            if model.isShowingHome {
+                HomeView(model: model)
+            } else {
+                BrowseView(model: model)
+            }
         }
-        .environment(\.thumbnailLoader, model.library.thumbnails)
-        .inspector(isPresented: $model.isInspectorPresented) {
+        .inspector(isPresented: inspectorBinding) {
             InfoPanel(model: model)
                 .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
         }
-        .alert(item: $model.alert) { alert in
-            Alert(title: Text(alert.title), message: Text(alert.message))
-        }
-        .overlay(alignment: .bottom) {
-            if let progress = model.importProgress {
-                ImportProgressBar(progress: progress)
-                    .padding()
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.smooth(duration: 0.25), value: model.importProgress?.completed)
-        // Global Search floats above whatever is on screen; it does not
-        // navigate the canvas to get there.
-        .overlay {
-            if model.isGlobalSearchPresented {
-                ZStack {
-                    Color.black.opacity(0.18)
-                        .ignoresSafeArea()
-                        .onTapGesture { model.isGlobalSearchPresented = false }
-                    GlobalSearchView(model: model) {
-                        model.isGlobalSearchPresented = false
-                    }
-                    .padding(40)
-                }
-                .transition(.opacity)
-            }
-        }
-        .animation(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
-        .focusedSceneValue(\.libraryModel, model)
-        // Picks up whatever an intent asked for, including a request that
-        // arrived while the app was still launching.
-        .task(id: navigator.pending) {
-            guard let request = navigator.take() else { return }
-            await model.handle(request)
-        }
-        .environment(model)
+    }
+
+    /// The inspector is a side panel here; on iPhone the same content comes up
+    /// as a sheet instead.
+    private var inspectorBinding: Binding<Bool> {
+        Binding(get: { model.isInspectorPresented },
+                set: { model.isInspectorPresented = $0 })
     }
 }
 

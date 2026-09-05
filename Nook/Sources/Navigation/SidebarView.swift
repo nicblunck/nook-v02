@@ -8,12 +8,13 @@ import NookLibrary
 struct SidebarView: View {
     @Bindable var model: LibraryModel
 
-    @State private var draftName = ""
     @State private var editingAppearance: AppearanceTarget?
 
     var body: some View {
         List(selection: selectionBinding) {
             Section("Library") {
+                Label("Home", systemImage: "house")
+                    .tag(LibraryDestination.home)
                 systemRow(.inbox, title: "Inbox", symbol: "tray", count: model.counts[.inbox])
                 systemRow(.recent, title: "Recent", symbol: "clock")
                 systemRow(.favorites, title: "Favorites", symbol: "star", count: model.counts[.favorites])
@@ -43,7 +44,7 @@ struct SidebarView: View {
             Section("Media Types") {
                 ForEach(ObjectKind.mediaTypes) { kind in
                     Label(kind.pluralDisplayName, systemImage: kind.symbolName)
-                        .tag(LibraryScope.kind(kind))
+                        .tag(LibraryDestination.scope(.kind(kind)))
                 }
             }
 
@@ -75,14 +76,6 @@ struct SidebarView: View {
                 }
             }
         }
-        .alert(model.namingPrompt?.title ?? "", isPresented: namingBinding) {
-            TextField("Name", text: $draftName)
-            Button("Cancel", role: .cancel) {}
-            Button(model.namingPrompt?.confirmTitle ?? "Save") { commitNaming() }
-        } message: {
-            if let message = model.namingPrompt?.message { Text(message) }
-        }
-        .onChange(of: model.namingPrompt?.id) { draftName = model.namingPrompt.map(initialName) ?? "" }
         .sheet(item: $editingAppearance) { target in
             AppearanceEditor(title: target.title, appearance: target.appearance) { appearance in
                 Task { await model.setAppearance(appearance, for: target.reference) }
@@ -104,7 +97,7 @@ struct SidebarView: View {
         } icon: {
             Image(systemName: symbol)
         }
-        .tag(scope)
+        .tag(LibraryDestination.scope(scope))
     }
 
     private func folderRow(_ folder: FolderSnapshot) -> some View {
@@ -118,7 +111,7 @@ struct SidebarView: View {
         } icon: {
             EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
         }
-        .tag(LibraryScope.folder(folder.id))
+        .tag(LibraryDestination.scope(.folder(folder.id)))
         .contextMenu {
             Button("Rename…") { prompt(.renameFolder(folder.id), initial: folder.name) }
             Button("New Subfolder…") { prompt(.newFolder(parent: folder.id), initial: "") }
@@ -152,7 +145,7 @@ struct SidebarView: View {
         } icon: {
             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
         }
-        .tag(LibraryScope.collection(collection.id))
+        .tag(LibraryDestination.scope(.collection(collection.id)))
         .contextMenu {
             Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
             Button("Customize…") {
@@ -184,7 +177,7 @@ struct SidebarView: View {
         } icon: {
             EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
         }
-        .tag(LibraryScope.tag(tag.id))
+        .tag(LibraryDestination.scope(.tag(tag.id)))
         .contextMenu {
             Button("Rename…") { prompt(.renameTag(tag.id), initial: tag.name) }
             Button("Customize…") {
@@ -206,54 +199,27 @@ struct SidebarView: View {
     // MARK: Naming
 
     private func prompt(_ kind: NamingPrompt, initial: String) {
-        draftName = initial
         model.namingPrompt = kind
-    }
-
-    /// The menu bar can raise a prompt too, so the field seeds itself from the
-    /// prompt rather than from whoever opened it.
-    private func initialName(for prompt: NamingPrompt) -> String {
-        switch prompt {
-        case .renameFolder(let id):
-            model.allFolders.first { $0.folder.id == id }?.folder.name ?? ""
-        case .renameCollection(let id):
-            model.collections.first { $0.id == id }?.name ?? ""
-        case .renameTag(let id):
-            model.tags.first { $0.id == id }?.name ?? ""
-        case .newFolder, .newCollection:
-            ""
-        }
-    }
-
-    private func commitNaming() {
-        guard let prompt = model.namingPrompt else { return }
-        let name = draftName
-        Task {
-            switch prompt {
-            case .newFolder(let parent):
-                await model.createFolder(named: name, in: parent)
-            case .renameFolder(let id):
-                await model.rename(folder: id, to: name)
-            case .newCollection:
-                await model.createCollection(named: name)
-            case .renameCollection(let id):
-                await model.renameCollection(id, to: name)
-            case .renameTag(let id):
-                await model.renameTag(id, to: name)
-            }
-        }
     }
 
     // MARK: Bindings
 
-    private var selectionBinding: Binding<LibraryScope?> {
-        Binding(get: { model.scope }, set: { if let value = $0 { model.scope = value } })
+    private var selectionBinding: Binding<LibraryDestination?> {
+        Binding(
+            get: { model.isShowingHome ? .home : .scope(model.scope) },
+            set: { value in
+                guard let value else { return }
+                switch value {
+                case .home:
+                    model.isShowingHome = true
+                case .scope(let scope):
+                    model.isShowingHome = false
+                    model.scope = scope
+                }
+            }
+        )
     }
 
-    private var namingBinding: Binding<Bool> {
-        Binding(get: { model.namingPrompt != nil },
-                set: { if !$0 { model.namingPrompt = nil } })
-    }
 }
 
 /// The entity whose appearance is being edited.

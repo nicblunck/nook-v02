@@ -20,6 +20,7 @@ Targets deploy to macOS 26 / iOS 26 and build with Swift 6 strict concurrency.
 ```text
 Packages/NookLibrary   the library itself — no SwiftUI anywhere in it
 Nook/Sources           the SwiftUI app, which only talks to NookLibrary
+Nook/ShareExtension    iOS share sheet, writing into the same library
 ```
 
 ### NookLibrary
@@ -31,6 +32,7 @@ Nook/Sources           the SwiftUI app, which only talks to NookLibrary
 | `Privacy/` | The privacy broker and folder-inheritance resolver                    |
 | `Access/`  | `LibraryService` — the Library Access API                             |
 | `Import/`  | Classification and file-metadata extraction                           |
+| `Search/`  | Text extraction feeding the derived store                             |
 
 Three decisions shape everything else:
 
@@ -49,6 +51,24 @@ snapshot simply arrives without its blob, filename or notes.
 **The schema is already CloudKit-shaped.** No unique constraints, defaults or
 optionals everywhere, optional relationships with explicit inverses — so
 turning on mirroring later is a configuration change, not a migration.
+
+## Not on yet
+
+**iCloud sync** is a one-line switch — `Library.bootstrap(locations:syncMode:)` —
+rather than a migration, because the schema has been CloudKit-shaped from the
+start. Turning it on needs a CloudKit container provisioned under the developer
+account plus the iCloud entitlement, so it stays `.local` until then. Mirroring
+would cover the metadata store only; originals stay behind `BlobStore`.
+
+**The app group** (`group.com.nicolasblunck.nook`) has to exist for the share
+extension to write into the app's library. Until it does, both fall back to
+their own Application Support directory and the extension saves somewhere the
+app cannot see.
+
+**Hidden and Locked have no UI.** Enforcement is built and tested throughout,
+but nothing yet raises the access context above `.standard`, so there is no way
+to hide or lock anything from the interface. That split is deliberate: the spec
+puts the architecture in the MVP and the authentication flow after it.
 
 ## Tests
 

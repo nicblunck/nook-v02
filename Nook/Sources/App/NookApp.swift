@@ -18,6 +18,14 @@ struct NookApp: App {
         #if os(macOS)
         .defaultSize(width: 1180, height: 760)
         #endif
+
+        // Settings is its own scene on the Mac, reached with the standard
+        // shortcut; iPhone and iPad present the same view as a sheet.
+        #if os(macOS)
+        Settings {
+            SettingsView(settings: settings)
+        }
+        #endif
     }
 }
 

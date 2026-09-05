@@ -29,6 +29,10 @@ final class LibraryModel {
 
     var isImporterPresented = false
     var isGlobalSearchPresented = false
+    var isSettingsPresented = false
+    /// Home is a destination rather than a query, so it sits beside the scope
+    /// rather than inside it.
+    var isShowingHome = true
     var namingPrompt: NamingPrompt?
     var searchFieldFocusRequests = 0
 
@@ -44,6 +48,7 @@ final class LibraryModel {
     private(set) var collections: [CollectionSnapshot] = []
     private(set) var tags: [TagSnapshot] = []
     private(set) var counts: [ScopeCountKey: Int] = [:]
+    private(set) var homeSections: [HomeSection] = []
 
     // MARK: Transient state
 
@@ -84,6 +89,25 @@ final class LibraryModel {
         await refreshSidebar()
         await loadPreferences()
         await refreshContents()
+        await refreshHome()
+    }
+
+    /// Home's sections. Restrained on purpose — a way back into recent work,
+    /// not a dashboard.
+    func refreshHome() async {
+        let access = accessContext
+        var sections: [HomeSection] = []
+        for definition in HomeSection.defaults {
+            let objects = await service.objects(
+                matching: ObjectQuery(scope: definition.scope,
+                                      sort: ObjectSort(field: .dateAdded, ascending: false),
+                                      limit: 12),
+                in: access
+            )
+            guard !objects.isEmpty || definition.showsWhenEmpty else { continue }
+            sections.append(HomeSection(definition: definition, objects: objects))
+        }
+        homeSections = sections
     }
 
     // MARK: Presentation
@@ -515,6 +539,38 @@ final class LibraryModel {
         guard contents.objects.indices.contains(target) else { return nil }
         return contents.objects[target]
     }
+}
+
+/// One band on the Home screen.
+struct HomeSection: Identifiable {
+    struct Definition {
+        let scope: LibraryScope
+        let title: String
+        let symbolName: String
+        let showsWhenEmpty: Bool
+    }
+
+    let definition: Definition
+    let objects: [ObjectSnapshot]
+
+    var id: LibraryScope { definition.scope }
+    var title: String { definition.title }
+    var symbolName: String { definition.symbolName }
+    var scope: LibraryScope { definition.scope }
+
+    /// The default sections. Customising which sections appear, and their
+    /// order, is deliberately left until after the core loop is stable.
+    static let defaults: [Definition] = [
+        Definition(scope: .inbox, title: "Inbox", symbolName: "tray", showsWhenEmpty: true),
+        Definition(scope: .recent, title: "Recent", symbolName: "clock", showsWhenEmpty: false)
+    ]
+}
+
+/// Where the sidebar can point. Home is not a query over objects, so it is not
+/// a scope.
+enum LibraryDestination: Hashable {
+    case home
+    case scope(LibraryScope)
 }
 
 /// A row in the canvas: a location or a thing.
