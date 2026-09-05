@@ -90,7 +90,7 @@ struct FolderCard: View {
         }
         .padding(8)
         .contentShape(.rect(cornerRadius: 12))
-        .onTapGesture(count: 2) { onOpen() }
+        .itemClick { onOpen() }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
         .accessibilityHint("Opens the folder")

@@ -155,7 +155,7 @@ struct BrowseView: View {
                 switch item {
                 case .folder(let folder):
                     FolderListRow(folder: folder)
-                        .onTapGesture(count: 2) { model.scope = .folder(folder.id) }
+                        .itemClick { model.scope = .folder(folder.id) }
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
                     ObjectListRow(object: object, isSelected: model.selection.contains(object.id))
@@ -427,12 +427,7 @@ struct ObjectItemBehavior: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // A click must not wait to learn whether it is half of a double
-            // click: selection is how the interface says the click landed.
-            // Recognised simultaneously, it fires on mouse-up instead of after
-            // the double-click interval has expired.
-            .simultaneousGesture(TapGesture().onEnded { select(.current) })
-            .onTapGesture(count: 2) { open() }
+            .itemClick(select: select, open: open)
             .contextMenu {
                 ObjectMenu(model: model, objects: targets, newCollection: newCollection)
             }

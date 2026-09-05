@@ -98,10 +98,10 @@ struct HomeView: View {
                 .strokeBorder(Color.accentColor, lineWidth: isHighlighted ? 1.5 : 0)
         }
         .contentShape(.rect(cornerRadius: 12))
-        // The same two-step as the canvas: a click says which one, a double
-        // click opens it. Home is an entry screen, not a different rulebook.
-        .simultaneousGesture(TapGesture().onEnded { highlighted = object.id })
-        .onTapGesture(count: 2) { open(object, in: section) }
+        // The same rule as the canvas. Home is an entry screen, not a
+        // different rulebook.
+        .itemClick(select: { _ in highlighted = object.id },
+                   open: { open(object, in: section) })
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         .accessibilityAddTraits(isHighlighted ? [.isButton, .isSelected] : .isButton)
