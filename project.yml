@@ -77,6 +77,24 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
+  # The library has its own suite in the package. This covers the layer above
+  # it: the view state the app keeps, which the package cannot see.
+  NookTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources: [Nook/Tests]
+    dependencies:
+      - target: Nook-macOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.tests
+        # The host's product name is Nook, not the target name, so the default
+        # TEST_HOST xcodegen derives points at a bundle that is never built.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Nook.app/Contents/MacOS/Nook"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
 schemes:
   Nook-iOS:
     build:
@@ -90,7 +108,12 @@ schemes:
     build:
       targets:
         Nook-macOS: all
+        NookTests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - NookTests
     archive:
       config: Release

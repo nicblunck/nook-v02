@@ -226,10 +226,10 @@ final class LibraryModel {
 
     private func onScopeChanged(from previous: LibraryScope) {
         guard previous != scope else { return }
-        // Opening a folder on the canvas sets the scope directly, and that is a
-        // step in its own right. A step made through `navigate(to:)`, or by
-        // going back, has already recorded whatever history it owes.
-        if !isTraversingHistory { pushHistory(.scope(previous)) }
+        // Opening a folder on the canvas sets the scope directly, and that is
+        // a step in its own right. A step made through `navigate(to:)`, or by
+        // going back, is refused by `pushHistory` while it is being applied.
+        pushHistory(.scope(previous))
         selection = []
         searchText = ""
         Task {
