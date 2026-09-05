@@ -39,6 +39,7 @@ struct BrowseView: View {
         }
         .searchFocused($isSearchFocused)
         .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
+        .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
         .fileImporter(
             isPresented: $model.isImporterPresented,
             allowedContentTypes: [.item],
@@ -46,6 +47,19 @@ struct BrowseView: View {
         ) { result in
             guard case .success(let urls) = result else { return }
             Task { await model.importFiles(at: urls) }
+        }
+        // Exporting asks for a folder rather than saving one file at a time,
+        // because a selection is as ordinary a thing to export as one item.
+        .fileImporter(
+            isPresented: $model.isExportPickerPresented,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let directory = urls.first else {
+                model.cancelExport()
+                return
+            }
+            Task { await model.completeExport(to: directory) }
         }
         #if os(iOS)
         .photosPicker(
@@ -107,12 +121,8 @@ struct BrowseView: View {
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
-                    ObjectCard(
-                        object: object,
-                        isSelected: model.selection.contains(object.id),
-                        onOpen: { open(object) },
-                        onSelect: { select(object, modifiers: $0) }
-                    )
+                    ObjectCard(object: object,
+                               isSelected: model.selection.contains(object.id))
                     .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
                                                  select: { select(object, modifiers: $0) },
                                                  newCollection: startNewCollection))
@@ -147,7 +157,7 @@ struct BrowseView: View {
                 switch item {
                 case .folder(let folder):
                     FolderListRow(folder: folder)
-                        .onTapGesture(count: 2) { model.scope = .folder(folder.id) }
+                        .itemClick { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
@@ -188,6 +198,13 @@ struct BrowseView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         if model.previewedObjectID == nil {
+            ToolbarItemGroup(placement: .navigation) {
+                Button("Back", systemImage: "chevron.backward") { model.goBack() }
+                    .disabled(!model.canGoBack)
+                Button("Forward", systemImage: "chevron.forward") { model.goForward() }
+                    .disabled(!model.canGoForward)
+            }
+
             ToolbarItem {
                 Picker("View", selection: viewModeBinding) {
                     ForEach(LibraryViewMode.allCases) { mode in
@@ -413,12 +430,7 @@ struct ObjectItemBehavior: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onTapGesture(count: 2) { open() }
-            .onTapGesture { select([]) }
-            #if os(macOS)
-            .simultaneousGesture(TapGesture().modifiers(.command).onEnded { select(.command) })
-            .simultaneousGesture(TapGesture().modifiers(.shift).onEnded { select(.shift) })
-            #endif
+            .itemClick(select: select, open: open)
             .contextMenu {
                 ObjectMenu(model: model, objects: targets, newCollection: newCollection)
             }

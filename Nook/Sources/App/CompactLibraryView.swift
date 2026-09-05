@@ -38,16 +38,15 @@ struct CompactLibraryView: View {
         .onChange(of: tab) { _, newValue in
             switch newValue {
             case .home:
-                model.isShowingHome = true
+                model.navigate(to: .home)
             case .inbox:
-                model.isShowingHome = false
-                model.scope = .inbox
+                model.navigate(to: .scope(.inbox))
             case .search:
-                model.isShowingHome = false
-                model.scope = .allObjects
+                model.navigate(to: .scope(.allObjects))
                 model.requestSearchFieldFocus()
             case .library:
-                model.isShowingHome = false
+                // The Library tab returns to whichever place was last open.
+                model.navigate(to: .scope(model.scope))
             }
         }
         // Metadata comes up as a sheet here rather than as a side panel.
@@ -169,8 +168,7 @@ struct CompactLibraryList: View {
     }
 
     private func open(_ scope: LibraryScope) async {
-        model.isShowingHome = false
-        model.scope = scope
+        model.navigate(to: .scope(scope))
         await model.loadPreferences()
         await model.refreshContents()
     }

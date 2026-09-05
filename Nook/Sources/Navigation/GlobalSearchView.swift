@@ -32,6 +32,8 @@ struct GlobalSearchView: View {
         .clipShape(.rect(cornerRadius: 14))
         .shadow(radius: 30, y: 10)
         .onAppear { isFieldFocused = true }
+        .onDisappear { model.isTextEntryFocused = false }
+        .onChange(of: isFieldFocused) { _, focused in model.isTextEntryFocused = focused }
         .onChange(of: text) { scheduleSearch() }
         .onChange(of: kinds) { scheduleSearch() }
         .onKeyPress(.escape) { dismiss(); return .handled }
@@ -189,7 +191,7 @@ struct GlobalSearchView: View {
     private func open(_ object: ObjectSnapshot) {
         dismiss()
         Task {
-            model.scope = object.folderID.map { LibraryScope.folder($0) } ?? .inbox
+            model.navigate(to: .scope(object.folderID.map { LibraryScope.folder($0) } ?? .inbox))
             await model.refreshContents()
             model.selection = [object.id]
             if object.kind == .link, let url = object.sourceURL {
