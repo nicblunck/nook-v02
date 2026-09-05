@@ -12,7 +12,29 @@ public struct LibraryLocations: Sendable {
         self.root = root
     }
 
-    /// The default location: `Application Support/<bundle id>/Library`.
+    /// The app group the app and its extensions share, so a share extension
+    /// writes into the same library the app reads.
+    public static let defaultAppGroupIdentifier = "group.com.nicolasblunck.nook"
+
+    /// The library both the app and its extensions should open.
+    ///
+    /// Falls back to this process's own Application Support directory when the
+    /// group container is unavailable — an unsigned development build, or a
+    /// group that is not provisioned yet — so the app still runs rather than
+    /// failing to launch over an entitlement.
+    public static func shared(
+        appGroupIdentifier: String? = defaultAppGroupIdentifier
+    ) throws -> LibraryLocations {
+        if let appGroupIdentifier,
+           let container = FileManager.default.containerURL(
+               forSecurityApplicationGroupIdentifier: appGroupIdentifier
+           ) {
+            return LibraryLocations(root: container.appending(path: "Library"))
+        }
+        return try applicationDefault()
+    }
+
+    /// The per-process location: `Application Support/<bundle id>/Library`.
     public static func applicationDefault(
         bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.nicolasblunck.nook"
     ) throws -> LibraryLocations {

@@ -6,6 +6,7 @@ import NookLibrary
 struct LibraryWindow: View {
     @Bindable var model: LibraryModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    private var navigator: AppNavigator { .shared }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -50,6 +51,12 @@ struct LibraryWindow: View {
         }
         .animation(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
         .focusedSceneValue(\.libraryModel, model)
+        // Picks up whatever an intent asked for, including a request that
+        // arrived while the app was still launching.
+        .task(id: navigator.pending) {
+            guard let request = navigator.take() else { return }
+            await model.handle(request)
+        }
         .environment(model)
     }
 }

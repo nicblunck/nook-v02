@@ -36,8 +36,9 @@ final class LibraryLoader {
     func load(settings: AppSettings) async {
         guard case .loading = state else { return }
         do {
-            let locations = try LibraryLocations.applicationDefault()
-            let library = try await Library.bootstrap(locations: locations)
+            // Shared, so an App Intent that ran first does not leave the app
+            // opening a second container over the same store.
+            let library = try await SharedLibrary.shared.current()
             // Objects past their retention window go now rather than lingering.
             try? await library.service.purgeExpiredDeletions()
             let model = LibraryModel(library: library, settings: settings)

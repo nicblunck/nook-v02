@@ -30,14 +30,16 @@ public struct LibraryID<Entity>: Hashable, Sendable, Codable, CustomStringConver
     }
 }
 
-public enum ObjectEntity {}
-public enum FolderEntity {}
-public enum CollectionEntity {}
-public enum TagEntity {}
-public enum BlobEntity {}
+/// Phantom tags. They exist only to keep a folder id from being passed where
+/// an object id is expected; no value of these types is ever created.
+public enum ObjectIdentity {}
+public enum FolderIdentity {}
+public enum CollectionIdentity {}
+public enum TagIdentity {}
+public enum BlobIdentity {}
 
-public typealias ObjectID = LibraryID<ObjectEntity>
-public typealias FolderID = LibraryID<FolderEntity>
-public typealias CollectionID = LibraryID<CollectionEntity>
-public typealias TagID = LibraryID<TagEntity>
-public typealias BlobID = LibraryID<BlobEntity>
+public typealias ObjectID = LibraryID<ObjectIdentity>
+public typealias FolderID = LibraryID<FolderIdentity>
+public typealias CollectionID = LibraryID<CollectionIdentity>
+public typealias TagID = LibraryID<TagIdentity>
+public typealias BlobID = LibraryID<BlobIdentity>

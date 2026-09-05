@@ -258,6 +258,31 @@ final class LibraryModel {
         await importItems(urls.map { ImportItem.file(url: $0) })
     }
 
+    // MARK: External navigation
+
+    /// Acts on a request left by an intent — or later a share extension or a
+    /// Spotlight result — that may have arrived before any window existed.
+    func handle(_ request: AppNavigator.Request) async {
+        switch request {
+        case .scope(let requested):
+            scope = requested
+            await loadPreferences()
+            await refreshContents()
+
+        case .object(let id):
+            guard let object = await library.service.object(id, in: accessContext) else { return }
+            scope = object.folderID.map { LibraryScope.folder($0) } ?? .inbox
+            await loadPreferences()
+            await refreshContents()
+            selection = [id]
+            if object.kind == .link, let url = object.sourceURL {
+                await MainActor.run { OpenExternally.open(url) }
+            } else {
+                previewedObjectID = id
+            }
+        }
+    }
+
     // MARK: Derived content
 
     /// Works through the text-extraction backlog in the background.
