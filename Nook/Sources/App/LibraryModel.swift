@@ -358,12 +358,19 @@ final class LibraryModel {
 
     // MARK: Selection
 
-    /// Raised while a text field owns the keyboard. A menu command outranks the
-    /// field editor in SwiftUI, so Select All has to stand down rather than
-    /// take the canvas out from under someone who is selecting what they typed.
+    /// Raised while a text field owns the keyboard.
     var isTextEntryFocused = false
 
-    var canSelectAll: Bool { !isTextEntryFocused && !contents.objects.isEmpty }
+    /// Whether the keyboard belongs to text rather than to the canvas.
+    ///
+    /// A menu command outranks the field editor in SwiftUI, so any command on
+    /// a plain character — or on a shortcut a field wants for itself — has to
+    /// stand down while someone is typing, or it takes the keystroke instead.
+    /// The naming prompt counts: it is an alert, but the field in it is still
+    /// a field.
+    var isTypingText: Bool { isTextEntryFocused || namingPrompt != nil }
+
+    var canSelectAll: Bool { !isTypingText && !contents.objects.isEmpty }
 
     /// Selects the objects on the canvas. Folders are places rather than
     /// things, so they are not part of a selection the batch actions can act on.

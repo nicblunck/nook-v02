@@ -189,7 +189,7 @@ struct NookCommands: Commands {
 
             Button("Deselect All") { model?.deselectAll() }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
-                .disabled(model.map { $0.isTextEntryFocused || $0.selection.isEmpty } ?? true)
+                .disabled(model.map { $0.isTypingText || $0.selection.isEmpty } ?? true)
 
             Divider()
             Button("Get Info") { model?.isInspectorPresented.toggle() }
@@ -212,7 +212,9 @@ struct NookCommands: Commands {
                 Task { await model.setFavorite(shouldFavorite, for: objects.map(\.id)) }
             }
             .keyboardShortcut(".", modifiers: [])
-            .disabled(model.map { $0.previewedObject == nil && $0.selection.isEmpty } ?? true)
+            .disabled(model.map {
+                $0.isTypingText || ($0.previewedObject == nil && $0.selection.isEmpty)
+            } ?? true)
         }
 
         CommandGroup(after: .toolbar) {

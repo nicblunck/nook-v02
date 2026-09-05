@@ -45,6 +45,29 @@ struct SelectionTests {
         #expect(model.canSelectAll)
     }
 
+    /// Favorite is bound to a bare period, the way Photos binds it. That makes
+    /// it a character before it is a shortcut, so the rename prompt has to take
+    /// it back — an alert's field is still a field.
+    @Test("A naming prompt takes the keyboard back from the canvas")
+    func namingPromptHoldsTheKeyboard() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        try await harness.importFile(named: "one.txt")
+        #expect(!model.isTypingText)
+        #expect(model.canSelectAll)
+
+        model.namingPrompt = .newFolder(parent: nil)
+        #expect(model.isTypingText)
+        #expect(!model.canSelectAll)
+
+        model.namingPrompt = nil
+        #expect(!model.isTypingText)
+        #expect(model.canSelectAll)
+    }
+
     @Test("There is nothing to select in an empty place")
     func nothingToSelectWhenEmpty() async throws {
         let harness = try await TestModel()
