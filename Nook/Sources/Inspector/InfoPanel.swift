@@ -12,6 +12,7 @@ struct InfoPanel: View {
     @State private var notesDraft = ""
     @State private var tagDraft = ""
     @State private var editingID: ObjectID?
+    @FocusState private var isEditingText: Bool
 
     private var object: ObjectSnapshot? {
         model.previewedObject ?? model.selectedObjects.first
@@ -29,6 +30,8 @@ struct InfoPanel: View {
             }
         }
         .task(id: object?.id) { loadDrafts() }
+        .onChange(of: isEditingText) { _, editing in model.isTextEntryFocused = editing }
+        .onDisappear { model.isTextEntryFocused = false }
     }
 
     // MARK: States
@@ -55,8 +58,10 @@ struct InfoPanel: View {
             } else {
                 Section {
                     TextField("Title", text: $titleDraft, axis: .vertical)
+                        .focused($isEditingText)
                         .onSubmit { commitTitle(for: object) }
                     TextField("Notes", text: $notesDraft, axis: .vertical)
+                        .focused($isEditingText)
                         .lineLimit(3...8)
                 }
 
@@ -76,6 +81,7 @@ struct InfoPanel: View {
                         }
                     }
                     TextField("Add a tag", text: $tagDraft)
+                        .focused($isEditingText)
                         .onSubmit {
                             let name = tagDraft
                             tagDraft = ""

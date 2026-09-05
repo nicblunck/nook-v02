@@ -206,16 +206,10 @@ struct SidebarView: View {
 
     private var selectionBinding: Binding<LibraryDestination?> {
         Binding(
-            get: { model.isShowingHome ? .home : .scope(model.scope) },
+            get: { model.destination },
             set: { value in
                 guard let value else { return }
-                switch value {
-                case .home:
-                    model.isShowingHome = true
-                case .scope(let scope):
-                    model.isShowingHome = false
-                    model.scope = scope
-                }
+                model.navigate(to: value)
             }
         )
     }

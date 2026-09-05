@@ -74,6 +74,10 @@ struct ObjectMenu: View {
                     Label(urls.count == 1 ? "Share Original" : "Share \(urls.count) Originals",
                           systemImage: "square.and.arrow.up")
                 }
+                Button(urls.count == 1 ? "Export Original…" : "Export \(urls.count) Originals…",
+                       systemImage: "square.and.arrow.down") {
+                    model.beginExport(of: objects)
+                }
             }
 
             Divider()

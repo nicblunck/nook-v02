@@ -34,8 +34,7 @@ struct HomeView: View {
     private func band(_ section: HomeSection) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Button {
-                model.isShowingHome = false
-                model.scope = section.scope
+                model.navigate(to: .scope(section.scope))
             } label: {
                 HStack(spacing: 6) {
                     Label(section.title, systemImage: section.symbolName)
@@ -96,8 +95,7 @@ struct HomeView: View {
             OpenExternally.open(url)
             return
         }
-        model.isShowingHome = false
-        model.scope = section.scope
+        model.navigate(to: .scope(section.scope))
         Task {
             await model.refreshContents()
             model.selection = [object.id]

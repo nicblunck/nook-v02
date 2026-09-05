@@ -152,6 +152,14 @@ struct NookCommands: Commands {
             Button("Import Files…") { model?.isImporterPresented = true }
                 .keyboardShortcut("o")
                 .disabled(model == nil)
+
+            Button("Export Originals…") {
+                guard let model else { return }
+                let objects = model.previewedObject.map { [$0] } ?? model.selectedObjects
+                model.beginExport(of: objects)
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(!(model?.canExport ?? false))
         }
 
         CommandGroup(after: .pasteboard) {
@@ -164,6 +172,15 @@ struct NookCommands: Commands {
         }
 
         CommandGroup(after: .pasteboard) {
+            Divider()
+            Button("Select All") { model?.selectAll() }
+                .keyboardShortcut("a")
+                .disabled(!(model?.canSelectAll ?? false))
+
+            Button("Deselect All") { model?.deselectAll() }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .disabled(model.map { $0.isTextEntryFocused || $0.selection.isEmpty } ?? true)
+
             Divider()
             Button("Get Info") { model?.isInspectorPresented.toggle() }
                 .keyboardShortcut("i")
@@ -179,6 +196,18 @@ struct NookCommands: Commands {
         }
 
         CommandGroup(after: .toolbar) {
+            // Back steps out of preview first, then back through the places
+            // the user actually visited.
+            Button("Back") { model?.goBack() }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(!(model?.canGoBack ?? false))
+
+            Button("Forward") { model?.goForward() }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(!(model?.canGoForward ?? false))
+
+            Divider()
+
             // Scoped search narrows to where you are; Global Search does not,
             // so they are separate commands rather than one field in two moods.
             Button("Find") { model?.requestSearchFieldFocus() }

@@ -30,6 +30,8 @@ final class LibraryModel {
     var isImporterPresented = false
     var isGlobalSearchPresented = false
     var isSettingsPresented = false
+    /// Raised while the user picks a folder to export originals into.
+    var isExportPickerPresented = false
     /// Home is a destination rather than a query, so it sits beside the scope
     /// rather than inside it.
     var isShowingHome = true
@@ -182,6 +184,7 @@ final class LibraryModel {
         self.folderTree = await loadFolderTree(under: nil)
         self.collections = await collections
         self.tags = await tags
+        pruneHistory()
         await refreshCounts()
     }
 
@@ -223,6 +226,10 @@ final class LibraryModel {
 
     private func onScopeChanged(from previous: LibraryScope) {
         guard previous != scope else { return }
+        // Opening a folder on the canvas sets the scope directly, and that is a
+        // step in its own right. A step made through `navigate(to:)`, or by
+        // going back, has already recorded whatever history it owes.
+        if !isTraversingHistory { pushHistory(.scope(previous)) }
         selection = []
         searchText = ""
         Task {
@@ -247,6 +254,124 @@ final class LibraryModel {
             guard !Task.isCancelled else { return }
             await refreshContents()
         }
+    }
+
+    // MARK: History
+    //
+    // Back and Forward follow the path the user walked, not the shape of the
+    // folder tree, so returning from a collection lands where they came from
+    // rather than one level up something they were never in. Home is a stop
+    // like any other.
+
+    private var backStack: [LibraryDestination] = []
+    private var forwardStack: [LibraryDestination] = []
+
+    /// Raised while a destination is being applied. A single step can touch
+    /// both `isShowingHome` and `scope`; this keeps that from recording twice.
+    private var isTraversingHistory = false
+
+    /// Where the canvas is pointing right now.
+    var destination: LibraryDestination { isShowingHome ? .home : .scope(scope) }
+
+    var canGoBack: Bool { previewedObjectID != nil || !backStack.isEmpty }
+    var canGoForward: Bool { !forwardStack.isEmpty }
+
+    /// The way the interface changes destination. Going through here is what
+    /// keeps Back honest when leaving Home for a scope, which is two property
+    /// changes for one step the user took.
+    func navigate(to destination: LibraryDestination) {
+        let previous = self.destination
+        guard previous != destination else { return }
+        pushHistory(previous)
+        apply(destination)
+    }
+
+    func goBack() {
+        // Preview sits in front of the canvas rather than beside it, so the
+        // first step back is out of preview and into the place it came from.
+        if previewedObjectID != nil {
+            previewedObjectID = nil
+            return
+        }
+        guard let target = backStack.popLast() else { return }
+        forwardStack.append(destination)
+        apply(target)
+    }
+
+    func goForward() {
+        guard let target = forwardStack.popLast() else { return }
+        backStack.append(destination)
+        apply(target)
+    }
+
+    private func apply(_ destination: LibraryDestination) {
+        isTraversingHistory = true
+        defer { isTraversingHistory = false }
+
+        // Leaving preview: a step through history is a change of place, and the
+        // canvas is what a place shows.
+        previewedObjectID = nil
+        switch destination {
+        case .home:
+            isShowingHome = true
+        case .scope(let scope):
+            isShowingHome = false
+            self.scope = scope
+        }
+    }
+
+    private func pushHistory(_ destination: LibraryDestination) {
+        guard !isTraversingHistory, backStack.last != destination else { return }
+        backStack.append(destination)
+        forwardStack.removeAll()
+        // Far enough back to retrace an afternoon, not far enough to remember
+        // every folder ever opened.
+        if backStack.count > 64 { backStack.removeFirst() }
+    }
+
+    /// Drops destinations that no longer exist, so Back never lands on a place
+    /// that has been deleted.
+    ///
+    /// Deleting a folder takes its subfolders with it, and a sync can retire a
+    /// place this device never touched. Rather than name every casualty at the
+    /// point of deletion, history is reconciled against what the sidebar has
+    /// just been told actually exists.
+    private func pruneHistory() {
+        let folders = Set(allFolders.map(\.folder.id))
+        let collectionIDs = Set(collections.map(\.id))
+        let tagIDs = Set(tags.map(\.id))
+
+        func survives(_ destination: LibraryDestination) -> Bool {
+            guard case .scope(let scope) = destination else { return true }
+            switch scope {
+            case .folder(let id): return folders.contains(id)
+            case .collection(let id): return collectionIDs.contains(id)
+            case .tag(let id): return tagIDs.contains(id)
+            default: return true
+            }
+        }
+
+        backStack.removeAll { !survives($0) }
+        forwardStack.removeAll { !survives($0) }
+    }
+
+    // MARK: Selection
+
+    /// Raised while a text field owns the keyboard. A menu command outranks the
+    /// field editor in SwiftUI, so Select All has to stand down rather than
+    /// take the canvas out from under someone who is selecting what they typed.
+    var isTextEntryFocused = false
+
+    var canSelectAll: Bool { !isTextEntryFocused && !contents.objects.isEmpty }
+
+    /// Selects the objects on the canvas. Folders are places rather than
+    /// things, so they are not part of a selection the batch actions can act on.
+    func selectAll() {
+        selection = Set(contents.objects.map(\.id))
+    }
+
+    func deselectAll() {
+        selection = []
     }
 
     // MARK: Import
@@ -304,13 +429,13 @@ final class LibraryModel {
     func handle(_ request: AppNavigator.Request) async {
         switch request {
         case .scope(let requested):
-            scope = requested
+            navigate(to: .scope(requested))
             await loadPreferences()
             await refreshContents()
 
         case .object(let id):
             guard let object = await library.service.object(id, in: accessContext) else { return }
-            scope = object.folderID.map { LibraryScope.folder($0) } ?? .inbox
+            navigate(to: .scope(object.folderID.map { LibraryScope.folder($0) } ?? .inbox))
             await loadPreferences()
             await refreshContents()
             selection = [id]
@@ -372,6 +497,96 @@ final class LibraryModel {
 
     nonisolated func localURLs(for objects: [ObjectSnapshot]) -> [URL] {
         objects.compactMap { localURL(for: $0) }
+    }
+
+    // MARK: Export
+    //
+    // Getting an original back out is as ordinary as putting one in: the bytes
+    // were never transformed on the way in, so they leave byte-for-byte. The
+    // library is where files are kept, not where they are captured.
+
+    /// The objects a destination folder is being chosen for.
+    private var pendingExport: [ObjectSnapshot] = []
+
+    var canExport: Bool { !selectedObjects.isEmpty || previewedObject != nil }
+
+    /// Asks for somewhere to write to. Objects whose original is not on this
+    /// device are dropped here rather than failing one by one at the copy.
+    func beginExport(of objects: [ObjectSnapshot]) {
+        let available = objects.filter { localURL(for: $0) != nil }
+        guard !available.isEmpty else {
+            alert = LibraryAlert(
+                title: objects.count == 1 ? "No original to export" : "No originals to export",
+                message: "The stored file isn't on this device."
+            )
+            return
+        }
+        pendingExport = available
+        isExportPickerPresented = true
+    }
+
+    func cancelExport() {
+        pendingExport = []
+    }
+
+    func completeExport(to directory: URL) async {
+        let objects = pendingExport
+        pendingExport = []
+        guard !objects.isEmpty else { return }
+
+        // A folder handed over by the picker is ours only while the scope is
+        // held open, which on iOS is the difference between writing and being
+        // refused.
+        let isScoped = directory.startAccessingSecurityScopedResource()
+        defer { if isScoped { directory.stopAccessingSecurityScopedResource() } }
+
+        var failures: [String] = []
+        for object in objects {
+            guard let source = localURL(for: object) else {
+                failures.append(object.title)
+                continue
+            }
+            // A stored filename is data, not a path: a separator in it would
+            // otherwise aim the copy at a directory that isn't there.
+            let name = (object.originalFilename ?? source.lastPathComponent)
+                .replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: ":", with: "-")
+            do {
+                try FileManager.default.copyItem(
+                    at: source, to: Self.unusedURL(in: directory, named: name)
+                )
+            } catch {
+                failures.append(object.title)
+            }
+        }
+
+        guard !failures.isEmpty else { return }
+        alert = LibraryAlert(
+            title: failures.count == 1
+                ? "One item couldn't be exported"
+                : "\(failures.count) items couldn't be exported",
+            message: failures.joined(separator: "\n")
+        )
+    }
+
+    /// Objects share stored files and can carry the same original filename, so
+    /// an export names its way around a collision rather than overwriting
+    /// whatever was already in the folder.
+    private static func unusedURL(in directory: URL, named name: String) -> URL {
+        let exists = { (url: URL) in
+            FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+        }
+        let candidate = directory.appending(path: name)
+        guard exists(candidate) else { return candidate }
+
+        let base = candidate.deletingPathExtension().lastPathComponent
+        let ext = candidate.pathExtension
+        for index in 2...999 {
+            let numbered = ext.isEmpty ? "\(base) \(index)" : "\(base) \(index).\(ext)"
+            let url = directory.appending(path: numbered)
+            if !exists(url) { return url }
+        }
+        return directory.appending(path: "\(base) \(UUID().uuidString)")
     }
 
     // MARK: Mutations

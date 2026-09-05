@@ -39,6 +39,7 @@ struct BrowseView: View {
         }
         .searchFocused($isSearchFocused)
         .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
+        .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
         .fileImporter(
             isPresented: $model.isImporterPresented,
             allowedContentTypes: [.item],
@@ -46,6 +47,19 @@ struct BrowseView: View {
         ) { result in
             guard case .success(let urls) = result else { return }
             Task { await model.importFiles(at: urls) }
+        }
+        // Exporting asks for a folder rather than saving one file at a time,
+        // because a selection is as ordinary a thing to export as one item.
+        .fileImporter(
+            isPresented: $model.isExportPickerPresented,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let directory = urls.first else {
+                model.cancelExport()
+                return
+            }
+            Task { await model.completeExport(to: directory) }
         }
         #if os(iOS)
         .photosPicker(
@@ -185,6 +199,13 @@ struct BrowseView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         if model.previewedObjectID == nil {
+            ToolbarItemGroup(placement: .navigation) {
+                Button("Back", systemImage: "chevron.backward") { model.goBack() }
+                    .disabled(!model.canGoBack)
+                Button("Forward", systemImage: "chevron.forward") { model.goForward() }
+                    .disabled(!model.canGoForward)
+            }
+
             ToolbarItem {
                 Picker("View", selection: viewModeBinding) {
                     ForEach(LibraryViewMode.allCases) { mode in
