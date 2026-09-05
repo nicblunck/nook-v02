@@ -5,8 +5,6 @@ import NookLibrary
 struct ObjectCard: View {
     let object: ObjectSnapshot
     let isSelected: Bool
-    let onOpen: () -> Void
-    let onSelect: (EventModifiers) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -42,12 +40,6 @@ struct ObjectCard: View {
                 .strokeBorder(Color.accentColor, lineWidth: isSelected ? 1.5 : 0)
         }
         .contentShape(.rect(cornerRadius: 12))
-        .onTapGesture(count: 2) { onOpen() }
-        .onTapGesture { onSelect([]) }
-        #if os(macOS)
-        .simultaneousGesture(TapGesture().modifiers(.command).onEnded { onSelect(.command) })
-        .simultaneousGesture(TapGesture().modifiers(.shift).onEnded { onSelect(.shift) })
-        #endif
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         .accessibilityValue(Format.caption(for: object))

@@ -8,6 +8,11 @@ import NookLibrary
 struct HomeView: View {
     @Bindable var model: LibraryModel
 
+    /// Which tile the last click landed on. Home has no selection of its own —
+    /// nothing acts on this but the highlight — so it lives here rather than
+    /// on the model.
+    @State private var highlighted: ObjectID?
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
@@ -66,7 +71,8 @@ struct HomeView: View {
     }
 
     private func tile(_ object: ObjectSnapshot, in section: HomeSection) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let isHighlighted = highlighted == object.id
+        return VStack(alignment: .leading, spacing: 6) {
             ThumbnailView(object: object)
                 .frame(width: 140, height: 110)
                 .clipShape(.rect(cornerRadius: 9))
@@ -81,11 +87,24 @@ struct HomeView: View {
                 .truncationMode(.middle)
                 .frame(width: 140, alignment: .leading)
         }
-        .contentShape(.rect(cornerRadius: 9))
-        .onTapGesture { open(object, in: section) }
+        .padding(6)
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isHighlighted ? AnyShapeStyle(Color.accentColor.opacity(0.18))
+                                    : AnyShapeStyle(.clear))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.accentColor, lineWidth: isHighlighted ? 1.5 : 0)
+        }
+        .contentShape(.rect(cornerRadius: 12))
+        // The same two-step as the canvas: a click says which one, a double
+        // click opens it. Home is an entry screen, not a different rulebook.
+        .simultaneousGesture(TapGesture().onEnded { highlighted = object.id })
+        .onTapGesture(count: 2) { open(object, in: section) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
-        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isHighlighted ? [.isButton, .isSelected] : .isButton)
     }
 
     /// Opening from Home lands in the place the item lives, with the rest of

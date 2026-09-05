@@ -120,12 +120,8 @@ struct BrowseView: View {
                     FolderCard(folder: folder) { model.scope = .folder(folder.id) }
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
-                    ObjectCard(
-                        object: object,
-                        isSelected: model.selection.contains(object.id),
-                        onOpen: { open(object) },
-                        onSelect: { select(object, modifiers: $0) }
-                    )
+                    ObjectCard(object: object,
+                               isSelected: model.selection.contains(object.id))
                     .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
                                                  select: { select(object, modifiers: $0) },
                                                  newCollection: startNewCollection))
@@ -431,12 +427,12 @@ struct ObjectItemBehavior: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // A click must not wait to learn whether it is half of a double
+            // click: selection is how the interface says the click landed.
+            // Recognised simultaneously, it fires on mouse-up instead of after
+            // the double-click interval has expired.
+            .simultaneousGesture(TapGesture().onEnded { select(.current) })
             .onTapGesture(count: 2) { open() }
-            .onTapGesture { select([]) }
-            #if os(macOS)
-            .simultaneousGesture(TapGesture().modifiers(.command).onEnded { select(.command) })
-            .simultaneousGesture(TapGesture().modifiers(.shift).onEnded { select(.shift) })
-            #endif
             .contextMenu {
                 ObjectMenu(model: model, objects: targets, newCollection: newCollection)
             }
