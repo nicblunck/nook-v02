@@ -68,6 +68,14 @@ struct ObjectMenu: View {
                 }
             }
 
+            let urls = model.localURLs(for: objects)
+            if !urls.isEmpty {
+                ShareLink(items: urls) {
+                    Label(urls.count == 1 ? "Share Original" : "Share \(urls.count) Originals",
+                          systemImage: "square.and.arrow.up")
+                }
+            }
+
             Divider()
 
             Button("Delete", systemImage: "trash", role: .destructive) {

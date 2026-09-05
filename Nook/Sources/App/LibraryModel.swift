@@ -22,6 +22,20 @@ final class LibraryModel {
     var previewedObjectID: ObjectID?
     var isInspectorPresented = false
 
+    // MARK: Presented surfaces
+    //
+    // Held on the model rather than in view state so the menu bar can raise
+    // the same prompts the sidebar and canvas do.
+
+    var isImporterPresented = false
+    var isGlobalSearchPresented = false
+    var namingPrompt: NamingPrompt?
+    var searchFieldFocusRequests = 0
+
+    /// The scope pill in the search field. Removing it widens the same query
+    /// to the whole library; it is not a separate search.
+    var searchTokens: [SearchScopeToken] = []
+
     // MARK: Contents
 
     private(set) var contents: LocationContents = .empty
@@ -147,13 +161,22 @@ final class LibraryModel {
         await refreshCounts()
     }
 
+    /// Where the canvas is currently reading from.
+    ///
+    /// While searching, the scope pill decides — removing it expands the query
+    /// to the whole library without changing what is selected in the sidebar.
+    var effectiveScope: LibraryScope {
+        guard !searchText.isEmpty else { return scope }
+        return searchTokens.first?.scope ?? .allObjects
+    }
+
     func refreshContents() async {
         let access = accessContext
-        let query = ObjectQuery(scope: scope, searchText: searchText, sort: sort)
+        let query = ObjectQuery(scope: effectiveScope, searchText: searchText, sort: sort)
 
         let objects = await service.objects(matching: query, in: access)
         let folders: [FolderSnapshot]
-        if case .folder(let id) = scope {
+        if case .folder(let id) = effectiveScope {
             folders = await service.subfolders(of: id, in: access)
             breadcrumbs = await service.folderPath(to: id, in: access)
         } else {
@@ -186,6 +209,14 @@ final class LibraryModel {
 
     /// Search runs after a short pause so typing does not re-query per keystroke.
     private func scheduleSearchRefresh() {
+        // Typing in a location scopes the search there, shown as a removable
+        // pill. Clearing the field puts the pill away again.
+        if searchText.isEmpty {
+            searchTokens = []
+        } else if searchTokens.isEmpty, let token = SearchScopeToken(scope: scope, model: self) {
+            searchTokens = [token]
+        }
+
         searchTask?.cancel()
         searchTask = Task {
             try? await Task.sleep(for: .milliseconds(180))
@@ -205,6 +236,7 @@ final class LibraryModel {
         }
         importProgress = nil
         await refreshAll()
+        extractPendingContent()
 
         if report.hasFailures {
             alert = LibraryAlert(
@@ -224,6 +256,33 @@ final class LibraryModel {
 
     func importFiles(at urls: [URL]) async {
         await importItems(urls.map { ImportItem.file(url: $0) })
+    }
+
+    // MARK: Derived content
+
+    /// Works through the text-extraction backlog in the background.
+    ///
+    /// Nothing in the interface waits on this: extraction feeds the machine-
+    /// readable layer — content search, Siri, MCP, on-device summarisation —
+    /// rather than anything on screen.
+    func extractPendingContent() {
+        Task.detached(priority: .background) { [service = library.service] in
+            await service.extractPendingText()
+        }
+    }
+
+    // MARK: Originals
+
+    /// A local file URL for an object's original, when the bytes are already
+    /// on this device. Returns nil for a locked object, which arrives without
+    /// a blob descriptor, and for one whose original has not been downloaded.
+    nonisolated func localURL(for object: ObjectSnapshot) -> URL? {
+        guard let descriptor = object.blob else { return nil }
+        return library.blobStore.localURL(for: descriptor)
+    }
+
+    nonisolated func localURLs(for objects: [ObjectSnapshot]) -> [URL] {
+        objects.compactMap { localURL(for: $0) }
     }
 
     // MARK: Mutations
@@ -382,6 +441,15 @@ final class LibraryModel {
 
     var selectedObjects: [ObjectSnapshot] {
         contents.objects.filter { selection.contains($0.id) }
+    }
+
+    var currentFolderID: FolderID? {
+        if case .folder(let id) = scope { return id }
+        return nil
+    }
+
+    func requestSearchFieldFocus() {
+        searchFieldFocusRequests += 1
     }
 
     var previewedObject: ObjectSnapshot? {

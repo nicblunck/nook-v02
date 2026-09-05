@@ -6,8 +6,8 @@ import NookLibrary
 /// object replaces the grid rather than stacking a window on top of it.
 struct BrowseView: View {
     @Bindable var model: LibraryModel
-    @State private var isImporterPresented = false
     @State private var isDropTargeted = false
+    @FocusState private var isSearchFocused: Bool
     @State private var newCollectionTargets: [ObjectID]?
     @State private var draftCollectionName = ""
 
@@ -27,9 +27,13 @@ struct BrowseView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar { toolbarContent }
-        .searchable(text: $model.searchText, prompt: searchPrompt)
+        .searchable(text: $model.searchText, tokens: $model.searchTokens, prompt: searchPrompt) { token in
+            Label(token.name, systemImage: token.symbolName)
+        }
+        .searchFocused($isSearchFocused)
+        .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
         .fileImporter(
-            isPresented: $isImporterPresented,
+            isPresented: $model.isImporterPresented,
             allowedContentTypes: [.item],
             allowsMultipleSelection: true
         ) { result in
@@ -152,7 +156,7 @@ struct BrowseView: View {
             if !model.searchText.isEmpty {
                 Button("Clear Search") { model.searchText = "" }
             } else if model.scope != .recentlyDeleted {
-                Button("Import Files…") { isImporterPresented = true }
+                Button("Import Files…") { model.isImporterPresented = true }
             }
         }
     }
@@ -202,7 +206,7 @@ struct BrowseView: View {
             }
 
             ToolbarItem {
-                Button("Import", systemImage: "plus") { isImporterPresented = true }
+                Button("Import", systemImage: "plus") { model.isImporterPresented = true }
             }
         }
 
@@ -369,7 +373,7 @@ struct ObjectItemBehavior: ViewModifier {
             .contextMenu {
                 ObjectMenu(model: model, objects: targets, newCollection: newCollection)
             }
-            .draggable(ObjectTransfer(id: object.id))
+            .draggable(ObjectTransfer(id: object.id, fileURL: model.localURL(for: object)))
             .modifier(ManualReorderTarget(model: model, object: object))
     }
 

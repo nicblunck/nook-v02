@@ -8,7 +8,6 @@ import NookLibrary
 struct SidebarView: View {
     @Bindable var model: LibraryModel
 
-    @State private var namingPrompt: NamingPrompt?
     @State private var draftName = ""
     @State private var editingAppearance: AppearanceTarget?
 
@@ -66,7 +65,7 @@ struct SidebarView: View {
             ToolbarItem {
                 Menu {
                     Button("New Folder…", systemImage: "folder.badge.plus") {
-                        prompt(.newFolder(parent: currentFolderID), initial: "")
+                        prompt(.newFolder(parent: model.currentFolderID), initial: "")
                     }
                     Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
                         prompt(.newCollection, initial: "")
@@ -76,13 +75,14 @@ struct SidebarView: View {
                 }
             }
         }
-        .alert(namingPrompt?.title ?? "", isPresented: namingBinding) {
-            TextField(namingPrompt?.placeholder ?? "Name", text: $draftName)
+        .alert(model.namingPrompt?.title ?? "", isPresented: namingBinding) {
+            TextField("Name", text: $draftName)
             Button("Cancel", role: .cancel) {}
-            Button(namingPrompt?.confirmTitle ?? "Save") { commitNaming() }
+            Button(model.namingPrompt?.confirmTitle ?? "Save") { commitNaming() }
         } message: {
-            if let message = namingPrompt?.message { Text(message) }
+            if let message = model.namingPrompt?.message { Text(message) }
         }
+        .onChange(of: model.namingPrompt?.id) { draftName = model.namingPrompt.map(initialName) ?? "" }
         .sheet(item: $editingAppearance) { target in
             AppearanceEditor(title: target.title, appearance: target.appearance) { appearance in
                 Task { await model.setAppearance(appearance, for: target.reference) }
@@ -207,14 +207,29 @@ struct SidebarView: View {
 
     private func prompt(_ kind: NamingPrompt, initial: String) {
         draftName = initial
-        namingPrompt = kind
+        model.namingPrompt = kind
+    }
+
+    /// The menu bar can raise a prompt too, so the field seeds itself from the
+    /// prompt rather than from whoever opened it.
+    private func initialName(for prompt: NamingPrompt) -> String {
+        switch prompt {
+        case .renameFolder(let id):
+            model.allFolders.first { $0.folder.id == id }?.folder.name ?? ""
+        case .renameCollection(let id):
+            model.collections.first { $0.id == id }?.name ?? ""
+        case .renameTag(let id):
+            model.tags.first { $0.id == id }?.name ?? ""
+        case .newFolder, .newCollection:
+            ""
+        }
     }
 
     private func commitNaming() {
-        guard let namingPrompt else { return }
+        guard let prompt = model.namingPrompt else { return }
         let name = draftName
         Task {
-            switch namingPrompt {
+            switch prompt {
             case .newFolder(let parent):
                 await model.createFolder(named: name, in: parent)
             case .renameFolder(let id):
@@ -229,11 +244,6 @@ struct SidebarView: View {
         }
     }
 
-    private var currentFolderID: FolderID? {
-        if case .folder(let id) = model.scope { return id }
-        return nil
-    }
-
     // MARK: Bindings
 
     private var selectionBinding: Binding<LibraryScope?> {
@@ -241,56 +251,8 @@ struct SidebarView: View {
     }
 
     private var namingBinding: Binding<Bool> {
-        Binding(get: { namingPrompt != nil }, set: { if !$0 { namingPrompt = nil } })
-    }
-}
-
-/// The rename/create prompts the sidebar can raise.
-private enum NamingPrompt: Identifiable {
-    case newFolder(parent: FolderID?)
-    case renameFolder(FolderID)
-    case newCollection
-    case renameCollection(CollectionID)
-    case renameTag(TagID)
-
-    var id: String {
-        switch self {
-        case .newFolder(let parent): "newFolder-\(parent?.description ?? "root")"
-        case .renameFolder(let id): "renameFolder-\(id)"
-        case .newCollection: "newCollection"
-        case .renameCollection(let id): "renameCollection-\(id)"
-        case .renameTag(let id): "renameTag-\(id)"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .newFolder: "New Folder"
-        case .renameFolder: "Rename Folder"
-        case .newCollection: "New Collection"
-        case .renameCollection: "Rename Collection"
-        case .renameTag: "Rename Tag"
-        }
-    }
-
-    var confirmTitle: String {
-        switch self {
-        case .newFolder, .newCollection: "Create"
-        default: "Rename"
-        }
-    }
-
-    var placeholder: String { "Name" }
-
-    var message: String? {
-        switch self {
-        case .newFolder(let parent):
-            parent == nil ? "At the top level of your library." : "Inside the selected folder."
-        case .newCollection:
-            "Collections gather items from anywhere without moving them."
-        default:
-            nil
-        }
+        Binding(get: { model.namingPrompt != nil },
+                set: { if !$0 { model.namingPrompt = nil } })
     }
 }
 

@@ -32,6 +32,24 @@ struct LibraryWindow: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: model.importProgress?.completed)
+        // Global Search floats above whatever is on screen; it does not
+        // navigate the canvas to get there.
+        .overlay {
+            if model.isGlobalSearchPresented {
+                ZStack {
+                    Color.black.opacity(0.18)
+                        .ignoresSafeArea()
+                        .onTapGesture { model.isGlobalSearchPresented = false }
+                    GlobalSearchView(model: model) {
+                        model.isGlobalSearchPresented = false
+                    }
+                    .padding(40)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
+        .focusedSceneValue(\.libraryModel, model)
         .environment(model)
     }
 }
@@ -64,10 +82,79 @@ struct ImportProgressBar: View {
     }
 }
 
+/// Lets the menu bar act on whichever library window is frontmost.
+extension FocusedValues {
+    @Entry var libraryModel: LibraryModel?
+}
+
 struct NookCommands: Commands {
+    @FocusedValue(\.libraryModel) private var model
+
     var body: some Commands {
-        // Placeholder group so the menu keeps a stable shape while the full
-        // keyboard map lands with the rest of Phase 5.
-        CommandGroup(replacing: .newItem) {}
+        CommandGroup(replacing: .newItem) {
+            Button("New Folder…") {
+                model?.namingPrompt = .newFolder(parent: model?.currentFolderID)
+            }
+            .keyboardShortcut("n")
+            .disabled(model == nil)
+
+            Button("New Collection…") {
+                model?.namingPrompt = .newCollection
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+            .disabled(model == nil)
+
+            Divider()
+
+            Button("Import Files…") { model?.isImporterPresented = true }
+                .keyboardShortcut("o")
+                .disabled(model == nil)
+        }
+
+        CommandGroup(after: .pasteboard) {
+            Divider()
+            Button("Get Info") { model?.isInspectorPresented.toggle() }
+                .keyboardShortcut("i")
+                .disabled(model == nil)
+
+            Button("Delete") {
+                guard let model else { return }
+                let ids = Array(model.selection)
+                Task { await model.delete(ids) }
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(model?.selection.isEmpty ?? true)
+        }
+
+        CommandGroup(after: .toolbar) {
+            // Scoped search narrows to where you are; Global Search does not,
+            // so they are separate commands rather than one field in two moods.
+            Button("Find") { model?.requestSearchFieldFocus() }
+                .keyboardShortcut("f")
+                .disabled(model == nil)
+
+            Button("Global Search") { model?.isGlobalSearchPresented = true }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .disabled(model == nil)
+
+            Divider()
+
+            ForEach(LibraryViewMode.allCases) { mode in
+                Button(mode.displayName) {
+                    guard let model else { return }
+                    Task { await model.setViewMode(mode) }
+                }
+                .keyboardShortcut(shortcut(for: mode))
+                .disabled(model == nil)
+            }
+        }
+    }
+
+    private func shortcut(for mode: LibraryViewMode) -> KeyEquivalent {
+        switch mode {
+        case .list: "1"
+        case .grid: "2"
+        case .masonry: "3"
+        }
     }
 }
