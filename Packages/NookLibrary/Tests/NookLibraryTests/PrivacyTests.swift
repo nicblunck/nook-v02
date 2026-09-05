@@ -110,5 +110,36 @@ struct PrivacyTests {
         // ...but the object is untouched where it actually lives.
         #expect(await harness.service.object(id) != nil)
         #expect(await harness.service.objects(matching: ObjectQuery(scope: .inbox)).count == 1)
+        // Knowing the collection identifier still does not make its protected
+        // surface readable.
+        #expect(await harness.service.objects(
+            matching: ObjectQuery(scope: .collection(collection.id))
+        ).isEmpty)
+
+        let authenticated = AccessContext().enteringHiddenContext()
+        #expect(await harness.service.objects(
+            matching: ObjectQuery(scope: .collection(collection.id)),
+            in: authenticated
+        ).map(\.id) == [id])
+    }
+
+    @Test("Navigation counts do not reveal hidden objects")
+    func countsRespectPrivacy() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+
+        let folder = try await harness.service.createFolder(named: "Private counts")
+        let source = try harness.makeSourceFile(named: "hidden.txt", contents: "hidden")
+        let report = await harness.service.importItems([.file(url: source)], into: .folder(folder.id))
+        let id = try #require(report.importedIDs.first)
+        let collection = try await harness.service.createCollection(named: "Counted")
+        try await harness.service.addObjects([id], toCollection: collection.id)
+        try await harness.service.addTag(named: "Only hidden", to: [id])
+
+        try await harness.service.setPrivacy(PrivacyFlags(isHidden: true), forObjects: [id])
+
+        #expect(try #require(await harness.service.folder(folder.id)).objectCount == 0)
+        #expect(try #require(await harness.service.collection(collection.id)).memberCount == 0)
+        #expect(try #require(await harness.service.tags().first).objectCount == 0)
     }
 }

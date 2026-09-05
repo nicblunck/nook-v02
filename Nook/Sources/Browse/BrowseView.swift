@@ -104,6 +104,7 @@ struct BrowseView: View {
                 switch item {
                 case .folder(let folder):
                     FolderCard(folder: folder) { model.scope = .folder(folder.id) }
+                        .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
                     ObjectCard(
@@ -127,6 +128,7 @@ struct BrowseView: View {
                 switch item {
                 case .folder(let folder):
                     FolderCard(folder: folder) { model.scope = .folder(folder.id) }
+                        .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
                     ObjectMasonryCard(object: object, isSelected: model.selection.contains(object.id))
@@ -146,6 +148,7 @@ struct BrowseView: View {
                 case .folder(let folder):
                     FolderListRow(folder: folder)
                         .onTapGesture(count: 2) { model.scope = .folder(folder.id) }
+                        .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                 case .object(let object):
                     ObjectListRow(object: object, isSelected: model.selection.contains(object.id))
@@ -457,14 +460,21 @@ struct FolderDropTarget: ViewModifier {
     let folder: FolderSnapshot
 
     func body(content: Content) -> some View {
-        content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.move(transfers.map(\.id), to: folder.id) }
-            return true
-        }
+        content
+            .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                Task { await model.move(transfers.map(\.id), to: folder.id) }
+                return true
+            }
+            .dropDestination(for: FolderTransfer.self) { transfers, _ in
+                guard let moved = transfers.first else { return false }
+                Task { await model.moveFolder(moved.id, to: folder.id) }
+                return true
+            }
     }
 }
 
 enum OpenExternally {
+    @MainActor
     static func open(_ url: URL) {
         #if canImport(AppKit)
         NSWorkspace.shared.open(url)

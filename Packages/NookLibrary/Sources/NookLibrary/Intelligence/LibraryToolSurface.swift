@@ -50,14 +50,19 @@ public struct LibraryToolSurface: Sendable {
 
     /// `search_objects`
     public func searchObjects(_ request: SearchRequest) async -> [ObjectDigest] {
-        let scope = resolveScope(
+        guard let scope = resolveScope(
             folder: request.folderReference,
             collection: request.collectionReference,
             tag: request.tagReference
-        )
-        let kinds: Set<ObjectKind> = request.kind
-            .flatMap(ObjectKind.init(rawValue:))
-            .map { [$0] } ?? []
+        ) else { return [] }
+
+        let kinds: Set<ObjectKind>
+        if let requestedKind = request.kind {
+            guard let kind = ObjectKind(rawValue: requestedKind) else { return [] }
+            kinds = [kind]
+        } else {
+            kinds = []
+        }
 
         return await service
             .objects(
@@ -165,10 +170,22 @@ public struct LibraryToolSurface: Sendable {
 
     // MARK: Helpers
 
-    private func resolveScope(folder: String?, collection: String?, tag: String?) -> LibraryScope {
-        if let folder, case .folder(let id)? = LibraryReference(folder) { return .folderTree(id) }
-        if let collection, case .collection(let id)? = LibraryReference(collection) { return .collection(id) }
-        if let tag, case .tag(let id)? = LibraryReference(tag) { return .tag(id) }
+    private func resolveScope(folder: String?, collection: String?, tag: String?) -> LibraryScope? {
+        let suppliedCount = [folder, collection, tag].compactMap { $0 }.count
+        guard suppliedCount <= 1 else { return nil }
+
+        if let folder {
+            guard case .folder(let id)? = LibraryReference(folder) else { return nil }
+            return .folderTree(id)
+        }
+        if let collection {
+            guard case .collection(let id)? = LibraryReference(collection) else { return nil }
+            return .collection(id)
+        }
+        if let tag {
+            guard case .tag(let id)? = LibraryReference(tag) else { return nil }
+            return .tag(id)
+        }
         return .allObjects
     }
 }

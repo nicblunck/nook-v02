@@ -18,6 +18,16 @@ struct LibraryWindow: View {
             .alert(item: $model.alert) { alert in
                 Alert(title: Text(alert.title), message: Text(alert.message))
             }
+            .alert(item: $model.importFailure) { failure in
+                Alert(
+                    title: Text("Some items couldn't be imported"),
+                    message: Text(failure.message),
+                    primaryButton: .default(Text("Retry")) {
+                        Task { await model.importItems(failure.items) }
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
             .overlay(alignment: .bottom) {
                 if let progress = model.importProgress {
                     ImportProgressBar(progress: progress)
@@ -176,6 +186,16 @@ struct NookCommands: Commands {
             }
             .keyboardShortcut(.delete, modifiers: .command)
             .disabled(model?.selection.isEmpty ?? true)
+
+            Button("Toggle Favorite") {
+                guard let model else { return }
+                let objects = model.previewedObject.map { [$0] } ?? model.selectedObjects
+                guard !objects.isEmpty else { return }
+                let shouldFavorite = !objects.allSatisfy(\.isFavorite)
+                Task { await model.setFavorite(shouldFavorite, for: objects.map(\.id)) }
+            }
+            .keyboardShortcut(".", modifiers: [])
+            .disabled(model.map { $0.previewedObject == nil && $0.selection.isEmpty } ?? true)
         }
 
         CommandGroup(after: .toolbar) {
@@ -188,6 +208,20 @@ struct NookCommands: Commands {
             Button("Global Search") { model?.isGlobalSearchPresented = true }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(model == nil)
+
+            Divider()
+
+            Button("Previous Item") { model?.stepPreview(-1) }
+                .keyboardShortcut(.leftArrow, modifiers: .command)
+                .disabled(model?.previewedObjectID == nil)
+
+            Button("Next Item") { model?.stepPreview(1) }
+                .keyboardShortcut(.rightArrow, modifiers: .command)
+                .disabled(model?.previewedObjectID == nil)
+
+            Button("Back to Browser") { model?.previewedObjectID = nil }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(model?.previewedObjectID == nil)
 
             Divider()
 

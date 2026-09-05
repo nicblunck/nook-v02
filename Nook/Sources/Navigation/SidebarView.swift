@@ -21,7 +21,7 @@ struct SidebarView: View {
                 systemRow(.allObjects, title: "All Objects", symbol: "square.grid.2x2", count: model.counts[.allObjects])
             }
 
-            Section("Folders") {
+            Section {
                 if model.folderTree.isEmpty {
                     Text("No folders yet").font(.callout).foregroundStyle(.tertiary)
                 } else {
@@ -29,6 +29,13 @@ struct SidebarView: View {
                         folderRow(node.folder)
                     }
                 }
+            } header: {
+                Text("Folders")
+                    .dropDestination(for: FolderTransfer.self) { transfers, _ in
+                        guard let moved = transfers.first else { return false }
+                        Task { await model.moveFolder(moved.id, to: nil) }
+                        return true
+                    }
             }
 
             Section("Collections") {
@@ -112,6 +119,7 @@ struct SidebarView: View {
             EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
         }
         .tag(LibraryDestination.scope(.folder(folder.id)))
+        .draggable(FolderTransfer(id: folder.id))
         .contextMenu {
             Button("Rename…") { prompt(.renameFolder(folder.id), initial: folder.name) }
             Button("New Subfolder…") { prompt(.newFolder(parent: folder.id), initial: "") }
@@ -129,6 +137,11 @@ struct SidebarView: View {
         // hierarchy, so the drop is a real relocation.
         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
             Task { await model.move(transfers.map(\.id), to: folder.id) }
+            return true
+        }
+        .dropDestination(for: FolderTransfer.self) { transfers, _ in
+            guard let moved = transfers.first else { return false }
+            Task { await model.moveFolder(moved.id, to: folder.id) }
             return true
         }
     }

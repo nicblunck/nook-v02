@@ -25,13 +25,40 @@ public struct LibraryLocations: Sendable {
     public static func shared(
         appGroupIdentifier: String? = defaultAppGroupIdentifier
     ) throws -> LibraryLocations {
+        try resolveShared(
+            appGroupIdentifier: appGroupIdentifier,
+            groupContainer: {
+                FileManager.default.containerURL(
+                    forSecurityApplicationGroupIdentifier: $0
+                )
+            },
+            fallback: { try applicationDefault() }
+        )
+    }
+
+    /// `containerURL` may return a plausible URL to an unsigned or unentitled
+    /// process even though that process cannot write there. Prove the group is
+    /// usable before choosing it so development builds genuinely fall back.
+    static func resolveShared(
+        appGroupIdentifier: String?,
+        groupContainer: (String) -> URL?,
+        fallback: () throws -> LibraryLocations
+    ) throws -> LibraryLocations {
         if let appGroupIdentifier,
-           let container = FileManager.default.containerURL(
-               forSecurityApplicationGroupIdentifier: appGroupIdentifier
-           ) {
-            return LibraryLocations(root: container.appending(path: "Library"))
+           let container = groupContainer(appGroupIdentifier) {
+            let root = container.appending(path: "Library")
+            do {
+                try FileManager.default.createDirectory(
+                    at: root,
+                    withIntermediateDirectories: true
+                )
+                return LibraryLocations(root: root)
+            } catch {
+                // The group exists nominally but this process has no usable
+                // entitlement for it. Continue with process-local storage.
+            }
         }
-        return try applicationDefault()
+        return try fallback()
     }
 
     /// The per-process location: `Application Support/<bundle id>/Library`.

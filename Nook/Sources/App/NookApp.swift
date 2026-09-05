@@ -10,6 +10,7 @@ struct NookApp: App {
         WindowGroup {
             RootView(loader: loader, settings: settings)
                 .tint(settings.accentColor)
+                .preferredColorScheme(settings.appearance.colorScheme)
             #if os(macOS)
                 .frame(minWidth: 860, minHeight: 560)
             #endif
@@ -24,6 +25,7 @@ struct NookApp: App {
         #if os(macOS)
         Settings {
             SettingsView(settings: settings)
+                .preferredColorScheme(settings.appearance.colorScheme)
         }
         #endif
     }

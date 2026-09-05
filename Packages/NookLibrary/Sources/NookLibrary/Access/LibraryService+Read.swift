@@ -66,6 +66,7 @@ public extension LibraryService {
     /// The single query entry point. Browsing, scoped search and global search
     /// all arrive here, so they cannot diverge in what they return or hide.
     func objects(matching query: ObjectQuery, in access: AccessContext = .standard) -> [ObjectSnapshot] {
+        guard allowsReadingContents(of: query.scope, in: access) else { return [] }
         var candidates = candidateObjects(for: query.scope)
 
         candidates = candidates.filter { object in
@@ -149,7 +150,8 @@ public extension LibraryService {
     /// an object's tags, collection memberships and blob, which is a great deal
     /// of work to then discard and only keep the tally of.
     func objectCount(in scope: LibraryScope, access: AccessContext = .standard) -> Int {
-        candidateObjects(for: scope).count { object in
+        guard allowsReadingContents(of: scope, in: access) else { return 0 }
+        return candidateObjects(for: scope).count { object in
             if scope.showsDeleted {
                 guard object.deletedAt != nil else { return false }
             } else {
@@ -171,6 +173,25 @@ public enum ResolvedReference: Hashable, Sendable {
 // MARK: - Internals
 
 extension LibraryService {
+
+    /// Collection protection applies to the collection surface. Its members
+    /// remain visible elsewhere, but the protected surface cannot be used as a
+    /// back door to enumerate them.
+    func allowsReadingContents(of scope: LibraryScope, in access: AccessContext) -> Bool {
+        guard case .collection(let id) = scope else { return true }
+        guard let collection = collection(withIdentifier: id.uuid) else { return false }
+        return broker.allowsContent(
+            of: PrivacyResolver.surfacePrivacy(of: collection),
+            in: access
+        )
+    }
+
+    func isDiscoverable(_ object: LibraryObject, in access: AccessContext) -> Bool {
+        broker.allowsDiscovery(
+            of: PrivacyResolver.effectivePrivacy(of: object),
+            in: access
+        )
+    }
 
     /// Narrows to the rows a scope could possibly contain, before privacy,
     /// search and sort are applied.
@@ -333,6 +354,15 @@ extension LibraryService {
         // A locked folder keeps its name: it is the door the user has to find
         // in order to authenticate. What it contains stays withheld.
         let full = visibility == .full
+        let discoverableChildren = folder.childFolders.count {
+            broker.allowsDiscovery(
+                of: PrivacyResolver.effectivePrivacy(of: $0),
+                in: access
+            )
+        }
+        let discoverableObjects = folder.containedObjects.count {
+            $0.deletedAt == nil && isDiscoverable($0, in: access)
+        }
         return FolderSnapshot(
             id: folder.id,
             name: folder.name,
@@ -340,8 +370,8 @@ extension LibraryService {
                                          symbolName: folder.symbolName,
                                          emoji: folder.emoji),
             parentID: folder.parent.map { FolderID($0.identifier) },
-            subfolderCount: full ? folder.childFolders.count : 0,
-            objectCount: full ? folder.containedObjects.count(where: { $0.deletedAt == nil }) : 0,
+            subfolderCount: full ? discoverableChildren : 0,
+            objectCount: full ? discoverableObjects : 0,
             isHidden: privacy.isHidden,
             isLocked: privacy.isLocked,
             visibility: visibility,
@@ -361,7 +391,9 @@ extension LibraryService {
             appearance: EntityAppearance(colorHex: collection.colorHex,
                                          symbolName: collection.symbolName,
                                          emoji: collection.emoji),
-            memberCount: full ? collection.orderedMemberships.count : 0,
+            memberCount: full
+                ? collection.orderedObjects.count { $0.deletedAt == nil && isDiscoverable($0, in: access) }
+                : 0,
             isSmart: collection.isSmart,
             isHidden: privacy.isHidden,
             isLocked: privacy.isLocked,
@@ -377,7 +409,9 @@ extension LibraryService {
             appearance: EntityAppearance(colorHex: tag.colorHex,
                                          symbolName: tag.symbolName,
                                          emoji: tag.emoji),
-            objectCount: tag.taggedObjects.count(where: { $0.deletedAt == nil })
+            objectCount: tag.taggedObjects.count {
+                $0.deletedAt == nil && isDiscoverable($0, in: access)
+            }
         )
     }
 

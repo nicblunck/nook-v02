@@ -53,6 +53,49 @@ struct ToolSurfaceTests {
         }
     }
 
+    @Test("A hidden collection cannot be searched by a known reference")
+    func hiddenCollectionScopeIsUnreachable() async throws {
+        let (harness, surface) = try await makeLibrary()
+        defer { harness.cleanUp() }
+
+        let source = try harness.makeSourceFile(named: "visible.txt", contents: "visible")
+        let report = await harness.service.importItems([.file(url: source)], into: .root)
+        let id = try #require(report.importedIDs.first)
+        let collection = try await harness.service.createCollection(named: "Hidden surface")
+        try await harness.service.addObjects([id], toCollection: collection.id)
+        try await harness.service.setPrivacy(PrivacyFlags(isHidden: true), forCollection: collection.id)
+
+        let results = await surface.searchObjects(.init(
+            query: "visible",
+            collectionReference: collection.reference.description
+        ))
+        #expect(results.isEmpty)
+        #expect(await surface.searchObjects(.init(query: "visible")).count == 1)
+    }
+
+    @Test("Invalid filters never broaden a search")
+    func invalidFiltersReturnNothing() async throws {
+        let (harness, surface) = try await makeLibrary()
+        defer { harness.cleanUp() }
+
+        let source = try harness.makeSourceFile(named: "findable.txt", contents: "findable")
+        await harness.service.importItems([.file(url: source)], into: .root)
+
+        #expect(await surface.searchObjects(.init(
+            query: "findable",
+            folderReference: "not-a-reference"
+        )).isEmpty)
+        #expect(await surface.searchObjects(.init(
+            query: "findable",
+            kind: "not-a-kind"
+        )).isEmpty)
+        #expect(await surface.searchObjects(.init(
+            query: "findable",
+            folderReference: "folder://\(UUID().uuidString)",
+            tagReference: "tag://\(UUID().uuidString)"
+        )).isEmpty)
+    }
+
     @Test("A locked item can be outlined but never quoted")
     func lockedContentIsDescribedNotQuoted() async throws {
         let (harness, surface) = try await makeLibrary()

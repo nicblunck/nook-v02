@@ -15,6 +15,11 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Appearance") {
+                Picker("Mode", selection: $settings.appearance) {
+                    ForEach(AppAppearance.allCases) { appearance in
+                        Text(appearance.displayName).tag(appearance)
+                    }
+                }
                 Picker("Accent Color", selection: $settings.accentColorHex) {
                     ForEach(Self.tints, id: \.name) { tint in
                         HStack {
@@ -26,9 +31,6 @@ struct SettingsView: View {
                         .tag(tint.hex)
                     }
                 }
-                // Light, dark and system follow the platform. There is no theme
-                // engine, and an entity's own colour never retints the app.
-                LabeledContent("Light & Dark", value: "Follows your system setting")
             }
 
             Section {

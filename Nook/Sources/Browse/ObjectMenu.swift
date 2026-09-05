@@ -62,6 +62,25 @@ struct ObjectMenu: View {
                 }
             }
 
+            if !model.tags.isEmpty {
+                Menu("Tags", systemImage: "tag") {
+                    ForEach(model.tags) { tag in
+                        let isAppliedToAll = objects.allSatisfy { object in
+                            object.tags.contains { $0.id == tag.id }
+                        }
+                        Button {
+                            if isAppliedToAll {
+                                Task { await model.removeTag(tag.id, from: ids) }
+                            } else {
+                                Task { await model.addTag(tag.name, to: ids) }
+                            }
+                        } label: {
+                            Label(tag.name, systemImage: isAppliedToAll ? "checkmark" : "plus")
+                        }
+                    }
+                }
+            }
+
             if case .collection(let id) = model.scope {
                 Button("Remove from Collection", systemImage: "minus.circle") {
                     Task { await model.removeFromCollection(id, objects: ids) }

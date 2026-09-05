@@ -1,6 +1,30 @@
 import SwiftUI
 import NookLibrary
 
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
 /// The global defaults every location follows until one is explicitly told to
 /// remember something else.
 ///
@@ -14,6 +38,7 @@ final class AppSettings {
     private enum Key {
         static let defaultPreferences = "nook.defaultViewPreferences"
         static let accentColorHex = "nook.accentColorHex"
+        static let appearance = "nook.appearance"
     }
 
     private let defaults: UserDefaults
@@ -28,11 +53,17 @@ final class AppSettings {
         didSet { defaults.set(accentColorHex, forKey: Key.accentColorHex) }
     }
 
+    var appearance: AppAppearance {
+        didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.defaultPreferences = Self.load(from: defaults, key: Key.defaultPreferences)
             ?? .systemDefault
         self.accentColorHex = defaults.string(forKey: Key.accentColorHex)
+        self.appearance = defaults.string(forKey: Key.appearance)
+            .flatMap(AppAppearance.init(rawValue:)) ?? .system
     }
 
     var accentColor: Color? { Color(hex: accentColorHex) }

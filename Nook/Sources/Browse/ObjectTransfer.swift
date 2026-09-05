@@ -38,6 +38,16 @@ struct ObjectTransfer: Codable, Transferable, Hashable {
     }
 }
 
+/// Folder identity for hierarchy drag-and-drop. Folder drags stay internal to
+/// Nook; unlike objects, a folder does not represent an exportable file.
+struct FolderTransfer: Codable, Transferable, Hashable {
+    let id: FolderID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .nookFolder)
+    }
+}
+
 enum ObjectTransferError: Error, LocalizedError {
     case originalNotAvailable
 
@@ -48,4 +58,5 @@ enum ObjectTransferError: Error, LocalizedError {
 
 extension UTType {
     static let nookObject = UTType(exportedAs: "com.nicolasblunck.nook.object")
+    static let nookFolder = UTType(exportedAs: "com.nicolasblunck.nook.folder")
 }

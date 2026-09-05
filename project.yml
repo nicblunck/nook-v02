@@ -7,6 +7,8 @@ options:
 settings:
   SWIFT_VERSION: "6.0"
   SWIFT_STRICT_CONCURRENCY: complete
+  DEVELOPMENT_TEAM: U4K77TMBRU
+  CODE_SIGN_STYLE: Automatic
 packages:
   NookLibrary:
     path: Packages/NookLibrary
@@ -48,6 +50,17 @@ targets:
         product: NookLibrary
     info:
       path: Nook/ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Save to Nook
+        NSExtension:
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 20
+              NSExtensionActivationSupportsImageWithMaxCount: 20
+              NSExtensionActivationSupportsMovieWithMaxCount: 20
+              NSExtensionActivationSupportsWebURLWithMaxCount: 20
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
     settings:
       base:
         PRODUCT_NAME: Save to Nook
@@ -55,6 +68,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Nook/ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: Nook/ShareExtension/ShareExtension.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
 

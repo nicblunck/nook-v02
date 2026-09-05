@@ -66,13 +66,13 @@ struct OrganizationTests {
         #expect(await harness.service.objects(matching: ObjectQuery(scope: .recentlyDeleted)).count == 1)
         // Still in Recently Deleted, so the bytes must survive a collection pass.
         try await harness.service.collectOrphanedBlobs()
-        #expect(await harness.library.blobStore.isAvailableLocally(descriptor))
+        #expect(harness.library.blobStore.isAvailableLocally(descriptor))
 
         try await harness.service.restore([id])
         #expect(await harness.service.objects(matching: ObjectQuery(scope: .allObjects)).count == 1)
 
         try await harness.service.permanentlyDelete([id])
-        #expect(await harness.library.blobStore.isAvailableLocally(descriptor) == false)
+        #expect(harness.library.blobStore.isAvailableLocally(descriptor) == false)
     }
 
     @Test("Shared bytes outlive the first object to be deleted")
@@ -88,10 +88,10 @@ struct OrganizationTests {
         let descriptor = try #require(await harness.service.object(ids[0])?.blob)
 
         try await harness.service.permanentlyDelete([ids[0]])
-        #expect(await harness.library.blobStore.isAvailableLocally(descriptor))
+        #expect(harness.library.blobStore.isAvailableLocally(descriptor))
 
         try await harness.service.permanentlyDelete([ids[1]])
-        #expect(await harness.library.blobStore.isAvailableLocally(descriptor) == false)
+        #expect(harness.library.blobStore.isAvailableLocally(descriptor) == false)
     }
 
     @Test("A folder cannot be moved inside itself")

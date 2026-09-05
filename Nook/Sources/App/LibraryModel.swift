@@ -54,6 +54,7 @@ final class LibraryModel {
 
     private(set) var importProgress: ImportProgress?
     var alert: LibraryAlert?
+    var importFailure: ImportFailure?
 
     /// The authenticated state every read is made under. Hidden and locked
     /// content stays out of reach until the authentication flow raises this.
@@ -264,8 +265,11 @@ final class LibraryModel {
         fetchPendingLinkMetadata()
 
         if report.hasFailures {
-            alert = LibraryAlert(
-                title: "Some items couldn't be imported",
+            let failedItems = zip(items, report.results).compactMap { item, result in
+                if case .failed = result { item } else { nil }
+            }
+            importFailure = ImportFailure(
+                items: failedItems,
                 message: report.failures.compactMap {
                     if case .failed(let name, let error) = $0 { "\(name): \(error)" } else { nil }
                 }.joined(separator: "\n")
@@ -382,6 +386,10 @@ final class LibraryModel {
 
     func rename(folder id: FolderID, to name: String) async {
         await perform { try await self.library.service.renameFolder(id, to: name) }
+    }
+
+    func moveFolder(_ id: FolderID, to parent: FolderID?) async {
+        await perform { try await self.library.service.moveFolder(id, to: parent) }
     }
 
     func deleteFolder(_ id: FolderID) async {
@@ -579,6 +587,14 @@ final class LibraryModel {
         guard contents.objects.indices.contains(target) else { return nil }
         return contents.objects[target]
     }
+
+    func stepPreview(_ offset: Int) {
+        guard let current = previewedObjectID,
+              let next = adjacentObject(to: current, offset: offset)
+        else { return }
+        previewedObjectID = next.id
+        selection = [next.id]
+    }
 }
 
 /// One band on the Home screen.
@@ -653,6 +669,12 @@ struct FolderNode: Identifiable, Hashable {
 struct LibraryAlert: Identifiable {
     let id = UUID()
     let title: String
+    let message: String
+}
+
+struct ImportFailure: Identifiable {
+    let id = UUID()
+    let items: [ImportItem]
     let message: String
 }
 
