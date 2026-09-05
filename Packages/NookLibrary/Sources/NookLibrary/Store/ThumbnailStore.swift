@@ -23,7 +23,14 @@ public actor ThumbnailStore {
     /// Returns nil when the object has no renderable content, or when its
     /// content is protected — a locked object arrives here with no blob.
     public func thumbnail(for object: ObjectSnapshot, maximumSize: CGFloat = 512) async -> Data? {
-        guard object.isContentAccessible, let blob = object.blob else { return nil }
+        guard object.isContentAccessible else { return nil }
+
+        // A link has no stored payload, so its preview picture is cached
+        // against the object itself rather than against a blob.
+        guard let blob = object.blob else {
+            return cachedData(forKey: previewKey(for: object.id))
+        }
+
         let key = "\(blob.hash.hexValue)-\(Int(maximumSize))"
 
         if let cached = cachedData(forKey: key) { return cached }
@@ -39,6 +46,19 @@ public actor ThumbnailStore {
         let result = await task.value
         inFlight[key] = nil
         return result
+    }
+
+    /// Caches a downloaded link preview picture for an object.
+    public func storePreviewImage(_ data: Data, for id: ObjectID) {
+        try? data.write(to: directory.appending(path: "\(previewKey(for: id)).png"), options: .atomic)
+    }
+
+    public func hasPreviewImage(for id: ObjectID) -> Bool {
+        cachedData(forKey: previewKey(for: id)) != nil
+    }
+
+    private func previewKey(for id: ObjectID) -> String {
+        "link-\(id.uuid.uuidString)"
     }
 
     /// Discards every cached thumbnail. Safe at any time: they regenerate.

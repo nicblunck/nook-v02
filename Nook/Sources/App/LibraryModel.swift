@@ -261,6 +261,7 @@ final class LibraryModel {
         importProgress = nil
         await refreshAll()
         extractPendingContent()
+        fetchPendingLinkMetadata()
 
         if report.hasFailures {
             alert = LibraryAlert(
@@ -280,6 +281,20 @@ final class LibraryModel {
 
     func importFiles(at urls: [URL]) async {
         await importItems(urls.map { ImportItem.file(url: $0) })
+    }
+
+    /// Brings in whatever is on the pasteboard — a copied file, a copied web
+    /// address, or a copied picture.
+    func importPasteboard() async {
+        let items = PasteImporter.items()
+        guard !items.isEmpty else {
+            alert = LibraryAlert(
+                title: "Nothing to paste",
+                message: "The clipboard doesn't hold a file, a link, or an image."
+            )
+            return
+        }
+        await importItems(items)
     }
 
     // MARK: External navigation
@@ -317,6 +332,31 @@ final class LibraryModel {
     func extractPendingContent() {
         Task.detached(priority: .background) { [service = library.service] in
             await service.extractPendingText()
+        }
+    }
+
+    /// Fills in page metadata for links saved without it — from the share
+    /// sheet, or while offline. Runs quietly; nothing on screen waits for it.
+    func fetchPendingLinkMetadata() {
+        Task { [weak self] in
+            guard let self else { return }
+            let service = library.service
+            let thumbnails = library.thumbnails
+            let pending = await service.linksAwaitingMetadata()
+            guard !pending.isEmpty else { return }
+
+            for id in pending {
+                guard let object = await service.object(id, in: accessContext),
+                      let url = object.sourceURL,
+                      let result = await LinkMetadataFetcher.fetch(for: url)
+                else { continue }
+
+                try? await service.applyLinkMetadata(result.metadata, to: id)
+                if let imageData = result.previewImageData {
+                    await thumbnails.storePreviewImage(imageData, for: id)
+                }
+            }
+            await refreshAll()
         }
     }
 

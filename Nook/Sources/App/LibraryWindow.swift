@@ -155,6 +155,15 @@ struct NookCommands: Commands {
         }
 
         CommandGroup(after: .pasteboard) {
+            Button("Paste Into Library") {
+                guard let model else { return }
+                Task { await model.importPasteboard() }
+            }
+            .keyboardShortcut("v", modifiers: [.command, .shift])
+            .disabled(model == nil)
+        }
+
+        CommandGroup(after: .pasteboard) {
             Divider()
             Button("Get Info") { model?.isInspectorPresented.toggle() }
                 .keyboardShortcut("i")

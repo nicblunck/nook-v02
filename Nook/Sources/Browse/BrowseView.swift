@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
+#if os(iOS)
+import PhotosUI
+#endif
 
 /// The content canvas. Browsing and preview occupy the same space: opening an
 /// object replaces the grid rather than stacking a window on top of it.
@@ -8,6 +11,10 @@ struct BrowseView: View {
     @Bindable var model: LibraryModel
     @State private var isDropTargeted = false
     @FocusState private var isSearchFocused: Bool
+    #if os(iOS)
+    @State private var isPhotosPickerPresented = false
+    @State private var photoSelections: [PhotosPickerItem] = []
+    #endif
     @State private var newCollectionTargets: [ObjectID]?
     @State private var draftCollectionName = ""
 
@@ -40,6 +47,18 @@ struct BrowseView: View {
             guard case .success(let urls) = result else { return }
             Task { await model.importFiles(at: urls) }
         }
+        #if os(iOS)
+        .photosPicker(
+            isPresented: $isPhotosPickerPresented,
+            selection: $photoSelections,
+            matching: .any(of: [.images, .videos])
+        )
+        .onChange(of: photoSelections) { _, selections in
+            guard !selections.isEmpty else { return }
+            photoSelections = []
+            Task { await importPhotos(selections) }
+        }
+        #endif
         .alert("New Collection", isPresented: newCollectionBinding) {
             TextField("Name", text: $draftCollectionName)
             Button("Cancel", role: .cancel) {}
@@ -206,7 +225,19 @@ struct BrowseView: View {
             }
 
             ToolbarItem {
-                Button("Import", systemImage: "plus") { model.isImporterPresented = true }
+                Menu {
+                    Button("Files…", systemImage: "folder") { model.isImporterPresented = true }
+                    #if os(iOS)
+                    Button("Photos…", systemImage: "photo.on.rectangle") {
+                        isPhotosPickerPresented = true
+                    }
+                    #endif
+                    Button("Paste", systemImage: "doc.on.clipboard") {
+                        Task { await model.importPasteboard() }
+                    }
+                } label: {
+                    Label("Import", systemImage: "plus")
+                }
             }
         }
 
@@ -260,6 +291,21 @@ struct BrowseView: View {
     }
 
     // MARK: Actions
+
+    #if os(iOS)
+    /// Photos hands over bytes rather than a file on disk, so each selection
+    /// arrives as data with whatever content type the library holds it in.
+    private func importPhotos(_ selections: [PhotosPickerItem]) async {
+        var items: [ImportItem] = []
+        for selection in selections {
+            guard let data = try? await selection.loadTransferable(type: Data.self) else { continue }
+            let contentType = selection.supportedContentTypes.first ?? .data
+            let name = selection.itemIdentifier.map { "\($0).\(contentType.preferredFilenameExtension ?? "dat")" }
+            items.append(.data(data, contentType: contentType, suggestedName: name))
+        }
+        await model.importItems(items)
+    }
+    #endif
 
     private func startNewCollection(with ids: [ObjectID]) {
         draftCollectionName = ""

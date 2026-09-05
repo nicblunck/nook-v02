@@ -56,6 +56,48 @@ public extension LibraryService {
     }
 }
 
+public extension LibraryService {
+
+    /// Saved links that have not been enriched with page metadata yet.
+    ///
+    /// A link saved from the share sheet arrives with nothing but its URL —
+    /// the extension is too short-lived to go and fetch a page — so the app
+    /// fills these in afterwards.
+    func linksAwaitingMetadata(limit: Int = 10) -> [ObjectID] {
+        let linkKind = ObjectKind.link.rawValue
+        var descriptor = FetchDescriptor<LibraryObject>(
+            predicate: #Predicate { $0.kindRaw == linkKind && $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.dateAdded, order: .reverse)]
+        )
+        descriptor.fetchLimit = 200
+
+        return ((try? context.fetch(descriptor)) ?? [])
+            .filter { $0.linkPageTitle == nil && $0.sourceURLString != nil }
+            .prefix(limit)
+            .map(\.id)
+    }
+
+    /// Applies fetched page metadata. The title is only replaced while it is
+    /// still the placeholder taken from the URL, so a title the user has
+    /// edited is never overwritten by a later fetch.
+    func applyLinkMetadata(_ metadata: LinkMetadata, to id: ObjectID) throws {
+        guard let object = object(withIdentifier: id.uuid) else {
+            throw LibraryError.objectNotFound(id)
+        }
+        let placeholder = object.sourceURL?.host() ?? object.sourceURLString ?? ""
+
+        object.linkPageTitle = metadata.title
+        object.linkDescription = metadata.summary
+        object.linkPreviewImageURLString = metadata.previewImageURL?.absoluteString
+        object.linkFaviconURLString = metadata.faviconURL?.absoluteString
+
+        if let title = metadata.title, !title.isEmpty, object.title == placeholder {
+            object.title = title
+        }
+        try didMutate()
+    }
+}
+
 // MARK: - Internals
 
 extension LibraryService {

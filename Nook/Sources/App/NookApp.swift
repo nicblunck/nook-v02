@@ -52,6 +52,11 @@ final class LibraryLoader {
             let model = LibraryModel(library: library, settings: settings)
             await model.refreshAll()
             state = .ready(model)
+
+            // Catch up on anything the share extension left for the app to
+            // finish, and on any backlog from a previous launch.
+            model.extractPendingContent()
+            model.fetchPendingLinkMetadata()
         } catch {
             state = .failed(error.localizedDescription)
         }
