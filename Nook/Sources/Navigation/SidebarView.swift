@@ -9,8 +9,38 @@ struct SidebarView: View {
     @Bindable var model: LibraryModel
 
     @State private var editingAppearance: AppearanceTarget?
+    /// The list itself holds the keyboard, rather than an invisible layer
+    /// beside it. That is the whole point: a sidebar list that AppKit knows is
+    /// focused paints its own selection — accent while it has the keyboard,
+    /// grey when it doesn't, full width, right shape — and recolours the
+    /// labels and symbols on it for contrast.
+    @FocusState private var isListFocused: Bool
 
     var body: some View {
+        list
+        #if os(macOS)
+            // Up and down belong to the list, which does them the way every
+            // other Mac sidebar does. These are the few keys the sidebar means
+            // something particular by, taken before the list can decline them.
+            .background(
+                WindowKeyMonitor(
+                    isActive: model.keyboardPane == .sidebar && model.namingPrompt == nil,
+                    onKey: handleKey
+                )
+            )
+        #endif
+            .focused($isListFocused)
+            .onAppear { syncFocus() }
+            .onChange(of: model.keyboardFocusRequest) { syncFocus() }
+            // Clicking a row is another way of saying the keyboard belongs
+            // here, and clicking the row you are already on changes no
+            // selection — so nothing else would say it.
+            .onChange(of: isListFocused) { _, focused in
+                if focused { model.focus(.sidebar) }
+            }
+    }
+
+    private var list: some View {
         List(selection: selectionBinding) {
             Section("Library") {
                 Label("Home", systemImage: "house")
@@ -25,8 +55,8 @@ struct SidebarView: View {
                 if model.folderTree.isEmpty {
                     Text("No folders yet").font(.callout).foregroundStyle(.tertiary)
                 } else {
-                    OutlineGroup(model.folderTree, children: \.outlineChildren) { node in
-                        folderRow(node.folder)
+                    FolderRows(nodes: model.folderTree, model: model) { folder in
+                        AnyView(folderRow(folder))
                     }
                 }
             } header: {
@@ -231,6 +261,29 @@ struct SidebarView: View {
 
     // MARK: Bindings
 
+    /// Puts the keyboard where the model says it belongs. Focus is set from
+    /// one place so the two columns cannot each believe they have it.
+    private func syncFocus() {
+        isListFocused = model.keyboardPane == .sidebar
+    }
+
+    #if os(macOS)
+    /// The keys the sidebar means something particular by. Up and down are
+    /// left to the list.
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard event.heldModifiers.subtracting(.shift).isEmpty else { return false }
+
+        switch event.keyCode {
+        case MacKey.left: model.collapseOrGoToParent()
+        case MacKey.right: model.expandOrEnterCanvas()
+        case MacKey.return, MacKey.keypadEnter: model.enterCanvas()
+        case MacKey.tab, MacKey.escape: model.focus(.canvas)
+        default: return false
+        }
+        return true
+    }
+    #endif
+
     private var selectionBinding: Binding<LibraryDestination?> {
         Binding(
             get: { model.destination },
@@ -241,6 +294,43 @@ struct SidebarView: View {
         )
     }
 
+}
+
+/// The folder tree, drawn from expansion state the arrow keys can reach.
+///
+/// `OutlineGroup` keeps its own expansion privately, which leaves nothing for
+/// left and right to open and close.
+private struct FolderRows: View {
+    let nodes: [FolderNode]
+    let model: LibraryModel
+    let row: (FolderSnapshot) -> AnyView
+
+    var body: some View {
+        ForEach(nodes) { node in
+            if let children = node.outlineChildren {
+                DisclosureGroup(isExpanded: expansion(of: node.folder.id)) {
+                    FolderRows(nodes: children, model: model, row: row)
+                } label: {
+                    row(node.folder)
+                }
+            } else {
+                row(node.folder)
+            }
+        }
+    }
+
+    private func expansion(of id: FolderID) -> Binding<Bool> {
+        Binding(
+            get: { model.expandedFolders.contains(id) },
+            set: { isExpanded in
+                if isExpanded {
+                    model.expandedFolders.insert(id)
+                } else {
+                    model.expandedFolders.remove(id)
+                }
+            }
+        )
+    }
 }
 
 /// The entity whose appearance is being edited.

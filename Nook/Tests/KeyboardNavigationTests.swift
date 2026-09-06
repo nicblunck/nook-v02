@@ -63,17 +63,15 @@ struct CanvasNavigationTests {
         #expect(grid.destination(from: grid.ids[4], .down) == grid.ids[7])
     }
 
-    /// At the edge of the canvas there is no row to reach, and stopping dead
-    /// is less useful than going as far as the key was pointing. So down from
-    /// the last row finishes at the last item and up from the first row
-    /// finishes at the first — and only an item already at that end refuses to
-    /// move.
-    @Test("Past the last row is the last item, and past the first row is the first")
-    func fallsToTheEnds() {
+    /// At the edge there is no row to reach and the key does nothing, which is
+    /// what every other Mac list does. Sliding to the last or first item
+    /// instead would be movement the key did not ask for.
+    @Test("Up on the first row and down on the last do nothing")
+    func stopsAtTheEdges() {
         let grid = Grid()
-        #expect(grid.destination(from: grid.ids[6], .down) == grid.ids[7])
+        #expect(grid.destination(from: grid.ids[6], .down) == nil)
         #expect(grid.destination(from: grid.ids[7], .down) == nil)
-        #expect(grid.destination(from: grid.ids[1], .up) == grid.ids[0])
+        #expect(grid.destination(from: grid.ids[1], .up) == nil)
         #expect(grid.destination(from: grid.ids[0], .up) == nil)
     }
 
@@ -382,6 +380,138 @@ struct KeyboardNavigationTests {
         let harness = try await harnessWithThreeObjects()
         defer { harness.cleanUp() }
         #expect(!harness.model.canGoToEnclosingScope)
+    }
+
+    // MARK: Moving between the columns
+
+    @Test("Tab hands the keyboard to the other column, and back")
+    func tabsBetweenColumns() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        #expect(model.keyboardPane == .sidebar)
+        model.focusOtherPane()
+        #expect(model.keyboardPane == .canvas)
+        model.focusOtherPane()
+        #expect(model.keyboardPane == .sidebar)
+    }
+
+    /// Asking for a column that is already listening still has to count: the
+    /// window's first responder can have moved even when the pane has not.
+    @Test("Asking twice for the same column still asks")
+    func focusRequestsAlwaysCount() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        let before = model.keyboardFocusRequest
+        model.focus(.sidebar)
+        model.focus(.sidebar)
+        #expect(model.keyboardFocusRequest == before + 2)
+    }
+
+    @Test("Right opens a closed folder rather than leaving the sidebar")
+    func rightOpensAFolder() async throws {
+        let (harness, papers, _) = try await harnessInAFolder()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.focus(.sidebar)
+        model.navigate(to: .scope(.folder(papers.id)))
+        await model.refreshContents()
+        #expect(!model.expandedFolders.contains(papers.id))
+
+        model.expandOrEnterCanvas()
+        #expect(model.expandedFolders.contains(papers.id))
+        // Still in the sidebar: there was something to open here.
+        #expect(model.keyboardPane == .sidebar)
+    }
+
+    /// With nothing left to open, right carries on the way it was pointing.
+    @Test("Right on a folder with nothing left to open steps into the canvas")
+    func rightStepsIntoTheCanvas() async throws {
+        let (harness, papers, _) = try await harnessInAFolder()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.focus(.sidebar)
+        model.navigate(to: .scope(.folder(papers.id)))
+        await model.refreshContents()
+        model.expandOrEnterCanvas()          // opens it
+        let entries = model.canvasEntryRequest
+        model.expandOrEnterCanvas()          // nothing left to open
+
+        #expect(model.keyboardPane == .canvas)
+        #expect(model.canvasEntryRequest == entries + 1)
+    }
+
+    @Test("Left closes an open folder, then climbs to the one above")
+    func leftClosesThenClimbs() async throws {
+        let (harness, papers, drafts) = try await harnessInAFolder()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.focus(.sidebar)
+        model.expandedFolders.insert(papers.id)
+        model.navigate(to: .scope(.folder(papers.id)))
+        await model.refreshContents()
+
+        model.collapseOrGoToParent()
+        #expect(!model.expandedFolders.contains(papers.id))
+
+        // A closed folder has nothing to shut, so left goes up instead — and
+        // from a child that means the folder containing it.
+        model.navigate(to: .scope(.folder(drafts.id)))
+        await model.refreshContents()
+        model.collapseOrGoToParent()
+        #expect(model.scope == .folder(papers.id))
+    }
+
+    /// Stepping across into a canvas with nothing lit looks exactly like the
+    /// key having done nothing.
+    @Test("Arriving in the canvas lights something up")
+    func arrivingLightsSomething() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.focus(.sidebar)
+        #expect(model.cursor == nil)
+
+        model.enterCanvas()
+        model.lightFirstItemIfNothingIsLit()
+        #expect(model.cursor == model.canvasOrder.first)
+    }
+
+    /// A click means "select nothing" as readily as it means "select this", so
+    /// arriving must not overrule a cursor that is already placed.
+    @Test("Arriving does not move a cursor that is already somewhere")
+    func arrivingLeavesAPlacedCursorAlone() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.moveCursor(.down)
+        model.moveCursor(.right)
+        let placed = model.cursor
+        #expect(placed == model.canvasOrder[1])
+
+        model.lightFirstItemIfNothingIsLit()
+        #expect(model.cursor == placed)
+    }
+
+    /// Left runs out of canvas at the first item, and says so, which is what
+    /// lets the view step back into the sidebar instead.
+    @Test("Left reports going nowhere once it reaches the first item")
+    func reportsRunningOutOfCanvas() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        #expect(model.moveCursor(.right))          // onto the first item
+        #expect(!model.moveCursor(.left))          // nowhere further left
+        #expect(model.cursor == model.canvasOrder.first)
     }
 
     /// Shift-clicking and shift-arrowing are the same rule, so the two cannot

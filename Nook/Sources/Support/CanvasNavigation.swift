@@ -99,9 +99,10 @@ enum CanvasNavigation {
 
     /// Movement by whole rows, for when the destination has not been measured.
     ///
-    /// Stepping past either end lands on the item at that end rather than
-    /// nowhere, so a press at the bottom row reaches the last item instead of
-    /// appearing to do nothing.
+    /// A row past either end is nowhere, and the key does nothing — which is
+    /// what every other Mac list does at its edge. A short last row is not
+    /// this case: it has been measured, so the nearest item in it answers
+    /// before this does.
     private static func rowStep(
         from index: Int,
         direction: CanvasDirection,
@@ -110,9 +111,7 @@ enum CanvasNavigation {
     ) -> CanvasItemID? {
         let stride = columnCount(in: frames)
         let target = direction == .down ? index + stride : index - stride
-        if order.indices.contains(target) { return order[target] }
-        if direction == .down { return index < order.count - 1 ? order.last : nil }
-        return index > 0 ? order.first : nil
+        return order.indices.contains(target) ? order[target] : nil
     }
 
     /// How many columns the canvas is currently drawing, read off the frames.

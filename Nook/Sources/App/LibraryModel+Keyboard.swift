@@ -31,16 +31,20 @@ extension LibraryModel {
     ///
     /// `frames` is what the canvas measured; it decides what "up" means in a
     /// layout that is not a uniform grid.
+    /// Returns whether the cursor actually went anywhere, so a key that has
+    /// run out of canvas can do something else with itself.
+    @discardableResult
     func moveCursor(
         _ direction: CanvasDirection,
         extendingSelection: Bool = false,
         frames: [CanvasItemID: CGRect] = [:]
-    ) {
+    ) -> Bool {
         let order = canvasOrder
         guard let target = CanvasNavigation.destination(
             from: cursor, direction: direction, order: order, frames: frames
-        ) else { return }
+        ) else { return false }
         place(target, extendingSelection: extendingSelection)
+        return true
     }
 
     /// Home and End: the top of the canvas and the bottom of it.
@@ -77,6 +81,9 @@ extension LibraryModel {
 
     /// One selection policy, whichever input asked for it.
     func select(_ id: ObjectID, modifiers: EventModifiers) {
+        // Clicking an item is another way of saying the keyboard belongs to
+        // the canvas.
+        focus(.canvas)
         cursor = .object(id)
 
         if modifiers.contains(.command) {
@@ -151,6 +158,51 @@ extension LibraryModel {
     var canQuickLookCursorItem: Bool {
         guard previewedObjectID == nil, let object = cursorObject else { return false }
         return object.kind != .link
+    }
+
+    // MARK: The sidebar
+
+    /// The folder the sidebar is pointing at, if it is pointing at one.
+    private var sidebarFolder: FolderSnapshot? {
+        guard let id = currentFolderID else { return nil }
+        return allFolders.first { $0.folder.id == id }?.folder
+    }
+
+    /// Right opens a closed folder, and on anything with nothing left to open
+    /// hands the keyboard to the canvas — which is where you were heading
+    /// anyway.
+    func expandOrEnterCanvas() {
+        guard let folder = sidebarFolder,
+              folder.subfolderCount > 0,
+              !expandedFolders.contains(folder.id)
+        else {
+            enterCanvas()
+            return
+        }
+        expandedFolders.insert(folder.id)
+    }
+
+    /// Left closes an open folder, and on one that is already closed goes to
+    /// the folder above it — the outline convention, and the only way back up
+    /// a deep tree without reading every row on the way.
+    func collapseOrGoToParent() {
+        guard let folder = sidebarFolder else { return }
+        if folder.subfolderCount > 0, expandedFolders.contains(folder.id) {
+            expandedFolders.remove(folder.id)
+            return
+        }
+        // A top-level folder has no row above it to climb to: the sections
+        // around it are other kinds of place, not its parent.
+        guard let parent = folder.parentID else { return }
+        navigate(to: .scope(.folder(parent)))
+    }
+
+    /// Arriving in the canvas from the sidebar has to land on something.
+    /// Stepping across into an empty canvas, or one with nothing lit, looks
+    /// exactly like the key having done nothing.
+    func lightFirstItemIfNothingIsLit() {
+        guard cursor == nil else { return }
+        moveCursor(.down)
     }
 
     // MARK: Going up

@@ -33,6 +33,55 @@ final class LibraryModel {
     var previewedObjectID: ObjectID?
     var isInspectorPresented = false
 
+    // MARK: Keyboard focus
+    //
+    // Which column the keyboard is talking to is decided here, in one place,
+    // rather than by two `@FocusState`s racing each other. SwiftUI focus and
+    // AppKit's first responder are separate systems that do not agree, and a
+    // sidebar list has to genuinely hold the keyboard — that is what makes
+    // macOS paint its own selection, full width and correctly contrasted,
+    // instead of the app drawing a selection by hand that says nothing about
+    // where the keyboard actually is.
+
+    /// The column listening to the keyboard. The sidebar starts with it,
+    /// because the app opens on Home, which has no canvas to navigate.
+    private(set) var keyboardPane: KeyboardPane = .sidebar
+    /// Bumped every time a column is asked to take the keyboard, so asking for
+    /// one that is already listening still works — after a sheet closes, say,
+    /// when the pane has not changed but the window's first responder has.
+    private(set) var keyboardFocusRequest = 0
+    /// Bumped when the keyboard is walked into the canvas from the sidebar
+    /// rather than put there by a click. The canvas answers by lighting
+    /// something up: arriving with nothing lit looks exactly like the key
+    /// having done nothing. A click cannot use this — clicking the space
+    /// between items means "select nothing", and lighting the first item would
+    /// undo that.
+    private(set) var canvasEntryRequest = 0
+
+    /// Which folders are open in the sidebar.
+    ///
+    /// Held here rather than inside an `OutlineGroup` because the left and
+    /// right arrows have to be able to open and close a folder, and a control
+    /// that keeps its own expansion state privately cannot be asked to.
+    var expandedFolders: Set<FolderID> = []
+
+    /// Hands the keyboard to a column.
+    func focus(_ pane: KeyboardPane) {
+        keyboardPane = pane
+        keyboardFocusRequest += 1
+    }
+
+    /// What Tab does. With two columns, forward and back are the same move, so
+    /// Shift-Tab does the same thing.
+    func focusOtherPane() { focus(keyboardPane.next) }
+
+    /// Steps the keyboard out of the sidebar and into the canvas beside it,
+    /// landing on something rather than merely arriving.
+    func enterCanvas() {
+        focus(.canvas)
+        canvasEntryRequest += 1
+    }
+
     // MARK: Presented surfaces
     //
     // Held on the model rather than in view state so the menu bar can raise
@@ -868,6 +917,14 @@ struct HomeSection: Identifiable {
 enum LibraryDestination: Hashable {
     case home
     case scope(LibraryScope)
+}
+
+/// Which column the keyboard is talking to.
+enum KeyboardPane: Hashable, CaseIterable {
+    case sidebar
+    case canvas
+
+    var next: KeyboardPane { self == .sidebar ? .canvas : .sidebar }
 }
 
 /// Which item on the canvas, and which kind of item it is.

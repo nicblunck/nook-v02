@@ -112,17 +112,32 @@ struct BrowseView: View {
                         .coordinateSpace(.named(canvasCoordinateSpace))
                     }
                     #if os(macOS)
-                    .onTapGesture { model.deselectAll() }
+                    .onTapGesture {
+                        model.focus(.canvas)
+                        model.deselectAll()
+                    }
                     #endif
                     .focusable()
                     .focusEffectDisabled()
                     .focused($isCanvasFocused)
                     .modifier(CanvasKeyboard(model: model, frames: itemFrames))
-                    .onAppear { isCanvasFocused = true }
+                    // Focus follows the model rather than being grabbed on
+                    // appear: the sidebar is the other half of this, and a
+                    // canvas that helps itself to the keyboard is a sidebar
+                    // that never gets it.
+                    .onAppear { syncFocus() }
+                    .onChange(of: model.keyboardFocusRequest) { syncFocus() }
+                    .onChange(of: isCanvasFocused) { _, focused in
+                        if focused { model.focus(.canvas) }
+                    }
                     // Leaving preview hands the keyboard back to the canvas,
                     // so the arrows keep working where they left off.
                     .onChange(of: model.previewedObjectID) { _, previewed in
-                        if previewed == nil { isCanvasFocused = true }
+                        if previewed == nil { model.focus(.canvas) }
+                    }
+                    // Walked in from the sidebar, rather than clicked into.
+                    .onChange(of: model.canvasEntryRequest) {
+                        model.lightFirstItemIfNothingIsLit()
                     }
                     .onChange(of: model.cursor) { _, cursor in
                         guard let cursor else { return }
@@ -366,6 +381,11 @@ struct BrowseView: View {
     }
     #endif
 
+    /// Puts the keyboard where the model says it belongs.
+    private func syncFocus() {
+        isCanvasFocused = model.keyboardPane == .canvas
+    }
+
     private func startNewCollection(with ids: [ObjectID]) {
         draftCollectionName = ""
         newCollectionTargets = ids
@@ -513,9 +533,19 @@ private struct CanvasKeyboard: ViewModifier {
             .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow],
                         phases: [.down, .repeat]) { press in
                 guard let direction = CanvasDirection(press.key) else { return .ignored }
-                model.moveCursor(direction,
-                                 extendingSelection: press.modifiers.contains(.shift),
-                                 frames: frames)
+                let moved = model.moveCursor(direction,
+                                             extendingSelection: press.modifiers.contains(.shift),
+                                             frames: frames)
+                // Left with nowhere left to go carries on the way it was
+                // pointing and steps back into the sidebar, which is the
+                // mirror of right stepping out of it.
+                if !moved, direction == .left, !press.modifiers.contains(.shift) {
+                    model.focus(.sidebar)
+                }
+                return .handled
+            }
+            .onKeyPress(.tab) {
+                model.focusOtherPane()
                 return .handled
             }
             .onKeyPress(keys: [.home, .end], phases: [.down]) { press in
