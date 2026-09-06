@@ -82,7 +82,9 @@ struct ObjectPreviewView: View {
         }
         ToolbarItem {
             Button("Get Info", systemImage: "info.circle") {
-                model.selection = [object.id]
+                // Named the way the gallery underneath names it: the canvas
+                // selects an object, Home selects one of the tiles showing it.
+                model.selectPreviewed(object)
                 model.isInspectorPresented.toggle()
             }
         }
