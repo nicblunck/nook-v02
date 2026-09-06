@@ -11,8 +11,7 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
-    sources: [Nook/Sources]
-    resources: [Nook/Resources]
+    sources: [Nook/Sources, Nook/Resources]
     info:
       path: Nook/Sources/iOS-Info.plist
       properties:
@@ -29,8 +28,7 @@ targets:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
-    sources: [Nook/Sources]
-    resources: [Nook/Resources]
+    sources: [Nook/Sources, Nook/Resources]
     settings:
       base:
         PRODUCT_NAME: Nook
