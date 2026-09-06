@@ -145,7 +145,12 @@ final class LibraryModel {
     /// content stays out of reach until the authentication flow raises this,
     /// which only `LibraryModel+Privacy` does, and only after the device owner
     /// has said yes.
-    var accessContext: AccessContext = .standard
+    var accessContext: AccessContext = .standard {
+        didSet {
+            contentsRefreshGeneration += 1
+            folderPeeks = [:]
+        }
+    }
 
     private var searchTask: Task<Void, Never>?
 
@@ -337,7 +342,12 @@ final class LibraryModel {
         return searchTokens.first?.scope ?? .allObjects
     }
 
+    private var contentsRefreshGeneration = 0
+    private(set) var folderPeeks: [FolderID: [ObjectSnapshot]] = [:]
+
     func refreshContents() async {
+        contentsRefreshGeneration += 1
+        let generation = contentsRefreshGeneration
         let access = accessContext
         let query = ObjectQuery(scope: effectiveScope, searchText: searchText, sort: sort)
 
@@ -356,6 +366,14 @@ final class LibraryModel {
             breadcrumbs = []
         }
 
+        var peeks: [FolderID: [ObjectSnapshot]] = [:]
+        for folder in folders where folder.visibility == .full {
+            peeks[folder.id] = await service.objects(
+                matching: ObjectQuery(scope: .folder(folder.id), limit: 3), in: access
+            )
+        }
+        guard generation == contentsRefreshGeneration else { return }
+        folderPeeks = peeks
         contents = LocationContents(folders: folders, objects: objects)
         // A deletion, a move or an arriving import can take whatever the
         // cursor was resting on out from under it.

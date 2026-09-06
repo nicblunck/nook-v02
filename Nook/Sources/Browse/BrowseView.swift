@@ -125,6 +125,7 @@ struct BrowseView: View {
                 case .folder(let folder):
                     let isCursor = model.cursor == .folder(folder.id)
                     FolderItemView(folder: folder, mode: model.viewMode,
+                                   peeks: model.folderPeeks[folder.id] ?? [],
                                    isCursor: isCursor, scale: model.itemScale) {
                         model.scope = .folder(folder.id)
                     }

@@ -123,6 +123,9 @@ struct ObjectItemView: View {
 struct FolderItemView: View {
     let folder: FolderSnapshot
     let mode: LibraryViewMode
+    /// The first few things inside, which the icon leafs through when the
+    /// pointer rests on it.
+    var peeks: [ObjectSnapshot] = []
     let isCursor: Bool
     var scale: Double = 1
     let onOpen: () -> Void
@@ -132,10 +135,10 @@ struct FolderItemView: View {
         case .grid:
             // The grid draws no ring, so the card itself has to show that the
             // keyboard is on it.
-            FolderCard(folder: folder, isHighlighted: isCursor,
+            FolderCard(folder: folder, peeks: peeks, isHighlighted: isCursor,
                        scale: scale, onOpen: onOpen)
         case .masonry:
-            FolderCard(folder: folder, scale: scale, onOpen: onOpen)
+            FolderCard(folder: folder, peeks: peeks, scale: scale, onOpen: onOpen)
         case .list:
             FolderListRow(folder: folder).itemClick { onOpen() }
         }
