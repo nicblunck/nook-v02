@@ -125,49 +125,48 @@ struct SidebarView: View {
     /// a row of their own at the foot of the sidebar, the way Photos keeps its
     /// album list and its Hidden and Recently Deleted apart.
     private var footer: some View {
-        HStack(spacing: 6) {
-            footerButton(title: "Hidden",
-                         symbol: "eye.slash",
-                         isCurrent: model.scope == .hidden) {
-                Task { await model.openHidden() }
-            }
-            // No count here. How much someone is keeping out of sight is
-            // itself something they are keeping out of sight.
+        HStack(spacing: 2) {
             footerButton(title: "Recently Deleted",
                          symbol: "trash",
                          isCurrent: model.scope == .recentlyDeleted,
                          count: model.counts[.recentlyDeleted]) {
                 model.navigate(to: .scope(.recentlyDeleted))
             }
+            // No count on this one. How much someone is keeping out of sight
+            // is itself something they are keeping out of sight.
+            footerButton(title: "Hidden",
+                         symbol: "eye.slash",
+                         isCurrent: model.scope == .hidden) {
+                Task { await model.openHidden() }
+            }
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        // Semi-transparent rather than a solid strip: the sidebar's own
+        // material carries on underneath, so the row reads as part of it
+        // rather than as a bar bolted to the bottom.
+        .background(.ultraThinMaterial)
     }
 
+    /// Icons alone: these are two fixed destinations rather than a list that
+    /// grows, and the sidebar is somewhere names are read down a column — a
+    /// row of labelled buttons at the foot of it reads as more list.
     private func footerButton(title: String,
                               symbol: String,
                               isCurrent: Bool,
                               count: Int? = nil,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: symbol)
-                Text(title).lineLimit(1).truncationMode(.tail)
-                if let count, count > 0 {
-                    Spacer(minLength: 2)
-                    Text("\(count)").foregroundStyle(.tertiary).monospacedDigit()
-                }
-            }
-            .font(.callout)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 5)
-            .padding(.horizontal, 8)
-            .background(isCurrent ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
-                        in: .rect(cornerRadius: 6))
-            .contentShape(.rect(cornerRadius: 6))
+            Image(systemName: symbol)
+                .font(.body)
+                .frame(width: 28, height: 24)
+                .background(isCurrent ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                            in: .rect(cornerRadius: 6))
+                .contentShape(.rect(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        .help(title)
         .accessibilityLabel(title)
         .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
         .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
