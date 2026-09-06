@@ -46,6 +46,24 @@ struct PreferencesTests {
         #expect(await harness.service.rememberedPreferences(for: .collection(collection.id)) == preferences)
     }
 
+    @Test("An arrangement saved before item size existed still opens")
+    func decodingToleratesAMissingSetting() throws {
+        // Exactly what was written before the size setting was added.
+        let stored = Data(#"{"viewMode":"masonry","sort":{"field":"name","ascending":true},"foldersFirst":false}"#.utf8)
+
+        let decoded = try JSONDecoder().decode(LocationViewPreferences.self, from: stored)
+
+        #expect(decoded.viewMode == .masonry)
+        #expect(decoded.foldersFirst == false)
+        #expect(decoded.itemScale == LocationViewPreferences.systemDefault.itemScale)
+    }
+
+    @Test("An item size out of range is brought back into it")
+    func itemScaleIsClamped() {
+        #expect(LocationViewPreferences(itemScale: 12).itemScale == LocationViewPreferences.itemScaleRange.upperBound)
+        #expect(LocationViewPreferences(itemScale: 0).itemScale == LocationViewPreferences.itemScaleRange.lowerBound)
+    }
+
     @Test("System destinations always follow the global default")
     func systemScopesCannotRemember() async throws {
         let harness = try await TestLibrary()
