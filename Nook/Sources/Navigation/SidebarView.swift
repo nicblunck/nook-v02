@@ -103,7 +103,7 @@ struct SidebarView: View {
                         prompt(.newFolder(parent: model.currentFolderID), initial: "")
                     }
                     Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                        prompt(.newCollection, initial: "")
+                        prompt(.newCollection(adding: []), initial: "")
                     }
                 } label: {
                     Label("New", systemImage: "plus")

@@ -153,7 +153,7 @@ struct CompactLibraryList: View {
                         model.namingPrompt = .newFolder(parent: nil)
                     }
                     Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                        model.namingPrompt = .newCollection
+                        model.namingPrompt = .newCollection(adding: [])
                     }
                     Divider()
                     Button("Settings…", systemImage: "gear") { model.isSettingsPresented = true }

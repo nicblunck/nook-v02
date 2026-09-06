@@ -37,6 +37,7 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 final class AppSettings {
     private enum Key {
         static let defaultPreferences = "nook.defaultViewPreferences"
+        static let homePreferences = "nook.homeViewPreferences"
         static let accentColorHex = "nook.accentColorHex"
         static let appearance = "nook.appearance"
     }
@@ -45,6 +46,23 @@ final class AppSettings {
 
     var defaultPreferences: LocationViewPreferences {
         didSet { persist(defaultPreferences, forKey: Key.defaultPreferences) }
+    }
+
+    /// What Home has been asked to remember, or nil while it is still
+    /// following the global default.
+    ///
+    /// A folder keeps its own arrangement on the folder; Home is not a row in
+    /// the library, so its arrangement is kept here instead. Nil rather than a
+    /// value, so "remember this location" means the same thing on Home as it
+    /// does anywhere else — off, and Home follows the default again.
+    var homePreferences: LocationViewPreferences? {
+        didSet {
+            guard let homePreferences else {
+                defaults.removeObject(forKey: Key.homePreferences)
+                return
+            }
+            persist(homePreferences, forKey: Key.homePreferences)
+        }
     }
 
     /// The global app tint. Entity colours stay identity markers and never
@@ -61,6 +79,7 @@ final class AppSettings {
         self.defaults = defaults
         self.defaultPreferences = Self.load(from: defaults, key: Key.defaultPreferences)
             ?? .systemDefault
+        self.homePreferences = Self.load(from: defaults, key: Key.homePreferences)
         self.accentColorHex = defaults.string(forKey: Key.accentColorHex)
         self.appearance = defaults.string(forKey: Key.appearance)
             .flatMap(AppAppearance.init(rawValue:)) ?? .system

@@ -58,7 +58,10 @@ struct SearchScopeToken: Identifiable, Hashable {
 enum NamingPrompt: Identifiable {
     case newFolder(parent: FolderID?)
     case renameFolder(FolderID)
-    case newCollection
+    /// The objects the new collection should gather, which is empty when the
+    /// prompt was raised from the menu bar or the sidebar rather than from a
+    /// selection.
+    case newCollection(adding: [ObjectID])
     case renameCollection(CollectionID)
     case renameTag(TagID)
 
@@ -66,7 +69,8 @@ enum NamingPrompt: Identifiable {
         switch self {
         case .newFolder(let parent): "newFolder-\(parent?.description ?? "root")"
         case .renameFolder(let id): "renameFolder-\(id)"
-        case .newCollection: "newCollection"
+        case .newCollection(let adding):
+            "newCollection-" + adding.map { $0.uuid.uuidString }.joined(separator: ",")
         case .renameCollection(let id): "renameCollection-\(id)"
         case .renameTag(let id): "renameTag-\(id)"
         }

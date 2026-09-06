@@ -1,9 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
-#if os(iOS)
-import PhotosUI
-#endif
 
 /// The content canvas. Browsing and preview occupy the same space: opening an
 /// object replaces the grid rather than stacking a window on top of it.
@@ -15,12 +12,6 @@ struct BrowseView: View {
     @State private var itemFrames: [CanvasItemID: CGRect] = [:]
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isCanvasFocused: Bool
-    #if os(iOS)
-    @State private var isPhotosPickerPresented = false
-    @State private var photoSelections: [PhotosPickerItem] = []
-    #endif
-    @State private var newCollectionTargets: [ObjectID]?
-    @State private var draftCollectionName = ""
 
     var body: some View {
         ZStack {
@@ -37,57 +28,13 @@ struct BrowseView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbar { toolbarContent }
+        .toolbar { GalleryToolbar(model: model) }
         .searchable(text: $model.searchText, tokens: $model.searchTokens, prompt: searchPrompt) { token in
             Label(token.name, systemImage: token.symbolName)
         }
         .searchFocused($isSearchFocused)
         .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
         .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
-        .fileImporter(
-            isPresented: $model.isImporterPresented,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true
-        ) { result in
-            guard case .success(let urls) = result else { return }
-            Task { await model.importFiles(at: urls) }
-        }
-        // Exporting asks for a folder rather than saving one file at a time,
-        // because a selection is as ordinary a thing to export as one item.
-        .fileImporter(
-            isPresented: $model.isExportPickerPresented,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            guard case .success(let urls) = result, let directory = urls.first else {
-                model.cancelExport()
-                return
-            }
-            Task { await model.completeExport(to: directory) }
-        }
-        #if os(iOS)
-        .photosPicker(
-            isPresented: $isPhotosPickerPresented,
-            selection: $photoSelections,
-            matching: .any(of: [.images, .videos])
-        )
-        .onChange(of: photoSelections) { _, selections in
-            guard !selections.isEmpty else { return }
-            photoSelections = []
-            Task { await importPhotos(selections) }
-        }
-        #endif
-        .alert("New Collection", isPresented: newCollectionBinding) {
-            TextField("Name", text: $draftCollectionName)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") {
-                let name = draftCollectionName
-                let targets = newCollectionTargets ?? []
-                Task { await model.createCollection(named: name, adding: targets) }
-            }
-        } message: {
-            Text("Collections gather items from anywhere without moving them.")
-        }
     }
 
     // MARK: Canvas
@@ -103,17 +50,12 @@ struct BrowseView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        Group {
-                            switch model.viewMode {
-                            case .grid: gridCanvas
-                            case .masonry: masonryCanvas
-                            case .list: listCanvas
-                            }
-                        }
-                        // Named on the content rather than the scroll view, so
-                        // an item's measured frame describes where it sits in
-                        // the canvas and does not change as the canvas scrolls.
-                        .coordinateSpace(.named(canvasCoordinateSpace))
+                        items
+                            // Named on the content rather than the scroll view,
+                            // so an item's measured frame describes where it
+                            // sits in the canvas and does not change as the
+                            // canvas scrolls.
+                            .coordinateSpace(.named(canvasCoordinateSpace))
                     }
                     #if os(macOS)
                     .onTapGesture {
@@ -167,74 +109,47 @@ struct BrowseView: View {
             Task { await model.importFiles(at: urls) }
             return true
         } isTargeted: { isDropTargeted = $0 }
-        .overlay { if isDropTargeted { dropIndicator } }
+        .overlay { if isDropTargeted { GalleryDropIndicator() } }
     }
 
-    private var gridCanvas: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 16)], spacing: 16) {
+    /// One arrangement for all three view modes: what differs between a grid,
+    /// a masonry wall and a list is the layout and the card, and both of those
+    /// are decided in `Gallery`.
+    private var items: some View {
+        GalleryLayout(mode: model.viewMode) {
             ForEach(model.canvasItems) { item in
                 switch item {
                 case .folder(let folder):
-                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
-                        .draggable(FolderTransfer(id: folder.id))
-                        .modifier(FolderDropTarget(model: model, folder: folder))
-                        .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
+                    FolderItemView(folder: folder, mode: model.viewMode) {
+                        model.scope = .folder(folder.id)
+                    }
+                    .draggable(FolderTransfer(id: folder.id))
+                    .modifier(FolderDropTarget(model: model, folder: folder))
+                    .galleryItem(CanvasItemID.folder(folder.id),
+                                 isCursor: model.cursor == .folder(folder.id),
+                                 radius: model.viewMode.itemCornerRadius,
+                                 in: canvasCoordinateSpace,
+                                 frames: $itemFrames)
                 case .object(let object):
-                    ObjectCard(object: object,
-                               isSelected: model.selection.contains(object.id))
-                    .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
-                    .canvasItem(.object(object.id), model: model, radius: 12, frames: $itemFrames)
+                    let isSelected = model.selection.contains(object.id)
+                    ObjectItemView(object: object, mode: model.viewMode,
+                                   isSelected: isSelected)
+                    .modifier(ObjectItemBehavior(
+                        model: model,
+                        object: object,
+                        isSelected: isSelected,
+                        select: { model.select(object.id, modifiers: $0) },
+                        open: { model.openObject(object) }
+                    ))
+                    .galleryItem(CanvasItemID.object(object.id),
+                                 isCursor: model.cursor == .object(object.id),
+                                 radius: model.viewMode.itemCornerRadius,
+                                 in: canvasCoordinateSpace,
+                                 frames: $itemFrames)
                 }
             }
         }
-        .padding(20)
-    }
-
-    private var masonryCanvas: some View {
-        MasonryLayout(minimumColumnWidth: 168, spacing: 14) {
-            ForEach(model.canvasItems) { item in
-                switch item {
-                case .folder(let folder):
-                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
-                        .draggable(FolderTransfer(id: folder.id))
-                        .modifier(FolderDropTarget(model: model, folder: folder))
-                        .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
-                case .object(let object):
-                    ObjectMasonryCard(object: object, isSelected: model.selection.contains(object.id))
-                        .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
-                        .canvasItem(.object(object.id), model: model, radius: 12, frames: $itemFrames)
-                }
-            }
-        }
-        .padding(20)
-    }
-
-    private var listCanvas: some View {
-        LazyVStack(spacing: 1) {
-            ForEach(model.canvasItems) { item in
-                switch item {
-                case .folder(let folder):
-                    FolderListRow(folder: folder)
-                        .itemClick { model.scope = .folder(folder.id) }
-                        .draggable(FolderTransfer(id: folder.id))
-                        .modifier(FolderDropTarget(model: model, folder: folder))
-                        .canvasItem(.folder(folder.id), model: model, radius: 6, frames: $itemFrames)
-                case .object(let object):
-                    ObjectListRow(object: object, isSelected: model.selection.contains(object.id))
-                        .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
-                        .canvasItem(.object(object.id), model: model, radius: 6, frames: $itemFrames)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
-
-    private var dropIndicator: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
-            .padding(8)
-            .allowsHitTesting(false)
+        .padding(model.viewMode.contentInsets)
     }
 
     /// Hidden with nobody authenticated: reached by Back, or by a prompt the
@@ -281,148 +196,11 @@ struct BrowseView: View {
         }
     }
 
-    // MARK: Toolbar
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        if model.previewedObjectID == nil {
-            ToolbarItemGroup(placement: .navigation) {
-                Button("Back", systemImage: "chevron.backward") { model.goBack() }
-                    .disabled(!model.canGoBack)
-                Button("Forward", systemImage: "chevron.forward") { model.goForward() }
-                    .disabled(!model.canGoForward)
-            }
-
-            ToolbarItem {
-                Picker("View", selection: viewModeBinding) {
-                    ForEach(LibraryViewMode.allCases) { mode in
-                        Label(mode.displayName, systemImage: mode.symbolName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelStyle(.iconOnly)
-            }
-
-            ToolbarItem {
-                Menu {
-                    Picker("Sort By", selection: sortFieldBinding) {
-                        ForEach(sortFields, id: \.self) { field in
-                            Text(field.displayName).tag(field)
-                        }
-                    }
-                    Picker("Order", selection: sortAscendingBinding) {
-                        Text("Ascending").tag(true)
-                        Text("Descending").tag(false)
-                    }
-
-                    Divider()
-                    Toggle("Folders First", isOn: foldersFirstBinding)
-
-                    Divider()
-                    // A change stays temporary unless the user says otherwise,
-                    // so no location quietly acquires a permanent exception.
-                    if model.canRememberLocation {
-                        Toggle("Remember for This Location", isOn: rememberBinding)
-                    }
-                    Button("Use as Default Everywhere") {
-                        model.useCurrentPreferencesAsDefault()
-                    }
-                } label: {
-                    Label("View Options", systemImage: "arrow.up.arrow.down")
-                }
-            }
-
-            ToolbarItem {
-                Menu {
-                    Button("Files…", systemImage: "folder") { model.isImporterPresented = true }
-                    #if os(iOS)
-                    Button("Photos…", systemImage: "photo.on.rectangle") {
-                        isPhotosPickerPresented = true
-                    }
-                    #endif
-                    Button("Paste", systemImage: "doc.on.clipboard") {
-                        Task { await model.importPasteboard() }
-                    }
-                } label: {
-                    Label("Import", systemImage: "plus")
-                }
-            }
-        }
-
-        ToolbarItem {
-            Button("Info", systemImage: "info.circle") {
-                model.isInspectorPresented.toggle()
-            }
-        }
-    }
-
-    private var sortFields: [ObjectSortField] {
-        var fields: [ObjectSortField] = [.name, .dateAdded, .dateCreated, .kind, .size]
-        if case .collection = model.scope { fields.insert(.manual, at: 0) }
-        return fields
-    }
-
-    // MARK: Bindings
-
-    private var viewModeBinding: Binding<LibraryViewMode> {
-        Binding(get: { model.viewMode },
-                set: { mode in Task { await model.setViewMode(mode) } })
-    }
-
-    private var sortFieldBinding: Binding<ObjectSortField> {
-        Binding(get: { model.sort.field },
-                set: { field in
-                    Task { await model.setSort(ObjectSort(field: field, ascending: model.sort.ascending)) }
-                })
-    }
-
-    private var sortAscendingBinding: Binding<Bool> {
-        Binding(get: { model.sort.ascending },
-                set: { ascending in
-                    Task { await model.setSort(ObjectSort(field: model.sort.field, ascending: ascending)) }
-                })
-    }
-
-    private var foldersFirstBinding: Binding<Bool> {
-        Binding(get: { model.foldersFirst },
-                set: { value in Task { await model.setFoldersFirst(value) } })
-    }
-
-    private var rememberBinding: Binding<Bool> {
-        Binding(get: { model.isRememberingLocation },
-                set: { value in Task { await model.setRememberingLocation(value) } })
-    }
-
-    private var newCollectionBinding: Binding<Bool> {
-        Binding(get: { newCollectionTargets != nil },
-                set: { if !$0 { newCollectionTargets = nil } })
-    }
-
     // MARK: Actions
-
-    #if os(iOS)
-    /// Photos hands over bytes rather than a file on disk, so each selection
-    /// arrives as data with whatever content type the library holds it in.
-    private func importPhotos(_ selections: [PhotosPickerItem]) async {
-        var items: [ImportItem] = []
-        for selection in selections {
-            guard let data = try? await selection.loadTransferable(type: Data.self) else { continue }
-            let contentType = selection.supportedContentTypes.first ?? .data
-            let name = selection.itemIdentifier.map { "\($0).\(contentType.preferredFilenameExtension ?? "dat")" }
-            items.append(.data(data, contentType: contentType, suggestedName: name))
-        }
-        await model.importItems(items)
-    }
-    #endif
 
     /// Puts the keyboard where the model says it belongs.
     private func syncFocus() {
         isCanvasFocused = model.keyboardPane == .canvas
-    }
-
-    private func startNewCollection(with ids: [ObjectID]) {
-        draftCollectionName = ""
-        newCollectionTargets = ids
     }
 
     // MARK: Copy
@@ -482,73 +260,6 @@ struct BrowseView: View {
     }
 }
 
-/// Selection, opening, dragging, reordering and the context menu — applied
-/// identically in all three view modes so behaviour never depends on layout.
-struct ObjectItemBehavior: ViewModifier {
-    let model: LibraryModel
-    let object: ObjectSnapshot
-    let newCollection: ([ObjectID]) -> Void
-
-    func body(content: Content) -> some View {
-        content
-            // Clicking and arrowing reach the same two methods, so the pointer
-            // and the keyboard cannot drift apart on what a click means.
-            .itemClick(select: { model.select(object.id, modifiers: $0) },
-                       open: { model.openObject(object) })
-            .contextMenu {
-                ObjectMenu(model: model, objects: targets, newCollection: newCollection)
-            }
-            .draggable(ObjectTransfer(id: object.id, fileURL: model.localURL(for: object)))
-            .modifier(ManualReorderTarget(model: model, object: object))
-    }
-
-    private var targets: [ObjectSnapshot] {
-        model.selection.contains(object.id) ? model.selectedObjects : [object]
-    }
-}
-
-/// In a manually ordered collection, dropping one item onto another moves it
-/// ahead of that item. Elsewhere there is no manual order to rearrange.
-private struct ManualReorderTarget: ViewModifier {
-    let model: LibraryModel
-    let object: ObjectSnapshot
-
-    private var isActive: Bool {
-        if case .collection = model.scope { return model.sort.field == .manual }
-        return false
-    }
-
-    func body(content: Content) -> some View {
-        if isActive {
-            content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                Task { await model.reorder(transfers.map(\.id), before: object.id) }
-                return true
-            }
-        } else {
-            content
-        }
-    }
-}
-
-/// Dropping objects on a folder relocates them: this is the true hierarchy.
-struct FolderDropTarget: ViewModifier {
-    let model: LibraryModel
-    let folder: FolderSnapshot
-
-    func body(content: Content) -> some View {
-        content
-            .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                Task { await model.move(transfers.map(\.id), to: folder.id) }
-                return true
-            }
-            .dropDestination(for: FolderTransfer.self) { transfers, _ in
-                guard let moved = transfers.first else { return false }
-                Task { await model.moveFolder(moved.id, to: folder.id) }
-                return true
-            }
-    }
-}
-
 /// The canvas's own coordinate space. Item frames are measured in it, so they
 /// describe positions within the content rather than within the window.
 private let canvasCoordinateSpace = "nook.canvas"
@@ -601,47 +312,10 @@ private struct CanvasKeyboard: ViewModifier {
                 return .handled
             }
             .onKeyPress(.escape) {
-                guard !model.selection.isEmpty else { return .ignored }
+                guard model.hasSelection else { return .ignored }
                 model.deselectAll()
                 return .handled
             }
-    }
-}
-
-/// Marks one item on the canvas: measures where it sits, and shows the cursor
-/// when the keyboard is resting on it.
-private struct CanvasItemMarker: ViewModifier {
-    let id: CanvasItemID
-    let isCursor: Bool
-    let radius: CGFloat
-    @Binding var frames: [CanvasItemID: CGRect]
-
-    func body(content: Content) -> some View {
-        content
-            .overlay {
-                // Selection is a fill; the cursor is a ring. An item can carry
-                // both, and a folder — which never joins a selection — has
-                // only this to show that the keyboard is on it.
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .opacity(isCursor ? 1 : 0)
-                    .allowsHitTesting(false)
-            }
-            .onGeometryChange(for: CGRect.self) {
-                $0.frame(in: .named(canvasCoordinateSpace))
-            } action: { frames[id] = $0 }
-    }
-}
-
-private extension View {
-    func canvasItem(
-        _ id: CanvasItemID,
-        model: LibraryModel,
-        radius: CGFloat,
-        frames: Binding<[CanvasItemID: CGRect]>
-    ) -> some View {
-        modifier(CanvasItemMarker(id: id, isCursor: model.cursor == id,
-                                  radius: radius, frames: frames))
     }
 }
 

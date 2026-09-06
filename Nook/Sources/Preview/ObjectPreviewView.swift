@@ -96,9 +96,7 @@ struct ObjectPreviewView: View {
     }
 
     private func step(_ offset: Int) {
-        guard let next = model.adjacentObject(to: object.id, offset: offset) else { return }
-        model.previewedObjectID = next.id
-        model.selection = [next.id]
+        model.stepPreview(offset)
     }
 
     private func resolve() async {

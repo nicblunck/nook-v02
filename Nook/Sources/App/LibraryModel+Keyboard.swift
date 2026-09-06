@@ -102,9 +102,10 @@ extension LibraryModel {
         }
     }
 
-    /// Every object between two others, in the order the canvas is sorted.
+    /// Every object between two others, in the order the destination on
+    /// screen reads.
     func objectRange(from anchor: ObjectID, to target: ObjectID) -> Set<ObjectID> {
-        let ids = contents.objects.map(\.id)
+        let ids = visibleObjects.map(\.id)
         guard let start = ids.firstIndex(of: anchor), let end = ids.firstIndex(of: target) else {
             return [target]
         }
@@ -137,25 +138,37 @@ extension LibraryModel {
     /// address or its bytes.
     func openObject(_ object: ObjectSnapshot) {
         cursor = .object(object.id)
+        open(object) { [self] opened in
+            selection = [opened.id]
+            selectionAnchor = opened.id
+        }
+    }
+
+    /// `selecting` is how the gallery underneath names what was opened — the
+    /// canvas names an object, Home names the tile that was clicked — and runs
+    /// only once something is actually shown, so a link that opens in the
+    /// browser changes no selection.
+    private func open(_ object: ObjectSnapshot,
+                      selecting select: @escaping (ObjectSnapshot) -> Void) {
         guard object.isLocked else {
-            reveal(object)
+            reveal(object, selecting: select)
             return
         }
         Task {
             guard await unlock(object, named: object.title),
-                  let unlocked = contents.objects.first(where: { $0.id == object.id })
+                  let unlocked = visibleObjects.first(where: { $0.id == object.id })
             else { return }
-            reveal(unlocked)
+            reveal(unlocked, selecting: select)
         }
     }
 
-    private func reveal(_ object: ObjectSnapshot) {
+    private func reveal(_ object: ObjectSnapshot,
+                        selecting select: (ObjectSnapshot) -> Void) {
         if object.kind == .link, let url = object.sourceURL {
             OpenExternally.open(url)
             return
         }
-        selection = [object.id]
-        selectionAnchor = object.id
+        select(object)
         previewedObjectID = object.id
     }
 
@@ -182,13 +195,35 @@ extension LibraryModel {
         return object.kind != .link
     }
 
+    // MARK: Either gallery
+    //
+    // The menu bar acts on whatever the window is showing, so Open and Quick
+    // Look are asked for once here rather than by two commands that would
+    // have to agree.
+
+    var canOpenCurrentItem: Bool {
+        isShowingHome ? (homeCursor != nil && previewedObjectID == nil) : canOpenCursorItem
+    }
+
+    func openCurrentItem() {
+        if isShowingHome { openHomeCursorItem() } else { openCursorItem() }
+    }
+
+    var canQuickLookCurrentItem: Bool {
+        isShowingHome ? canQuickLookHomeCursorItem : canQuickLookCursorItem
+    }
+
+    func previewCurrentItem() {
+        if isShowingHome { previewHomeCursorItem() } else { previewCursorItem() }
+    }
+
     // MARK: Home
     //
-    // Home is a different shape — bands of horizontal strips rather than one
-    // sequence — but not a different rulebook. It moves by the same rules, on
-    // its own order and its own measured frames.
+    // Home is a different shape — sections stacked in one scroll view rather
+    // than one sequence — but not a different rulebook. It moves, selects and
+    // opens by the same rules, on its own order and its own measured frames.
 
-    /// Home's tiles, band by band, in the order they read.
+    /// Home's tiles, section by section, in the order they read.
     var homeOrder: [HomeTileID] {
         homeSections.flatMap { section in
             section.objects.map { HomeTileID(scope: section.scope, object: $0.id) }
@@ -200,38 +235,91 @@ extension LibraryModel {
             .objects.first { $0.id == tile.object }
     }
 
+    var homeCursorObject: ObjectSnapshot? {
+        homeCursor.flatMap(homeObject)
+    }
+
     /// Returns whether the cursor actually went anywhere, so a key that has
     /// run out of Home can do something else with itself.
     @discardableResult
     func moveHomeCursor(
         _ direction: CanvasDirection,
+        extendingSelection: Bool = false,
         frames: [HomeTileID: CGRect] = [:]
     ) -> Bool {
         guard let target = CanvasNavigation.destination(
             from: homeCursor, direction: direction, order: homeOrder, frames: frames
         ) else { return false }
-        homeCursor = target
+        placeHome(target, extendingSelection: extendingSelection)
         return true
     }
 
-    func moveHomeCursorToEdge(_ direction: CanvasDirection) {
+    func moveHomeCursorToEdge(_ direction: CanvasDirection, extendingSelection: Bool = false) {
         guard let target = CanvasNavigation.edge(direction, in: homeOrder) else { return }
-        homeCursor = target
+        placeHome(target, extendingSelection: extendingSelection)
     }
 
-    /// Opening from Home lands in the place the item lives, with the rest of
-    /// that place's contents around it, so the next and previous keys work.
+    /// The same landing the canvas does, on a tile rather than a canvas item.
+    private func placeHome(_ target: HomeTileID, extendingSelection: Bool) {
+        homeCursor = target
+        if extendingSelection {
+            let anchor = homeSelectionAnchor ?? target
+            homeSelectionAnchor = anchor
+            homeSelection = homeTileRange(from: anchor, to: target)
+        } else {
+            homeSelectionAnchor = target
+            homeSelection = [target]
+        }
+    }
+
+    /// Every tile between two others, in the order Home reads.
+    ///
+    /// A range crosses a section boundary the way it crosses a row: the order
+    /// is one sequence, even though the places it runs through are not. What
+    /// it never does is reach sideways into the same object's other tile.
+    func homeTileRange(from anchor: HomeTileID, to target: HomeTileID) -> Set<HomeTileID> {
+        let tiles = homeOrder
+        guard let start = tiles.firstIndex(of: anchor),
+              let end = tiles.firstIndex(of: target)
+        else { return [target] }
+        return Set(tiles[min(start, end)...max(start, end)])
+    }
+
+    /// One selection policy, whichever input asked for it — the tile version
+    /// of `select(_:modifiers:)`.
+    func selectHomeTile(_ tile: HomeTileID, modifiers: EventModifiers) {
+        focus(.canvas)
+        homeCursor = tile
+
+        if modifiers.contains(.command) {
+            if homeSelection.contains(tile) {
+                homeSelection.remove(tile)
+            } else {
+                homeSelection.insert(tile)
+            }
+            homeSelectionAnchor = tile
+        } else if modifiers.contains(.shift),
+                  let anchor = homeSelectionAnchor ?? homeSelection.first {
+            homeSelectionAnchor = anchor
+            homeSelection.formUnion(homeTileRange(from: anchor, to: tile))
+        } else {
+            homeSelection = [tile]
+            homeSelectionAnchor = tile
+        }
+    }
+
+    /// Opening from Home opens the thing, in place.
+    ///
+    /// Preview replaces Home the way it replaces the canvas, and Home's own
+    /// objects are what next and previous walk, so there is nothing left for a
+    /// detour through the section's scope to buy. The heading is how the place
+    /// itself is reached.
     func openHomeTile(_ tile: HomeTileID) {
         guard let object = homeObject(tile) else { return }
-        if object.kind == .link, let url = object.sourceURL {
-            OpenExternally.open(url)
-            return
-        }
-        navigate(to: .scope(tile.scope))
-        Task {
-            await refreshContents()
-            select(object.id, modifiers: [])
-            previewedObjectID = object.id
+        homeCursor = tile
+        open(object) { [self] _ in
+            homeSelection = [tile]
+            homeSelectionAnchor = tile
         }
     }
 
@@ -243,8 +331,20 @@ extension LibraryModel {
     /// Space on Home means what it means on the canvas, and a link has no
     /// stored content to show.
     func previewHomeCursorItem() {
-        guard let tile = homeCursor, homeObject(tile)?.kind != .link else { return }
-        openHomeTile(tile)
+        guard let tile = homeCursor, let object = homeObject(tile), object.kind != .link
+        else { return }
+        guard !object.isLocked else {
+            openHomeTile(tile)
+            return
+        }
+        homeSelection = [tile]
+        homeSelectionAnchor = tile
+        previewedObjectID = object.id
+    }
+
+    var canQuickLookHomeCursorItem: Bool {
+        guard previewedObjectID == nil, let object = homeCursorObject else { return false }
+        return object.kind != .link
     }
 
     // MARK: The sidebar
@@ -302,7 +402,7 @@ extension LibraryModel {
     /// The folder containing this one, which is not the same as going back:
     /// Back retraces where the user has been, this climbs the tree.
     var enclosingScope: LibraryScope? {
-        guard case .folder = scope, !breadcrumbs.isEmpty else { return nil }
+        guard !isShowingHome, case .folder = scope, !breadcrumbs.isEmpty else { return nil }
         // `folderPath` ends with the folder itself, so its parent is the one
         // before it — and a root folder's parent is the library.
         if breadcrumbs.count >= 2 { return .folder(breadcrumbs[breadcrumbs.count - 2].id) }

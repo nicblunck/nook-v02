@@ -51,7 +51,8 @@ struct NamingPromptModifier: ViewModifier {
             switch prompt {
             case .newFolder(let parent): await model.createFolder(named: name, in: parent)
             case .renameFolder(let id): await model.rename(folder: id, to: name)
-            case .newCollection: await model.createCollection(named: name)
+            case .newCollection(let adding):
+                await model.createCollection(named: name, adding: adding)
             case .renameCollection(let id): await model.renameCollection(id, to: name)
             case .renameTag(let id): await model.renameTag(id, to: name)
             }

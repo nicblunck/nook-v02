@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
+#if os(iOS)
+import PhotosUI
+#endif
 
 /// Sidebar, canvas, and an inspector that stays out of the way until asked for.
 struct LibraryWindow: View {
@@ -12,11 +15,49 @@ struct LibraryWindow: View {
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var photoSelections: [PhotosPickerItem] = []
     #endif
 
     var body: some View {
         shell
             .environment(\.thumbnailLoader, model.library.thumbnails)
+            // Importing and exporting are the window's, not the canvas's:
+            // Home offers them too, and on iPhone the same prompts are reached
+            // from a tab that is not the canvas at all.
+            .fileImporter(
+                isPresented: $model.isImporterPresented,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: true
+            ) { result in
+                guard case .success(let urls) = result else { return }
+                Task { await model.importFiles(at: urls) }
+            }
+            // Exporting asks for a folder rather than saving one file at a
+            // time, because a selection is as ordinary a thing to export as
+            // one item.
+            .fileImporter(
+                isPresented: $model.isExportPickerPresented,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false
+            ) { result in
+                guard case .success(let urls) = result, let directory = urls.first else {
+                    model.cancelExport()
+                    return
+                }
+                Task { await model.completeExport(to: directory) }
+            }
+            #if os(iOS)
+            .photosPicker(
+                isPresented: $model.isPhotosPickerPresented,
+                selection: $photoSelections,
+                matching: .any(of: [.images, .videos])
+            )
+            .onChange(of: photoSelections) { _, selections in
+                guard !selections.isEmpty else { return }
+                photoSelections = []
+                Task { await importPhotos(selections) }
+            }
+            #endif
             .alert(item: $model.alert) { alert in
                 Alert(title: Text(alert.title), message: Text(alert.message))
             }
@@ -112,6 +153,21 @@ struct LibraryWindow: View {
         Binding(get: { model.isInspectorPresented },
                 set: { model.isInspectorPresented = $0 })
     }
+
+    #if os(iOS)
+    /// Photos hands over bytes rather than a file on disk, so each selection
+    /// arrives as data with whatever content type the library holds it in.
+    private func importPhotos(_ selections: [PhotosPickerItem]) async {
+        var items: [ImportItem] = []
+        for selection in selections {
+            guard let data = try? await selection.loadTransferable(type: Data.self) else { continue }
+            let contentType = selection.supportedContentTypes.first ?? .data
+            let name = selection.itemIdentifier.map { "\($0).\(contentType.preferredFilenameExtension ?? "dat")" }
+            items.append(.data(data, contentType: contentType, suggestedName: name))
+        }
+        await model.importItems(items)
+    }
+    #endif
 }
 
 /// Non-blocking progress for a large import; the rest of the app stays usable.
@@ -159,7 +215,7 @@ struct NookCommands: Commands {
             .disabled(model == nil)
 
             Button("New Collection…") {
-                model?.namingPrompt = .newCollection
+                model?.namingPrompt = .newCollection(adding: [])
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
             .disabled(model == nil)
@@ -196,7 +252,7 @@ struct NookCommands: Commands {
 
             Button("Deselect All") { model?.deselectAll() }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
-                .disabled(model.map { $0.isTypingText || $0.selection.isEmpty } ?? true)
+                .disabled(model.map { $0.isTypingText || !$0.hasSelection } ?? true)
 
             Divider()
             Button("Get Info") { model?.isInspectorPresented.toggle() }
@@ -205,11 +261,11 @@ struct NookCommands: Commands {
 
             Button("Delete") {
                 guard let model else { return }
-                let ids = Array(model.selection)
+                let ids = Array(model.selectedObjectIDs)
                 Task { await model.delete(ids) }
             }
             .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(model?.selection.isEmpty ?? true)
+            .disabled(!(model?.hasSelection ?? false))
 
             Button("Toggle Favorite") {
                 guard let model else { return }
@@ -220,7 +276,7 @@ struct NookCommands: Commands {
             }
             .keyboardShortcut(".", modifiers: [])
             .disabled(model.map {
-                $0.isTypingText || ($0.previewedObject == nil && $0.selection.isEmpty)
+                $0.isTypingText || ($0.previewedObject == nil && !$0.hasSelection)
             } ?? true)
         }
 
@@ -230,13 +286,13 @@ struct NookCommands: Commands {
             // because a menu command outranks the field editor: Return, Space
             // and a bare arrow would be taken away from every text field in the
             // app, so those stay on the focused canvas instead.
-            Button("Open") { model?.openCursorItem() }
+            Button("Open") { model?.openCurrentItem() }
                 .keyboardShortcut(.downArrow, modifiers: .command)
-                .disabled(model.map { !$0.canOpenCursorItem || $0.isTypingText } ?? true)
+                .disabled(model.map { !$0.canOpenCurrentItem || $0.isTypingText } ?? true)
 
-            Button("Quick Look") { model?.previewCursorItem() }
+            Button("Quick Look") { model?.previewCurrentItem() }
                 .keyboardShortcut("y", modifiers: .command)
-                .disabled(model.map { !$0.canQuickLookCursorItem || $0.isTypingText } ?? true)
+                .disabled(model.map { !$0.canQuickLookCurrentItem || $0.isTypingText } ?? true)
 
             Button("Enclosing Folder") { model?.goToEnclosingScope() }
                 .keyboardShortcut(.upArrow, modifiers: .command)

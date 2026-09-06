@@ -6,13 +6,16 @@ import NookLibrary
 struct ObjectMenu: View {
     let model: LibraryModel
     let objects: [ObjectSnapshot]
-    var newCollection: (([ObjectID]) -> Void)?
+    /// Puts the selection on the item this menu was opened from. Only the
+    /// gallery that drew it knows how to name it — the canvas names an object,
+    /// Home names one of the tiles showing it — and preview, which is already
+    /// showing one thing, has nothing to name.
+    var select: (() -> Void)?
 
     private var ids: [ObjectID] { objects.map(\.id) }
-    private var isDeletedScope: Bool { model.scope == .recentlyDeleted }
 
     var body: some View {
-        if isDeletedScope {
+        if model.isShowingDeleted {
             Button("Put Back", systemImage: "arrow.uturn.backward") {
                 Task { await model.restore(ids) }
             }
@@ -25,7 +28,7 @@ struct ObjectMenu: View {
                     model.previewedObjectID = object.id
                 }
                 Button("Get Info", systemImage: "info.circle") {
-                    model.selection = [object.id]
+                    select?()
                     model.isInspectorPresented = true
                 }
                 Divider()
@@ -51,10 +54,12 @@ struct ObjectMenu: View {
             // is why this is a separate action from Move To rather than a mode
             // of it.
             Menu("Add to Collection", systemImage: "rectangle.stack.badge.plus") {
-                if let newCollection {
-                    Button("New Collection…") { newCollection(ids) }
-                    if !model.collections.isEmpty { Divider() }
+                // The prompt is the window's, so this offers the same thing
+                // from the canvas, from Home and from inside preview.
+                Button("New Collection…") {
+                    model.namingPrompt = .newCollection(adding: ids)
                 }
+                if !model.collections.isEmpty { Divider() }
                 ForEach(model.collections) { collection in
                     Button(collection.name) {
                         Task { await model.addToCollection(collection.id, objects: ids) }
@@ -81,7 +86,7 @@ struct ObjectMenu: View {
                 }
             }
 
-            if case .collection(let id) = model.scope {
+            if !model.isShowingHome, case .collection(let id) = model.scope {
                 Button("Remove from Collection", systemImage: "minus.circle") {
                     Task { await model.removeFromCollection(id, objects: ids) }
                 }

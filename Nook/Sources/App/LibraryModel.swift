@@ -30,6 +30,18 @@ final class LibraryModel {
     /// anchored to the item the user actually started at rather than to
     /// whichever element an unordered set happens to yield first.
     var selectionAnchor: ObjectID?
+
+    /// What is selected on Home.
+    ///
+    /// Held by tile rather than by object, because Home's sections are
+    /// separate places that happen to hold some of the same things: anything
+    /// recently imported and still unsorted is in both Inbox and Recent, and
+    /// clicking it in one is not clicking it in the other. An object-level
+    /// selection would light both, which is a claim about the library the user
+    /// did not make.
+    var homeSelection: Set<HomeTileID> = []
+    var homeSelectionAnchor: HomeTileID?
+
     var previewedObjectID: ObjectID?
     var isInspectorPresented = false
 
@@ -95,6 +107,10 @@ final class LibraryModel {
     // the same prompts the sidebar and canvas do.
 
     var isImporterPresented = false
+    /// iOS only in practice, but held here for the same reason the file
+    /// importer is: the window raises it, so both Home and the canvas can ask
+    /// for it without either owning it.
+    var isPhotosPickerPresented = false
     var isGlobalSearchPresented = false
     var isSettingsPresented = false
     /// Raised while the user picks a folder to export originals into.
@@ -173,14 +189,18 @@ final class LibraryModel {
 
     /// Home's sections. Restrained on purpose — a way back into recent work,
     /// not a dashboard.
+    ///
+    /// Each section is the same query the canvas would run on that scope, in
+    /// the same order, capped so a section stays a window onto a place rather
+    /// than a second copy of it. The heading is how the whole place is reached.
     func refreshHome() async {
         let access = accessContext
         var sections: [HomeSection] = []
         for definition in HomeSection.defaults {
             let objects = await service.objects(
                 matching: ObjectQuery(scope: definition.scope,
-                                      sort: ObjectSort(field: .dateAdded, ascending: false),
-                                      limit: 12),
+                                      sort: sort,
+                                      limit: HomeSection.itemLimit),
                 in: access
             )
             guard !objects.isEmpty || definition.showsWhenEmpty else { continue }
@@ -189,6 +209,7 @@ final class LibraryModel {
         homeSections = sections
         let present = Set(homeOrder)
         if let current = homeCursor, !present.contains(current) { homeCursor = nil }
+        pruneSelection()
     }
 
     // MARK: Presentation
@@ -197,6 +218,14 @@ final class LibraryModel {
     /// the global default so an unremembered location never inherits the last
     /// one's arrangement.
     func loadPreferences() async {
+        // Home is one fixed place rather than a row in the library, so what it
+        // remembers is kept beside the global default rather than on a folder.
+        if isShowingHome {
+            canRememberLocation = true
+            preferences = settings.homePreferences ?? settings.defaultPreferences
+            isRememberingLocation = settings.homePreferences != nil
+            return
+        }
         canRememberLocation = await service.canRememberPreferences(for: scope)
         if let remembered = await service.rememberedPreferences(for: scope) {
             preferences = remembered
@@ -231,6 +260,10 @@ final class LibraryModel {
     func setRememberingLocation(_ isRemembering: Bool) async {
         guard canRememberLocation else { return }
         isRememberingLocation = isRemembering
+        if isShowingHome {
+            settings.homePreferences = isRemembering ? preferences : nil
+            return
+        }
         do {
             if isRemembering {
                 try await service.rememberPreferences(preferences, for: scope)
@@ -250,6 +283,13 @@ final class LibraryModel {
 
     private func apply(_ updated: LocationViewPreferences) async {
         preferences = updated
+        if isShowingHome {
+            if isRememberingLocation { settings.homePreferences = updated }
+            // Sections are queries, so a change of order is a re-query — the
+            // same thing changing sort does to the canvas.
+            await refreshHome()
+            return
+        }
         if isRememberingLocation {
             try? await service.rememberPreferences(updated, for: scope)
         }
@@ -296,12 +336,28 @@ final class LibraryModel {
         }
 
         contents = LocationContents(folders: folders, objects: objects)
-        selection = selection.filter { id in objects.contains { $0.id == id } }
         // A deletion, a move or an arriving import can take whatever the
         // cursor was resting on out from under it.
         let present = Set(canvasItems.map(\.itemID))
         if let current = cursor, !present.contains(current) { cursor = nil }
+        pruneSelection()
+    }
+
+    /// Drops whatever either selection is still naming that has gone.
+    ///
+    /// Each is measured against its own gallery rather than against whichever
+    /// is on screen, because Home and the canvas are refreshed together and
+    /// either would otherwise clear the other's selection.
+    private func pruneSelection() {
+        let objects = Set(contents.objects.map(\.id))
+        selection = selection.filter { objects.contains($0) }
         if let anchor = selectionAnchor, !selection.contains(anchor) { selectionAnchor = nil }
+
+        let tiles = Set(homeOrder)
+        homeSelection = homeSelection.filter { tiles.contains($0) }
+        if let anchor = homeSelectionAnchor, !homeSelection.contains(anchor) {
+            homeSelectionAnchor = nil
+        }
     }
 
     private func refreshCounts() async {
@@ -409,9 +465,27 @@ final class LibraryModel {
         switch destination {
         case .home:
             isShowingHome = true
+            deselectAll()
+            // Arriving at a scope loads its arrangement through
+            // `onScopeChanged`; arriving at Home changes no scope, so it asks
+            // for its own here.
+            Task {
+                await loadPreferences()
+                await refreshHome()
+            }
         case .scope(let scope):
             isShowingHome = false
+            // Leaving Home for the place the canvas was already pointing at
+            // changes no scope, so `onScopeChanged` never fires and nothing
+            // else would load that place's arrangement back.
+            let wasAlreadyThere = self.scope == scope
             self.scope = scope
+            if wasAlreadyThere {
+                Task {
+                    await loadPreferences()
+                    await refreshContents()
+                }
+            }
         }
     }
 
@@ -468,24 +542,36 @@ final class LibraryModel {
     /// a field.
     var isTypingText: Bool { isTextEntryFocused || namingPrompt != nil }
 
-    var canSelectAll: Bool { !isTypingText && !contents.objects.isEmpty }
+    var canSelectAll: Bool { !isTypingText && !visibleObjects.isEmpty }
 
-    /// Selects the objects on the canvas. Folders are places rather than
-    /// things, so they are not part of a selection the batch actions can act on.
+    /// Selects what is on screen. Folders are places rather than things, so
+    /// they are not part of a selection the batch actions can act on.
     func selectAll() {
-        selection = Set(contents.objects.map(\.id))
+        if isShowingHome {
+            homeSelection = Set(homeOrder)
+            homeSelectionAnchor = homeOrder.first
+        } else {
+            selection = Set(contents.objects.map(\.id))
+        }
     }
 
+    /// Clears both, rather than only the one in front. Leaving a selection
+    /// behind in the gallery the user is not looking at is how Delete ends up
+    /// acting on something they cannot see.
     func deselectAll() {
         selection = []
         selectionAnchor = nil
+        homeSelection = []
+        homeSelectionAnchor = nil
     }
 
     // MARK: Import
 
     func importItems(_ items: [ImportItem]) async {
         guard !items.isEmpty else { return }
-        let destination = ImportDestination(scope: scope)
+        // Home is not a place things go into, so importing from it puts them
+        // where anything imported without choosing a folder goes.
+        let destination: ImportDestination = isShowingHome ? .root : ImportDestination(scope: scope)
 
         let report = await service.importItems(items, into: destination) { [weak self] progress in
             Task { @MainActor in self?.importProgress = progress.isFinished ? nil : progress }
@@ -854,8 +940,47 @@ final class LibraryModel {
         }
     }
 
+    /// The objects the current destination is showing, in reading order.
+    ///
+    /// Home is several queries at once, and an object recently imported and
+    /// still unsorted is in both Inbox and Recent. It is listed once, where it
+    /// first reads, because everything that asks this — the selection, the
+    /// inspector, preview's next and previous — is asking about the thing
+    /// rather than about the tile.
+    var visibleObjects: [ObjectSnapshot] {
+        guard isShowingHome else { return contents.objects }
+        var seen: Set<ObjectID> = []
+        return homeSections.flatMap(\.objects).filter { seen.insert($0.id).inserted }
+    }
+
+    /// The objects the current selection names.
+    ///
+    /// Home selects tiles and two tiles can name one object, so the thing is
+    /// named once here — the batch actions favourite, move and delete a thing,
+    /// not a tile.
+    var selectedObjectIDs: Set<ObjectID> {
+        isShowingHome ? Set(homeSelection.map(\.object)) : selection
+    }
+
+    var hasSelection: Bool {
+        isShowingHome ? !homeSelection.isEmpty : !selection.isEmpty
+    }
+
     var selectedObjects: [ObjectSnapshot] {
-        contents.objects.filter { selection.contains($0.id) }
+        let ids = selectedObjectIDs
+        return visibleObjects.filter { ids.contains($0.id) }
+    }
+
+    /// Whether the destination on screen reads from Recently Deleted. Home
+    /// never does, whichever place the canvas was last pointed at.
+    var isShowingDeleted: Bool { !isShowingHome && scope == .recentlyDeleted }
+
+    /// The orders this destination offers. Manual order only means something
+    /// inside a collection, which Home is not.
+    var availableSortFields: [ObjectSortField] {
+        var fields: [ObjectSortField] = [.name, .dateAdded, .dateCreated, .kind, .size]
+        if !isShowingHome, case .collection = scope { fields.insert(.manual, at: 0) }
+        return fields
     }
 
     var currentFolderID: FolderID? {
@@ -868,7 +993,7 @@ final class LibraryModel {
     }
 
     var previewedObject: ObjectSnapshot? {
-        previewedObjectID.flatMap { id in contents.objects.first { $0.id == id } }
+        previewedObjectID.flatMap { id in visibleObjects.first { $0.id == id } }
     }
 
     /// Every folder in the library, flattened and indented, for the move menu.
@@ -900,10 +1025,11 @@ final class LibraryModel {
     }
 
     func adjacentObject(to id: ObjectID, offset: Int) -> ObjectSnapshot? {
-        guard let index = contents.objects.firstIndex(where: { $0.id == id }) else { return nil }
+        let objects = visibleObjects
+        guard let index = objects.firstIndex(where: { $0.id == id }) else { return nil }
         let target = index + offset
-        guard contents.objects.indices.contains(target) else { return nil }
-        return contents.objects[target]
+        guard objects.indices.contains(target) else { return nil }
+        return objects[target]
     }
 
     func stepPreview(_ offset: Int) {
@@ -911,7 +1037,25 @@ final class LibraryModel {
               let next = adjacentObject(to: current, offset: offset)
         else { return }
         previewedObjectID = next.id
-        selection = [next.id]
+        selectPreviewed(next)
+    }
+
+    /// Puts the selection on whatever preview has moved to.
+    ///
+    /// On Home an object can be showing in two sections, so the tile the
+    /// cursor is already resting on decides which of them is meant — stepping
+    /// through Recent stays in Recent.
+    func selectPreviewed(_ object: ObjectSnapshot) {
+        guard isShowingHome else {
+            selection = [object.id]
+            selectionAnchor = object.id
+            return
+        }
+        let tile = homeOrder.first { $0.object == object.id && $0.scope == homeCursor?.scope }
+            ?? homeOrder.first { $0.object == object.id }
+        homeSelection = tile.map { [$0] } ?? []
+        homeSelectionAnchor = tile
+        if let tile { homeCursor = tile }
     }
 }
 
@@ -926,6 +1070,11 @@ struct HomeSection: Identifiable {
 
     let definition: Definition
     let objects: [ObjectSnapshot]
+
+    /// How much of a place a section shows before the heading becomes the
+    /// way to see the rest. Enough to fill a couple of rows and be scanned,
+    /// not enough to make Home a second copy of the library.
+    static let itemLimit = 12
 
     var id: LibraryScope { definition.scope }
     var title: String { definition.title }
