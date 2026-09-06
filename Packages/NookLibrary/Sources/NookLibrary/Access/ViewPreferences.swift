@@ -11,6 +11,10 @@ public enum LibraryViewMode: String, Codable, Sendable, CaseIterable, Identifiab
 
     public var id: String { rawValue }
 
+    /// Whether the layout has an item size worth changing. A list row is as
+    /// tall as its text and has nothing to resize.
+    public var resizesItems: Bool { self != .list }
+
     public var displayName: String {
         switch self {
         case .list: "List"
@@ -36,17 +40,46 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
     public var viewMode: LibraryViewMode
     public var sort: ObjectSort
     public var foldersFirst: Bool
+    /// How large the items are drawn, as a multiple of each layout's own
+    /// natural size. One number rather than one per layout, so making things
+    /// bigger in the icon grid leaves them bigger on the masonry wall: the
+    /// user is saying how close they want to be, not sizing a particular view.
+    public var itemScale: Double
+
+    /// Small enough to take in a folder at a glance, large enough to read a
+    /// screenshot without opening it.
+    public static let itemScaleRange: ClosedRange<Double> = 0.5...3
+
+    public static func clamped(scale: Double) -> Double {
+        min(max(scale, itemScaleRange.lowerBound), itemScaleRange.upperBound)
+    }
 
     public static let systemDefault = LocationViewPreferences(
-        viewMode: .grid, sort: .default, foldersFirst: true
+        viewMode: .grid, sort: .default, foldersFirst: true, itemScale: 1
     )
 
     public init(viewMode: LibraryViewMode = .grid,
                 sort: ObjectSort = .default,
-                foldersFirst: Bool = true) {
+                foldersFirst: Bool = true,
+                itemScale: Double = 1) {
         self.viewMode = viewMode
         self.sort = sort
         self.foldersFirst = foldersFirst
+        self.itemScale = Self.clamped(scale: itemScale)
+    }
+
+    /// Decoded a setting at a time, each falling back to the default, so an
+    /// arrangement saved before a setting existed still opens — which is what
+    /// lets a new one be added without a migration.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = Self.systemDefault
+        self.init(
+            viewMode: try container.decodeIfPresent(LibraryViewMode.self, forKey: .viewMode) ?? fallback.viewMode,
+            sort: try container.decodeIfPresent(ObjectSort.self, forKey: .sort) ?? fallback.sort,
+            foldersFirst: try container.decodeIfPresent(Bool.self, forKey: .foldersFirst) ?? fallback.foldersFirst,
+            itemScale: try container.decodeIfPresent(Double.self, forKey: .itemScale) ?? fallback.itemScale
+        )
     }
 }
 

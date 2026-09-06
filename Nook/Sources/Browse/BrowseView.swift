@@ -67,6 +67,7 @@ struct BrowseView: View {
                     .focusEffectDisabled()
                     .focused($isCanvasFocused)
                     .modifier(CanvasKeyboard(model: model, frames: itemFrames))
+                    .modifier(GalleryResizeGesture(model: model))
                     // Focus follows the model rather than being grabbed on
                     // appear: the sidebar is the other half of this, and a
                     // canvas that helps itself to the keyboard is a sidebar
@@ -95,6 +96,8 @@ struct BrowseView: View {
                     // relays the canvas, which is what reports the new ones:
                     // a frame that has not moved is never reported again.
                     .onChange(of: model.viewMode) { itemFrames = [:] }
+                    .onChange(of: model.itemScale) { itemFrames = [:] }
+                    .onChange(of: model.itemScale) { itemFrames = [:] }
                     .onChange(of: model.contents) {
                         // Whatever is still on the canvas has not moved, so its
                         // position stands. Only what has left is dropped, which
@@ -116,24 +119,29 @@ struct BrowseView: View {
     /// a masonry wall and a list is the layout and the card, and both of those
     /// are decided in `Gallery`.
     private var items: some View {
-        GalleryLayout(mode: model.viewMode) {
+        GalleryLayout(mode: model.viewMode, scale: model.itemScale) {
             ForEach(model.canvasItems) { item in
                 switch item {
                 case .folder(let folder):
-                    FolderItemView(folder: folder, mode: model.viewMode) {
+                    let isCursor = model.cursor == .folder(folder.id)
+                    FolderItemView(folder: folder, mode: model.viewMode,
+                                   isCursor: isCursor, scale: model.itemScale) {
                         model.scope = .folder(folder.id)
                     }
                     .draggable(FolderTransfer(id: folder.id))
                     .modifier(FolderDropTarget(model: model, folder: folder))
                     .galleryItem(CanvasItemID.folder(folder.id),
-                                 isCursor: model.cursor == .folder(folder.id),
-                                 radius: model.viewMode.itemCornerRadius,
+                                 isCursor: isCursor,
+                                 mode: model.viewMode,
+                                 radius: model.viewMode.folderCornerRadius,
                                  in: canvasCoordinateSpace,
                                  frames: $itemFrames)
                 case .object(let object):
                     let isSelected = model.selection.contains(object.id)
+                    let isCursor = model.cursor == .object(object.id)
                     ObjectItemView(object: object, mode: model.viewMode,
-                                   isSelected: isSelected)
+                                   isSelected: isSelected, isCursor: isCursor,
+                                   scale: model.itemScale)
                     .modifier(ObjectItemBehavior(
                         model: model,
                         object: object,
@@ -142,7 +150,8 @@ struct BrowseView: View {
                         open: { model.openObject(object) }
                     ))
                     .galleryItem(CanvasItemID.object(object.id),
-                                 isCursor: model.cursor == .object(object.id),
+                                 isCursor: isCursor,
+                                 mode: model.viewMode,
                                  radius: model.viewMode.itemCornerRadius,
                                  in: canvasCoordinateSpace,
                                  frames: $itemFrames)

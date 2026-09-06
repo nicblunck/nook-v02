@@ -71,6 +71,7 @@ struct HomeView: View {
                     .focusEffectDisabled()
                     .focused($isHomeFocused)
                     .modifier(HomeKeyboard(model: model, frames: tileFrames))
+                    .modifier(GalleryResizeGesture(model: model))
                     // Home is the other thing the canvas pane can be showing,
                     // so it follows the same focus arbitration the canvas does.
                     .onAppear { syncFocus() }
@@ -91,6 +92,7 @@ struct HomeView: View {
                     // A different layout is a different set of positions, and
                     // the old ones would answer the next arrow key wrongly.
                     .onChange(of: model.viewMode) { tileFrames = [:] }
+                    .onChange(of: model.itemScale) { tileFrames = [:] }
                     .onChange(of: model.homeOrder) { _, order in
                         let present = Set(order)
                         tileFrames = tileFrames.filter { present.contains($0.key) }
@@ -126,7 +128,7 @@ struct HomeView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                GalleryLayout(mode: model.viewMode) {
+                GalleryLayout(mode: model.viewMode, scale: model.itemScale) {
                     ForEach(section.objects) { object in
                         tile(object, in: section)
                     }
@@ -162,9 +164,12 @@ struct HomeView: View {
         // both Inbox and Recent, and clicking it in one is not clicking it in
         // the other.
         let isSelected = model.homeSelection.contains(id)
+        let isCursor = model.homeCursor == id
         return ObjectItemView(object: object,
                               mode: model.viewMode,
-                              isSelected: isSelected)
+                              isSelected: isSelected,
+                              isCursor: isCursor,
+                              scale: model.itemScale)
             // The same rule as the canvas. Home is an entry screen, not a
             // different rulebook: one click selects, two open, and the right
             // button offers everything it offers anywhere else.
@@ -176,7 +181,8 @@ struct HomeView: View {
                 open: { model.openHomeTile(id) }
             ))
             .galleryItem(id,
-                         isCursor: model.homeCursor == id,
+                         isCursor: isCursor,
+                         mode: model.viewMode,
                          radius: model.viewMode.itemCornerRadius,
                          in: homeCoordinateSpace,
                          frames: $tileFrames)

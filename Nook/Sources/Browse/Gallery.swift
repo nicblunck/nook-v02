@@ -6,8 +6,9 @@ import NookLibrary
 /// Home and the browsing canvas show different queries, but they are the same
 /// kind of surface: objects laid out in the arrangement the user has chosen,
 /// each one measurable, selectable and openable. Keeping the layout, the item
-/// views, the cursor ring and the toolbar here is what stops "a grid on Home"
-/// and "a grid in a folder" from drifting into two grids.
+/// views, the cursor ring, the resize gesture and the toolbar here is what
+/// stops "a grid on Home" and "a grid in a folder" from drifting into two
+/// grids — and what lets each layout's own design reach both at once.
 
 // MARK: Metrics
 
@@ -15,7 +16,7 @@ extension LibraryViewMode {
     /// The inset a gallery's contents sit in.
     ///
     /// The list is tighter because its rows carry their own padding and read
-    /// as one column, where the two grids read as cards on a field.
+    /// as one column, where the two grids read as items on a field.
     var contentInsets: EdgeInsets {
         switch self {
         case .grid, .masonry: EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20)
@@ -23,35 +24,58 @@ extension LibraryViewMode {
         }
     }
 
-    /// The corner the selection fill and the cursor ring follow.
+    /// Whether the cursor is drawn as a ring around the item.
+    ///
+    /// The icon grid lights the item itself instead, the way the Finder does;
+    /// two highlights on one item would be one too many.
+    var drawsCursorRing: Bool { self != .grid }
+
+    /// How far outside the item the ring is drawn. A gap between the picture
+    /// and the ring keeps the two readable as separate things where the item
+    /// is a full-bleed photograph. Rows sit a hair apart, so they take none.
+    var ringOutset: CGFloat { self == .masonry ? 4 : 0 }
+
     var itemCornerRadius: CGFloat {
         switch self {
-        case .grid, .masonry: 12
+        case .grid: 10
+        case .masonry: 14
         case .list: 6
         }
+    }
+
+    /// A folder is an icon rather than a photograph, so on the masonry wall it
+    /// takes the grid's corner rather than the tile's.
+    var folderCornerRadius: CGFloat {
+        self == .masonry ? 10 : itemCornerRadius
     }
 }
 
 // MARK: Layout
 
-/// Items in whichever arrangement the location is set to.
+/// Items in whichever arrangement the location is set to, at whichever size.
 ///
 /// The caller supplies the items; this decides how they are placed. Every
 /// gallery goes through here, so changing what a grid looks like changes it
 /// everywhere at once.
 struct GalleryLayout<Content: View>: View {
     let mode: LibraryViewMode
+    /// How large the user has asked for things to be drawn, as a multiple of
+    /// each layout's natural size.
+    var scale: Double = 1
     @ViewBuilder let content: Content
 
     var body: some View {
         switch mode {
         case .grid:
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 16)],
-                      spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: cellWidth.lowerBound,
+                                                   maximum: cellWidth.upperBound),
+                                         spacing: 8)],
+                      spacing: 14 * min(scale, 1.6)) {
                 content
             }
         case .masonry:
-            MasonryLayout(minimumColumnWidth: 168, spacing: 14) {
+            MasonryLayout(minimumColumnWidth: max(130, 168 * scale),
+                          spacing: 20 * min(max(scale, 0.75), 1.5)) {
                 content
             }
         case .list:
@@ -60,6 +84,13 @@ struct GalleryLayout<Content: View>: View {
             }
         }
     }
+
+    /// The cell holds the icon and two lines of name, and keeps room for the
+    /// name even where the icons themselves have been made small.
+    private var cellWidth: ClosedRange<CGFloat> {
+        let width = 96 * scale
+        return max(84, width)...max(112, width * 1.3)
+    }
 }
 
 /// One object, drawn the way the current arrangement draws it.
@@ -67,13 +98,19 @@ struct ObjectItemView: View {
     let object: ObjectSnapshot
     let mode: LibraryViewMode
     let isSelected: Bool
+    /// Whether the keyboard is resting here. The grid and the wall each say so
+    /// in their own way, and the list leaves it to the ring.
+    let isCursor: Bool
+    var scale: Double = 1
 
     var body: some View {
         switch mode {
         case .grid:
-            ObjectCard(object: object, isSelected: isSelected)
+            ObjectCard(object: object, isSelected: isSelected,
+                       isCursor: isCursor, scale: scale)
         case .masonry:
-            ObjectMasonryCard(object: object, isSelected: isSelected)
+            ObjectMasonryCard(object: object, isSelected: isSelected,
+                              isCursor: isCursor, scale: scale)
         case .list:
             ObjectListRow(object: object, isSelected: isSelected)
         }
@@ -86,12 +123,19 @@ struct ObjectItemView: View {
 struct FolderItemView: View {
     let folder: FolderSnapshot
     let mode: LibraryViewMode
+    let isCursor: Bool
+    var scale: Double = 1
     let onOpen: () -> Void
 
     var body: some View {
         switch mode {
-        case .grid, .masonry:
-            FolderCard(folder: folder, onOpen: onOpen)
+        case .grid:
+            // The grid draws no ring, so the card itself has to show that the
+            // keyboard is on it.
+            FolderCard(folder: folder, isHighlighted: isCursor,
+                       scale: scale, onOpen: onOpen)
+        case .masonry:
+            FolderCard(folder: folder, scale: scale, onOpen: onOpen)
         case .list:
             FolderListRow(folder: folder).itemClick { onOpen() }
         }
@@ -100,8 +144,8 @@ struct FolderItemView: View {
 
 // MARK: The cursor
 
-/// Marks one item in a gallery: measures where it sits, and shows the cursor
-/// when the keyboard is resting on it.
+/// Marks one item in a gallery: measures where it sits, and rings it when the
+/// keyboard is resting there and the layout wants a ring.
 ///
 /// Generic over the identity because the canvas names items one way and Home
 /// names them another, while the ring and the measurement are the same.
@@ -109,18 +153,22 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
     let id: ID
     let isCursor: Bool
     let radius: CGFloat
+    let outset: CGFloat
+    let showsRing: Bool
     let coordinateSpace: String
     @Binding var frames: [ID: CGRect]
 
     func body(content: Content) -> some View {
         content
             .overlay {
-                // Selection is a fill; the cursor is a ring. An item can carry
-                // both, and a folder — which never joins a selection — has
-                // only this to show that the keyboard is on it.
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .opacity(isCursor ? 1 : 0)
+                // Selection is a fill in the list and a mat on the masonry
+                // wall; the cursor is this ring, and an item can carry both.
+                // A folder, which never joins a selection, has only the ring.
+                // The icon grid asks for none: it lights the item instead.
+                RoundedRectangle(cornerRadius: radius + outset)
+                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                    .padding(-outset)
+                    .opacity(isCursor && showsRing ? 1 : 0)
                     .allowsHitTesting(false)
             }
             .onGeometryChange(for: CGRect.self) {
@@ -133,11 +181,14 @@ extension View {
     func galleryItem<ID: Hashable & Sendable>(
         _ id: ID,
         isCursor: Bool,
+        mode: LibraryViewMode,
         radius: CGFloat,
         in coordinateSpace: String,
         frames: Binding<[ID: CGRect]>
     ) -> some View {
-        modifier(GalleryItemMarker(id: id, isCursor: isCursor, radius: radius,
+        modifier(GalleryItemMarker(id: id, isCursor: isCursor,
+                                   radius: radius, outset: mode.ringOutset,
+                                   showsRing: mode.drawsCursorRing,
                                    coordinateSpace: coordinateSpace, frames: frames))
     }
 }
@@ -220,6 +271,33 @@ struct FolderDropTarget: ViewModifier {
     }
 }
 
+/// Pinching resizes the items, as it does in the Finder's icon view.
+///
+/// A gallery rather than a canvas thing: making the pictures bigger is the
+/// same act on Home as it is in a folder.
+struct GalleryResizeGesture: ViewModifier {
+    let model: LibraryModel
+    /// The size the pinch started from, so the gesture's magnification is
+    /// measured against where the user was rather than compounding.
+    @State private var scaleAtPinchStart: Double?
+
+    func body(content: Content) -> some View {
+        content.gesture(
+            MagnifyGesture()
+                .onChanged { value in
+                    guard model.viewMode.resizesItems else { return }
+                    let start = scaleAtPinchStart ?? model.itemScale
+                    scaleAtPinchStart = start
+                    model.setItemScale(start * value.magnification)
+                }
+                .onEnded { _ in
+                    scaleAtPinchStart = nil
+                    Task { await model.commitItemScale() }
+                }
+        )
+    }
+}
+
 /// The dashed border shown while files are held over a gallery.
 struct GalleryDropIndicator: View {
     var body: some View {
@@ -236,7 +314,8 @@ struct GalleryDropIndicator: View {
 /// looking at is arranged, and how things get in.
 ///
 /// Home and the canvas share this rather than each declaring their own, which
-/// is what makes the view picker and the sort menu mean the same thing on both.
+/// is what makes the view picker, the size slider and the sort menu mean the
+/// same thing on both.
 struct GalleryToolbar: ToolbarContent {
     let model: LibraryModel
 
@@ -263,32 +342,7 @@ struct GalleryToolbar: ToolbarContent {
             }
 
             ToolbarItem {
-                Menu {
-                    Picker("Sort By", selection: sortFieldBinding) {
-                        ForEach(model.availableSortFields, id: \.self) { field in
-                            Text(field.displayName).tag(field)
-                        }
-                    }
-                    Picker("Order", selection: sortAscendingBinding) {
-                        Text("Ascending").tag(true)
-                        Text("Descending").tag(false)
-                    }
-
-                    Divider()
-                    Toggle("Folders First", isOn: foldersFirstBinding)
-
-                    Divider()
-                    // A change stays temporary unless the user says otherwise,
-                    // so no location quietly acquires a permanent exception.
-                    if model.canRememberLocation {
-                        Toggle("Remember for This Location", isOn: rememberBinding)
-                    }
-                    Button("Use as Default Everywhere") {
-                        model.useCurrentPreferencesAsDefault()
-                    }
-                } label: {
-                    Label("View Options", systemImage: "arrow.up.arrow.down")
-                }
+                GalleryViewOptionsButton(model: model)
             }
 
             ToolbarItem {
@@ -315,12 +369,80 @@ struct GalleryToolbar: ToolbarContent {
         }
     }
 
-    // MARK: Bindings
-
     private var viewModeBinding: Binding<LibraryViewMode> {
         Binding(get: { model.viewMode },
                 set: { mode in Task { await model.setViewMode(mode) } })
     }
+}
+
+/// The Finder's view options: how things are arranged, and how big.
+///
+/// A panel rather than a menu, because a size control is a slider and a menu
+/// has nowhere to put one. It owns the presentation state itself so the
+/// toolbar around it can stay stateless and be shared.
+private struct GalleryViewOptionsButton: View {
+    let model: LibraryModel
+    @State private var isPresented = false
+
+    var body: some View {
+        Button("View Options", systemImage: "arrow.up.arrow.down") {
+            isPresented.toggle()
+        }
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            options
+        }
+    }
+
+    private var options: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if model.viewMode.resizesItems {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Size")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.grid.3x3.fill").imageScale(.small)
+                        Slider(value: itemScaleBinding,
+                               in: LocationViewPreferences.itemScaleRange) { isEditing in
+                            // One write when the drag ends, rather than one a
+                            // frame while it is under way.
+                            if !isEditing { Task { await model.commitItemScale() } }
+                        }
+                        .labelsHidden()
+                        Image(systemName: "square.fill").imageScale(.medium)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
+                Divider()
+            }
+
+            Picker("Sort By", selection: sortFieldBinding) {
+                ForEach(model.availableSortFields, id: \.self) { field in
+                    Text(field.displayName).tag(field)
+                }
+            }
+            Picker("Order", selection: sortAscendingBinding) {
+                Text("Ascending").tag(true)
+                Text("Descending").tag(false)
+            }
+            Toggle("Folders First", isOn: foldersFirstBinding)
+
+            Divider()
+            // A change stays temporary unless the user says otherwise, so no
+            // location quietly acquires a permanent exception.
+            if model.canRememberLocation {
+                Toggle("Remember for This Location", isOn: rememberBinding)
+            }
+            Button("Use as Default Everywhere") {
+                model.useCurrentPreferencesAsDefault()
+            }
+        }
+        .padding(14)
+        .frame(width: 268)
+    }
+
+    // MARK: Bindings
 
     private var sortFieldBinding: Binding<ObjectSortField> {
         Binding(get: { model.sort.field },
@@ -334,6 +456,11 @@ struct GalleryToolbar: ToolbarContent {
                 set: { ascending in
                     Task { await model.setSort(ObjectSort(field: model.sort.field, ascending: ascending)) }
                 })
+    }
+
+    private var itemScaleBinding: Binding<Double> {
+        Binding(get: { model.itemScale },
+                set: { scale in model.setItemScale(scale) })
     }
 
     private var foldersFirstBinding: Binding<Bool> {
