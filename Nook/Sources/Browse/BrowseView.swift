@@ -10,7 +10,11 @@ import PhotosUI
 struct BrowseView: View {
     @Bindable var model: LibraryModel
     @State private var isDropTargeted = false
+    /// Where the canvas actually drew each item, which is what tells an arrow
+    /// key what "the row above" means in a layout that is not a uniform grid.
+    @State private var itemFrames: [CanvasItemID: CGRect] = [:]
     @FocusState private var isSearchFocused: Bool
+    @FocusState private var isCanvasFocused: Bool
     #if os(iOS)
     @State private var isPhotosPickerPresented = false
     @State private var photoSelections: [PhotosPickerItem] = []
@@ -93,16 +97,51 @@ struct BrowseView: View {
             if model.contents.isEmpty {
                 emptyState
             } else {
-                ScrollView {
-                    switch model.viewMode {
-                    case .grid: gridCanvas
-                    case .masonry: masonryCanvas
-                    case .list: listCanvas
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Group {
+                            switch model.viewMode {
+                            case .grid: gridCanvas
+                            case .masonry: masonryCanvas
+                            case .list: listCanvas
+                            }
+                        }
+                        // Named on the content rather than the scroll view, so
+                        // an item's measured frame describes where it sits in
+                        // the canvas and does not change as the canvas scrolls.
+                        .coordinateSpace(.named(canvasCoordinateSpace))
+                    }
+                    #if os(macOS)
+                    .onTapGesture { model.deselectAll() }
+                    #endif
+                    .focusable()
+                    .focusEffectDisabled()
+                    .focused($isCanvasFocused)
+                    .modifier(CanvasKeyboard(model: model, frames: itemFrames))
+                    .onAppear { isCanvasFocused = true }
+                    // Leaving preview hands the keyboard back to the canvas,
+                    // so the arrows keep working where they left off.
+                    .onChange(of: model.previewedObjectID) { _, previewed in
+                        if previewed == nil { isCanvasFocused = true }
+                    }
+                    .onChange(of: model.cursor) { _, cursor in
+                        guard let cursor else { return }
+                        proxy.scrollTo(cursor.uuid)
+                    }
+                    // A different layout is a different set of positions, and
+                    // the old ones would answer the next arrow key wrongly.
+                    // Discarding them is safe only because changing mode always
+                    // relays the canvas, which is what reports the new ones:
+                    // a frame that has not moved is never reported again.
+                    .onChange(of: model.viewMode) { itemFrames = [:] }
+                    .onChange(of: model.contents) {
+                        // Whatever is still on the canvas has not moved, so its
+                        // position stands. Only what has left is dropped, which
+                        // keeps the map from growing as the user browses.
+                        let present = Set(model.canvasOrder)
+                        itemFrames = itemFrames.filter { present.contains($0.key) }
                     }
                 }
-                #if os(macOS)
-                .onTapGesture { model.selection = [] }
-                #endif
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
@@ -120,12 +159,12 @@ struct BrowseView: View {
                     FolderCard(folder: folder) { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
+                        .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
                 case .object(let object):
                     ObjectCard(object: object,
                                isSelected: model.selection.contains(object.id))
-                    .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
-                                                 select: { select(object, modifiers: $0) },
-                                                 newCollection: startNewCollection))
+                    .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
+                    .canvasItem(.object(object.id), model: model, radius: 12, frames: $itemFrames)
                 }
             }
         }
@@ -140,11 +179,11 @@ struct BrowseView: View {
                     FolderCard(folder: folder) { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
+                        .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
                 case .object(let object):
                     ObjectMasonryCard(object: object, isSelected: model.selection.contains(object.id))
-                        .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
-                                                     select: { select(object, modifiers: $0) },
-                                                     newCollection: startNewCollection))
+                        .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
+                        .canvasItem(.object(object.id), model: model, radius: 12, frames: $itemFrames)
                 }
             }
         }
@@ -160,11 +199,11 @@ struct BrowseView: View {
                         .itemClick { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
+                        .canvasItem(.folder(folder.id), model: model, radius: 6, frames: $itemFrames)
                 case .object(let object):
                     ObjectListRow(object: object, isSelected: model.selection.contains(object.id))
-                        .modifier(ObjectItemBehavior(model: model, object: object, open: { open(object) },
-                                                     select: { select(object, modifiers: $0) },
-                                                     newCollection: startNewCollection))
+                        .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
+                        .canvasItem(.object(object.id), model: model, radius: 6, frames: $itemFrames)
                 }
             }
         }
@@ -332,39 +371,6 @@ struct BrowseView: View {
         newCollectionTargets = ids
     }
 
-    private func open(_ object: ObjectSnapshot) {
-        // A link points at the live web rather than at stored content, so it
-        // opens where the user's browsing actually happens.
-        if object.kind == .link, let url = object.sourceURL {
-            OpenExternally.open(url)
-            return
-        }
-        model.selection = [object.id]
-        model.previewedObjectID = object.id
-    }
-
-    private func select(_ object: ObjectSnapshot, modifiers: EventModifiers) {
-        if modifiers.contains(.command) {
-            if model.selection.contains(object.id) {
-                model.selection.remove(object.id)
-            } else {
-                model.selection.insert(object.id)
-            }
-        } else if modifiers.contains(.shift), let anchor = model.selection.first {
-            model.selection.formUnion(range(from: anchor, to: object.id))
-        } else {
-            model.selection = [object.id]
-        }
-    }
-
-    private func range(from anchor: ObjectID, to target: ObjectID) -> Set<ObjectID> {
-        let ids = model.contents.objects.map(\.id)
-        guard let start = ids.firstIndex(of: anchor), let end = ids.firstIndex(of: target) else {
-            return [target]
-        }
-        return Set(ids[min(start, end)...max(start, end)])
-    }
-
     // MARK: Copy
 
     private var title: String {
@@ -424,13 +430,14 @@ struct BrowseView: View {
 struct ObjectItemBehavior: ViewModifier {
     let model: LibraryModel
     let object: ObjectSnapshot
-    let open: () -> Void
-    let select: (EventModifiers) -> Void
     let newCollection: ([ObjectID]) -> Void
 
     func body(content: Content) -> some View {
         content
-            .itemClick(select: select, open: open)
+            // Clicking and arrowing reach the same two methods, so the pointer
+            // and the keyboard cannot drift apart on what a click means.
+            .itemClick(select: { model.select(object.id, modifiers: $0) },
+                       open: { model.openObject(object) })
             .contextMenu {
                 ObjectMenu(model: model, objects: targets, newCollection: newCollection)
             }
@@ -482,6 +489,104 @@ struct FolderDropTarget: ViewModifier {
                 Task { await model.moveFolder(moved.id, to: folder.id) }
                 return true
             }
+    }
+}
+
+/// The canvas's own coordinate space. Item frames are measured in it, so they
+/// describe positions within the content rather than within the window.
+private let canvasCoordinateSpace = "nook.canvas"
+
+/// Every key the canvas answers to.
+///
+/// These are handled here, on the focused canvas, rather than as menu commands
+/// with bare-key shortcuts: a menu command outranks the field editor, so an
+/// arrow or a space bar promoted to the menu bar would be taken out of the
+/// search field and every other place text is typed.
+private struct CanvasKeyboard: ViewModifier {
+    let model: LibraryModel
+    let frames: [CanvasItemID: CGRect]
+
+    func body(content: Content) -> some View {
+        content
+            // `.repeat` is what makes a held arrow key travel, rather than
+            // moving one item and stopping.
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow],
+                        phases: [.down, .repeat]) { press in
+                guard let direction = CanvasDirection(press.key) else { return .ignored }
+                model.moveCursor(direction,
+                                 extendingSelection: press.modifiers.contains(.shift),
+                                 frames: frames)
+                return .handled
+            }
+            .onKeyPress(keys: [.home, .end], phases: [.down]) { press in
+                model.moveCursorToEdge(press.key == .home ? .up : .down,
+                                       extendingSelection: press.modifiers.contains(.shift))
+                return .handled
+            }
+            .onKeyPress(.return) {
+                guard model.cursor != nil else { return .ignored }
+                model.openCursorItem()
+                return .handled
+            }
+            .onKeyPress(.space) {
+                guard model.canQuickLookCursorItem else { return .ignored }
+                model.previewCursorItem()
+                return .handled
+            }
+            .onKeyPress(.escape) {
+                guard !model.selection.isEmpty else { return .ignored }
+                model.deselectAll()
+                return .handled
+            }
+    }
+}
+
+private extension CanvasDirection {
+    init?(_ key: KeyEquivalent) {
+        switch key {
+        case .upArrow: self = .up
+        case .downArrow: self = .down
+        case .leftArrow: self = .left
+        case .rightArrow: self = .right
+        default: return nil
+        }
+    }
+}
+
+/// Marks one item on the canvas: measures where it sits, and shows the cursor
+/// when the keyboard is resting on it.
+private struct CanvasItemMarker: ViewModifier {
+    let id: CanvasItemID
+    let isCursor: Bool
+    let radius: CGFloat
+    @Binding var frames: [CanvasItemID: CGRect]
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                // Selection is a fill; the cursor is a ring. An item can carry
+                // both, and a folder — which never joins a selection — has
+                // only this to show that the keyboard is on it.
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .opacity(isCursor ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .onGeometryChange(for: CGRect.self) {
+                $0.frame(in: .named(canvasCoordinateSpace))
+            } action: { frames[id] = $0 }
+    }
+}
+
+private extension View {
+    func canvasItem(
+        _ id: CanvasItemID,
+        model: LibraryModel,
+        radius: CGFloat,
+        frames: Binding<[CanvasItemID: CGRect]>
+    ) -> some View {
+        modifier(CanvasItemMarker(id: id, isCursor: model.cursor == id,
+                                  radius: radius, frames: frames))
     }
 }
 

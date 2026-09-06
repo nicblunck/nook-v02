@@ -19,6 +19,17 @@ final class LibraryModel {
     var scope: LibraryScope = .inbox { didSet { onScopeChanged(from: oldValue) } }
     var searchText: String = "" { didSet { scheduleSearchRefresh() } }
     var selection: Set<ObjectID> = []
+    /// Where the keyboard is on the canvas.
+    ///
+    /// Kept apart from the selection because the two answer different
+    /// questions: the selection is what the batch actions act on, the cursor
+    /// is where the next arrow key starts from. A folder can hold the cursor
+    /// without ever joining a selection — folders are places, not things.
+    var cursor: CanvasItemID?
+    /// Where a shift-extended selection is measured from, so extending stays
+    /// anchored to the item the user actually started at rather than to
+    /// whichever element an unordered set happens to yield first.
+    var selectionAnchor: ObjectID?
     var previewedObjectID: ObjectID?
     var isInspectorPresented = false
 
@@ -214,6 +225,11 @@ final class LibraryModel {
 
         contents = LocationContents(folders: folders, objects: objects)
         selection = selection.filter { id in objects.contains { $0.id == id } }
+        // A deletion, a move or an arriving import can take whatever the
+        // cursor was resting on out from under it.
+        let present = Set(canvasItems.map(\.itemID))
+        if let current = cursor, !present.contains(current) { cursor = nil }
+        if let anchor = selectionAnchor, !selection.contains(anchor) { selectionAnchor = nil }
     }
 
     private func refreshCounts() async {
@@ -232,6 +248,8 @@ final class LibraryModel {
         // going back, is refused by `pushHistory` while it is being applied.
         pushHistory(.scope(previous))
         selection = []
+        selectionAnchor = nil
+        cursor = nil
         searchText = ""
         Task {
             await loadPreferences()
@@ -380,6 +398,7 @@ final class LibraryModel {
 
     func deselectAll() {
         selection = []
+        selectionAnchor = nil
     }
 
     // MARK: Import
@@ -851,15 +870,37 @@ enum LibraryDestination: Hashable {
     case scope(LibraryScope)
 }
 
+/// Which item on the canvas, and which kind of item it is.
+enum CanvasItemID: Hashable, Sendable {
+    case folder(FolderID)
+    case object(ObjectID)
+
+    var uuid: UUID {
+        switch self {
+        case .folder(let id): id.uuid
+        case .object(let id): id.uuid
+        }
+    }
+
+    var objectID: ObjectID? {
+        if case .object(let id) = self { return id }
+        return nil
+    }
+}
+
 /// A row in the canvas: a location or a thing.
 enum CanvasItem: Identifiable, Hashable {
     case folder(FolderSnapshot)
     case object(ObjectSnapshot)
 
-    var id: UUID {
+    var id: UUID { itemID.uuid }
+
+    /// The identity keyboard navigation works in, which — unlike `id` — still
+    /// knows whether it is pointing at a place or a thing.
+    var itemID: CanvasItemID {
         switch self {
-        case .folder(let folder): folder.id.uuid
-        case .object(let object): object.id.uuid
+        case .folder(let folder): .folder(folder.id)
+        case .object(let object): .object(object.id)
         }
     }
 

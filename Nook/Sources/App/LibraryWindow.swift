@@ -225,6 +225,25 @@ struct NookCommands: Commands {
         }
 
         CommandGroup(after: .toolbar) {
+            // Opening, Quick Look and climbing out of a folder are the canvas's
+            // own keys given names in the menu bar. They carry Command here
+            // because a menu command outranks the field editor: Return, Space
+            // and a bare arrow would be taken away from every text field in the
+            // app, so those stay on the focused canvas instead.
+            Button("Open") { model?.openCursorItem() }
+                .keyboardShortcut(.downArrow, modifiers: .command)
+                .disabled(model.map { !$0.canOpenCursorItem || $0.isTypingText } ?? true)
+
+            Button("Quick Look") { model?.previewCursorItem() }
+                .keyboardShortcut("y", modifiers: .command)
+                .disabled(model.map { !$0.canQuickLookCursorItem || $0.isTypingText } ?? true)
+
+            Button("Enclosing Folder") { model?.goToEnclosingScope() }
+                .keyboardShortcut(.upArrow, modifiers: .command)
+                .disabled(model.map { !$0.canGoToEnclosingScope || $0.previewedObjectID != nil } ?? true)
+
+            Divider()
+
             // Back steps out of preview first, then back through the places
             // the user actually visited.
             Button("Back") { model?.goBack() }
