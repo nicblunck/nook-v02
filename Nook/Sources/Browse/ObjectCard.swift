@@ -72,17 +72,16 @@ struct ObjectCard: View {
 /// A folder as it appears inline in the canvas.
 struct FolderCard: View {
     let folder: FolderSnapshot
+    var peeks: [ObjectSnapshot] = []
+    @State private var isHovered = false
     let onOpen: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var previewHeight: CGFloat = 132
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill((Color(hex: folder.appearance.colorHex) ?? .accentColor).opacity(0.14))
-                EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 34)
-            }
+            FolderPeekIcon(folder: folder, objects: peeks, isOpen: isHovered,
+                           width: min(previewHeight * 0.64, 100))
             .frame(height: previewHeight)
             .frame(maxWidth: .infinity)
 
@@ -96,6 +95,7 @@ struct FolderCard: View {
         }
         .padding(8)
         .contentShape(.rect(cornerRadius: 12))
+        .onHover { isHovered = $0 }
         .itemClick { onOpen() }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")

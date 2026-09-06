@@ -175,7 +175,7 @@ struct BrowseView: View {
             ForEach(model.canvasItems) { item in
                 switch item {
                 case .folder(let folder):
-                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
+                    FolderCard(folder: folder, peeks: model.folderPeeks[folder.id] ?? []) { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                         .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
@@ -195,7 +195,7 @@ struct BrowseView: View {
             ForEach(model.canvasItems) { item in
                 switch item {
                 case .folder(let folder):
-                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
+                    FolderCard(folder: folder, peeks: model.folderPeeks[folder.id] ?? []) { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
                         .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
