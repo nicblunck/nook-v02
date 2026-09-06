@@ -5,11 +5,7 @@ import QuickLook
 import AppKit
 import QuickLookUI
 
-/// Native preview for file types the app has no reader of its own for.
-///
-/// Quick Look already knows how to render most documents, so anything outside
-/// the handful of types Nook presents itself falls through to the system
-/// rather than to a placeholder.
+/// Shared native viewer for images, documents, video, and audio.
 struct QuickLookPreview: NSViewRepresentable {
     let url: URL
 

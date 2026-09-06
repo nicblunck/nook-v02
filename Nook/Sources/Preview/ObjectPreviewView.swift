@@ -33,13 +33,8 @@ struct ObjectPreviewView: View {
             ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
                                    description: Text(loadFailure))
         } else if let resolvedURL {
-            switch object.kind {
-            case .image, .screenshot:
-                ImagePreview(url: resolvedURL)
-            case .video, .audio, .pdf, .file, .link:
-                GenericPreview(object: object, url: resolvedURL)
-                    .id(resolvedURL)
-            }
+            FilePreview(object: object, url: resolvedURL)
+                .id(resolvedURL)
         } else {
             ProgressView().controlSize(.large)
         }
@@ -118,37 +113,8 @@ struct ObjectPreviewView: View {
     }
 }
 
-/// An image filling as much of the canvas as it can.
-private struct ImagePreview: View {
-    let url: URL
-    @State private var image: Image?
-
-    var body: some View {
-        Group {
-            if let image {
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .padding(24)
-            } else {
-                ProgressView()
-            }
-        }
-        .task(id: url) {
-            // Decoding happens off the main actor: a large original would
-            // otherwise stall the window while it loads.
-            image = await Task.detached(priority: .userInitiated) {
-                guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
-                return Image(platformData: data)
-            }.value
-        }
-    }
-}
-
-/// Anything without a reader of its own falls through to Quick Look, which
-/// covers most documents. Only a type Quick Look cannot render either shows a
-/// placeholder.
-private struct GenericPreview: View {
+/// All stored files use the system's interactive Quick Look viewer.
+private struct FilePreview: View {
     let object: ObjectSnapshot
     let url: URL
 
