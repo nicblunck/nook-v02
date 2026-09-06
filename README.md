@@ -102,12 +102,24 @@ moves. `DeviceAuthenticator` is the only thing that constructs a raised
 `AccessContext`, and it is injected into `LibraryModel`, so the app's tests
 answer for the device owner rather than needing one.
 
-Hidden is a context rather than a per-item reveal. **Show Hidden Items**
-(⇧⌘H, or the eye in the sidebar) authenticates once and brings all hidden
-content into view; leaving puts it away again and drops every lock authenticated
-along the way with it. Locked content stays where it is and arrives redacted — a
-door with a name and nothing behind it — until whatever imposes the lock is
-authenticated, which may be an ancestor folder rather than the item itself.
+Hidden is a place, not a filter — the shape Photos uses. Hidden things live in
+**Hidden** and are absent from Inbox, Recent, Favorites, All Objects, folders,
+search and every count, whether or not anyone is authenticated; opening Hidden
+(⇧⌘H, or the button at the foot of the sidebar) opens that one door, and it
+closes again as soon as the user leaves. Unhiding puts an object back in the
+folder it came from, or in the Inbox when that folder is gone — which is why
+deleting a folder detaches the hidden objects inside it rather than taking them
+to Recently Deleted, where nobody could have seen them go.
+
+Hidden and Recently Deleted sit in a row at the foot of the sidebar rather than
+in the list: neither is somewhere the library's structure leads to. Hidden shows
+no count, because how much someone is keeping out of sight is itself something
+they are keeping out of sight.
+
+Locked is the other half and works differently: locked content stays where it
+is and arrives redacted — a door with a name and nothing behind it — until
+whatever imposes the lock is authenticated, which may be an ancestor folder
+rather than the item itself.
 
 Hide and Lock are offered on what an item is in its own right. An object inside
 a hidden folder is hidden without being hidden itself, and only the folder can

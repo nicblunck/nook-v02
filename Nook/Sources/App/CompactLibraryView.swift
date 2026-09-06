@@ -136,6 +136,12 @@ struct CompactLibraryList: View {
             Section {
                 row(scope: .favorites, title: "Favorites") { Image(systemName: "star") }
                 row(scope: .allObjects, title: "All Objects") { Image(systemName: "square.grid.2x2") }
+            }
+
+            // The two places the structure above does not lead to. Hidden asks
+            // for authentication when it is opened, not when it is listed.
+            Section {
+                row(scope: .hidden, title: "Hidden") { Image(systemName: "eye.slash") }
                 row(scope: .recentlyDeleted, title: "Recently Deleted") { Image(systemName: "trash") }
             }
         }
@@ -148,17 +154,6 @@ struct CompactLibraryList: View {
                     }
                     Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
                         model.namingPrompt = .newCollection
-                    }
-                    Divider()
-                    Button(model.isShowingHiddenContent ? "Hide Hidden Items" : "Show Hidden Items",
-                           systemImage: model.isShowingHiddenContent ? "eye" : "eye.slash") {
-                        Task {
-                            if model.isShowingHiddenContent {
-                                await model.hideHiddenContent()
-                            } else {
-                                await model.showHiddenContent()
-                            }
-                        }
                     }
                     Divider()
                     Button("Settings…", systemImage: "gear") { model.isSettingsPresented = true }
@@ -179,6 +174,10 @@ struct CompactLibraryList: View {
     }
 
     private func open(_ scope: LibraryScope) async {
+        guard scope != .hidden else {
+            await model.openHidden()
+            return
+        }
         model.navigate(to: .scope(scope))
         await model.loadPreferences()
         await model.refreshContents()

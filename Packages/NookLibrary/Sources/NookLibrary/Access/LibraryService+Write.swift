@@ -62,6 +62,17 @@ public extension LibraryService {
         while let current = queue.popLast() {
             guard seen.insert(current.identifier).inserted else { continue }
             for object in current.containedObjects where object.deletedAt == nil {
+                // Something hidden in its own right is not on screen to be
+                // reconsidered, so deleting the folder it happens to sit in
+                // must not take it down with the folder. It stays in Hidden,
+                // and unhiding it later lands it in the Inbox, because the
+                // folder it came from is gone. Objects that were hidden only
+                // by this folder go the ordinary way: the user could see them
+                // when they chose to delete it.
+                if object.isHidden {
+                    object.folder = nil
+                    continue
+                }
                 object.deletedAt = now
                 object.folder = nil
             }

@@ -278,20 +278,15 @@ struct NookCommands: Commands {
 
             Divider()
 
-            // Whether hidden content is on screen is a state the whole window
-            // is in, so it belongs in the menu bar as well as in the sidebar.
-            Button(model?.isShowingHiddenContent == true ? "Hide Hidden Items" : "Show Hidden Items") {
+            Button("Hidden") {
                 guard let model else { return }
-                Task {
-                    if model.isShowingHiddenContent {
-                        await model.hideHiddenContent()
-                    } else {
-                        await model.showHiddenContent()
-                    }
-                }
+                Task { await model.openHidden() }
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
             .disabled(model == nil)
+
+            Button("Recently Deleted") { model?.navigate(to: .scope(.recentlyDeleted)) }
+                .disabled(model == nil)
 
             Divider()
 

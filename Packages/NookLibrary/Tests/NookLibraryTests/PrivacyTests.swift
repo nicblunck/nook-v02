@@ -30,7 +30,10 @@ struct PrivacyTests {
         #expect(await harness.service.rootFolders().isEmpty)
     }
 
-    @Test("Hidden content reappears only inside an authenticated hidden context")
+    /// Authenticating opens one place rather than making the library
+    /// transparent: hidden content is reached through Hidden and is absent
+    /// everywhere else, open session or not.
+    @Test("Hidden content is reached through Hidden, and nowhere else")
     func hiddenContextReveals() async throws {
         let harness = try await TestLibrary()
         defer { harness.cleanUp() }
@@ -41,8 +44,47 @@ struct PrivacyTests {
         try await harness.service.setPrivacy(PrivacyFlags(isHidden: true), forFolder: folder.id)
 
         let authenticated = AccessContext().enteringHiddenContext()
-        let found = await harness.service.objects(matching: ObjectQuery(scope: .allObjects), in: authenticated)
-        #expect(found.count == 1)
+
+        // Hidden holds the folder, and opening it shows what it holds.
+        #expect(await harness.service.hiddenFolders(in: authenticated).map(\.id) == [folder.id])
+        #expect(await harness.service.objects(
+            matching: ObjectQuery(scope: .folder(folder.id)), in: authenticated
+        ).count == 1)
+
+        // The rest of the library is unchanged by the open session.
+        #expect(await harness.service.objects(
+            matching: ObjectQuery(scope: .allObjects), in: authenticated
+        ).isEmpty)
+        #expect(await harness.service.objects(
+            matching: ObjectQuery(searchText: "secret"), in: authenticated
+        ).isEmpty)
+        #expect(await harness.service.rootFolders(in: authenticated).isEmpty)
+    }
+
+    @Test("Hidden lists what is hidden in its own right, once")
+    func hiddenPlaceListsExplicitlyHiddenThings() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+
+        let folder = try await harness.service.createFolder(named: "Private")
+        let inside = try harness.makeSourceFile(named: "inside.txt", contents: "inside")
+        let insideReport = await harness.service.importItems([.file(url: inside)], into: .folder(folder.id))
+        let insideID = try #require(insideReport.importedIDs.first)
+
+        let loose = try harness.makeSourceFile(named: "loose.txt", contents: "loose")
+        let looseReport = await harness.service.importItems([.file(url: loose)], into: .root)
+        let looseID = try #require(looseReport.importedIDs.first)
+
+        try await harness.service.setHidden(true, forFolder: folder.id)
+        try await harness.service.setHidden(true, forObjects: [insideID, looseID])
+
+        let authenticated = AccessContext().enteringHiddenContext()
+        let listed = await harness.service.objects(matching: ObjectQuery(scope: .hidden), in: authenticated)
+        // The object inside the hidden folder is reached by opening that
+        // folder, so listing it at the top level as well would show it twice.
+        #expect(listed.map(\.id) == [looseID])
+        #expect(await harness.service.hiddenFolders(in: authenticated).map(\.id) == [folder.id])
+        #expect(await harness.service.objects(matching: ObjectQuery(scope: .hidden)).isEmpty)
     }
 
     @Test("A locked object still lists, but yields no content and no metadata")

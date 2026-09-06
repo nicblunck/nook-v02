@@ -13,6 +13,13 @@ public enum LibraryScope: Hashable, Sendable {
     case recent
     case favorites
     case recentlyDeleted
+    /// Everything the user has put out of sight.
+    ///
+    /// Hidden is a place rather than a filter over the library: a hidden thing
+    /// lives here and is absent everywhere else, authenticated or not. That is
+    /// what keeps an open Hidden session from quietly repopulating Inbox,
+    /// Recent, search and every other surface with content the user hid.
+    case hidden
     /// The immediate contents of one folder.
     case folder(FolderID)
     /// A folder and everything beneath it. Used when search descends a subtree.
@@ -28,6 +35,7 @@ public enum LibraryScope: Hashable, Sendable {
         case .recent: "Recent"
         case .favorites: "Favorites"
         case .recentlyDeleted: "Recently Deleted"
+        case .hidden: "Hidden"
         case .folder, .folderTree: "Folder"
         case .collection: "Collection"
         case .tag: "Tag"

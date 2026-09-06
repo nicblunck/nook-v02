@@ -285,6 +285,11 @@ final class LibraryModel {
         if case .folder(let id) = effectiveScope {
             folders = await service.subfolders(of: id, in: access)
             breadcrumbs = await service.folderPath(to: id, in: access)
+        } else if effectiveScope == .hidden {
+            // Hidden holds folders as well as objects, which is what makes it
+            // a place rather than a list of loose things.
+            folders = await service.hiddenFolders(in: access)
+            breadcrumbs = []
         } else {
             folders = []
             breadcrumbs = []
@@ -319,6 +324,10 @@ final class LibraryModel {
         cursor = nil
         searchText = ""
         Task {
+            // Hidden closes behind you: stepping out of it, or out of a folder
+            // inside it, puts everything back out of reach so coming back asks
+            // again.
+            await closeHidden()
             await loadPreferences()
             await refreshContents()
         }
@@ -433,6 +442,10 @@ final class LibraryModel {
             case .folder(let id): return folders.contains(id)
             case .collection(let id): return collectionIDs.contains(id)
             case .tag(let id): return tagIDs.contains(id)
+            // Back never walks into Hidden: it closed when the user left, and
+            // a step through history is not somewhere to be asked for a
+            // fingerprint.
+            case .hidden: return isShowingHiddenContent
             default: return true
             }
         }

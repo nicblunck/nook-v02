@@ -93,30 +93,10 @@ struct SidebarView: View {
                 }
             }
 
-            Section {
-                systemRow(.recentlyDeleted, title: "Recently Deleted",
-                          symbol: "trash", count: model.counts[.recentlyDeleted])
-            }
         }
         .navigationTitle("Nook")
+        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
         .toolbar {
-            // One authentication reveals everything hidden, rather than one
-            // item at a time: hiding is about discovery, and a hidden thing
-            // that had to be found before it could be revealed would be no use
-            // to the person who hid it.
-            ToolbarItem {
-                Button(model.isShowingHiddenContent ? "Hide Hidden Items" : "Show Hidden Items",
-                       systemImage: model.isShowingHiddenContent ? "eye" : "eye.slash") {
-                    Task {
-                        if model.isShowingHiddenContent {
-                            await model.hideHiddenContent()
-                        } else {
-                            await model.showHiddenContent()
-                        }
-                    }
-                }
-            }
-
             ToolbarItem {
                 Menu {
                     Button("New Folder…", systemImage: "folder.badge.plus") {
@@ -135,6 +115,62 @@ struct SidebarView: View {
                 Task { await model.setAppearance(appearance, for: target.reference) }
             }
         }
+    }
+
+    // MARK: Footer
+
+    /// The two places the library's structure does not lead to: what has been
+    /// put out of sight, and what is on its way out. Neither is a folder, a
+    /// collection or a tag, so neither belongs in the list above — they sit in
+    /// a row of their own at the foot of the sidebar, the way Photos keeps its
+    /// album list and its Hidden and Recently Deleted apart.
+    private var footer: some View {
+        HStack(spacing: 6) {
+            footerButton(title: "Hidden",
+                         symbol: "eye.slash",
+                         isCurrent: model.scope == .hidden) {
+                Task { await model.openHidden() }
+            }
+            // No count here. How much someone is keeping out of sight is
+            // itself something they are keeping out of sight.
+            footerButton(title: "Recently Deleted",
+                         symbol: "trash",
+                         isCurrent: model.scope == .recentlyDeleted,
+                         count: model.counts[.recentlyDeleted]) {
+                model.navigate(to: .scope(.recentlyDeleted))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private func footerButton(title: String,
+                              symbol: String,
+                              isCurrent: Bool,
+                              count: Int? = nil,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                Text(title).lineLimit(1).truncationMode(.tail)
+                if let count, count > 0 {
+                    Spacer(minLength: 2)
+                    Text("\(count)").foregroundStyle(.tertiary).monospacedDigit()
+                }
+            }
+            .font(.callout)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+            .background(isCurrent ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                        in: .rect(cornerRadius: 6))
+            .contentShape(.rect(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
+        .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
     }
 
     // MARK: Rows

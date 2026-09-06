@@ -80,6 +80,17 @@ public struct AccessContext: Sendable {
         copy.hiddenContextUnlocked = true
         return copy
     }
+
+    /// The same context with hidden content out of reach again.
+    ///
+    /// Used to read everywhere that is not Hidden: authenticating opens one
+    /// place, not the whole library. Locks already authenticated are kept,
+    /// because a lock is about content and hiding is about where things are.
+    public func leavingHiddenContext() -> AccessContext {
+        var copy = self
+        copy.hiddenContextUnlocked = false
+        return copy
+    }
 }
 
 /// What a caller is permitted to see of an entity.

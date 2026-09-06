@@ -10,32 +10,38 @@ import NookLibrary
 /// the same act performed against different flags.
 extension LibraryModel {
 
-    // MARK: The hidden context
+    // MARK: Hidden
 
-    /// Whether hidden content is currently being shown.
+    /// Whether the Hidden place is currently open.
     var isShowingHiddenContent: Bool { accessContext.hiddenContextUnlocked }
 
-    /// Brings hidden content into view for as long as the user stays in it.
+    /// Opens Hidden.
     ///
-    /// One authentication reveals everything hidden rather than one item at a
-    /// time: hiding is about discovery, and a library where each hidden item
-    /// had to be found before it could be revealed would be unusable.
-    func showHiddenContent() async {
-        guard !isShowingHiddenContent else { return }
-        guard await authenticate(reason: "Show hidden items in your library.") else { return }
-        accessContext = accessContext.enteringHiddenContext()
+    /// It is a place rather than a filter: what is hidden lives there and is
+    /// absent from every other view, so authenticating opens one door instead
+    /// of turning the whole library transparent. Unhiding something puts it
+    /// back in the folder it came from — or in the Inbox, if that folder is
+    /// gone by the time it comes back.
+    func openHidden() async {
+        if !isShowingHiddenContent {
+            guard await authenticate(reason: "Show your hidden items.") else { return }
+            accessContext = accessContext.enteringHiddenContext()
+        }
+        navigate(to: .scope(.hidden))
         await refreshAll()
     }
 
-    /// Puts everything back out of sight, and drops every lock authenticated
-    /// along the way with it. Leaving is not a state change to be confirmed —
-    /// it only ever takes access away.
-    func hideHiddenContent() async {
-        guard accessContext.hiddenContextUnlocked || !accessContext.unlockedEntities.isEmpty else { return }
+    /// Closes it again, and drops every lock authenticated inside it with it.
+    ///
+    /// Called on the way out rather than by a button: leaving Hidden is what
+    /// shuts it, so coming back always asks again.
+    func closeHidden() async {
+        guard accessContext.hiddenContextUnlocked else { return }
+        guard !(await library.service.revealsHiddenContent(scope)) else { return }
         accessContext = .standard
         previewedObjectID = nil
-        await retreatFromUnreachableScope()
-        await refreshAll()
+        await refreshSidebar()
+        await refreshContents()
     }
 
     // MARK: Locks
@@ -152,16 +158,5 @@ extension LibraryModel {
     private func leave(_ location: LibraryScope) async {
         guard scope == location else { return }
         scope = .inbox
-    }
-
-    private func retreatFromUnreachableScope() async {
-        switch scope {
-        case .folder(let id), .folderTree(let id):
-            if await library.service.folder(id, in: accessContext) == nil { scope = .inbox }
-        case .collection(let id):
-            if await library.service.collection(id, in: accessContext) == nil { scope = .inbox }
-        default:
-            break
-        }
     }
 }
