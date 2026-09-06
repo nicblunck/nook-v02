@@ -8,6 +8,8 @@ struct LibraryWindow: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     private var navigator: AppNavigator { .shared }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -32,10 +34,15 @@ struct LibraryWindow: View {
                 if let progress = model.importProgress {
                     ImportProgressBar(progress: progress)
                         .padding()
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        // The bar still arrives and still leaves; under Reduce
+                        // Motion it does so without sliding up from the edge.
+                        .transition(.motionAware(
+                            .move(edge: .bottom).combined(with: .opacity),
+                            reduceMotion: reduceMotion
+                        ))
                 }
             }
-            .animation(.smooth(duration: 0.25), value: model.importProgress?.completed)
+            .motionAware(.smooth(duration: 0.25), value: model.importProgress?.completed)
             // Global Search floats above whatever is on screen; it does not
             // navigate the canvas to get there.
             .overlay {
@@ -52,7 +59,7 @@ struct LibraryWindow: View {
                     .transition(.opacity)
                 }
             }
-            .animation(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
+            .motionAware(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
             .sheet(isPresented: $model.isSettingsPresented) {
                 NavigationStack { SettingsView(settings: model.settings) }
             }

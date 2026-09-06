@@ -28,12 +28,40 @@ enum Format {
 
     /// The one-line secondary caption under a card.
     static func caption(for object: ObjectSnapshot) -> String {
+        captionParts(for: object).joined(separator: " · ")
+    }
+
+    /// The same caption, phrased for speech.
+    ///
+    /// Two things separate it from the written one. The interpunct that reads
+    /// as a separator on screen is pronounced when spoken, so the parts are
+    /// joined with commas instead. And favourite and locked are shown as a
+    /// glyph that carries no label of its own, which would otherwise leave a
+    /// locked object sounding identical to an unprotected one.
+    static func spokenCaption(for object: ObjectSnapshot) -> String {
+        var parts = captionParts(for: object)
+        if object.isFavorite { parts.append("Favorite") }
+        if object.isLocked { parts.append("Locked") }
+        return parts.joined(separator: ", ")
+    }
+
+    private static func captionParts(for object: ObjectSnapshot) -> [String] {
         var parts: [String] = [object.kind.displayName]
         if let duration = duration(object.duration) { parts.append(duration) }
         else if let pages = object.pageCount { parts.append(pages == 1 ? "1 page" : "\(pages) pages") }
         else if let size = bytes(object.byteSize) { parts.append(size) }
         else if let domain = object.sourceDomain { parts = [domain] }
-        return parts.joined(separator: " · ")
+        return parts
+    }
+
+    /// A count of contained objects, spelled out rather than left as a bare
+    /// number, so a sidebar row reads "Inbox, 12 items" and not "Inbox, 12".
+    static func itemCount(_ count: Int) -> String {
+        count == 1 ? "1 item" : "\(count) items"
+    }
+
+    static func folderCount(_ count: Int) -> String {
+        count == 1 ? "1 folder" : "\(count) folders"
     }
 }
 

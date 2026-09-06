@@ -6,10 +6,12 @@ struct ObjectCard: View {
     let object: ObjectSnapshot
     let isSelected: Bool
 
+    @ScaledMetric(relativeTo: .body) private var previewHeight: CGFloat = 132
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ThumbnailView(object: object)
-                .frame(height: 132)
+                .frame(height: previewHeight)
                 .frame(maxWidth: .infinity)
                 .clipShape(.rect(cornerRadius: 10))
                 .overlay(alignment: .topTrailing) { badges }
@@ -42,7 +44,9 @@ struct ObjectCard: View {
         .contentShape(.rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
-        .accessibilityValue(Format.caption(for: object))
+        // The badges below are drawn without labels, so the spoken caption is
+        // what carries locked and favourite to a reader who cannot see them.
+        .accessibilityValue(Format.spokenCaption(for: object))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
@@ -70,6 +74,8 @@ struct FolderCard: View {
     let folder: FolderSnapshot
     let onOpen: () -> Void
 
+    @ScaledMetric(relativeTo: .body) private var previewHeight: CGFloat = 132
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
@@ -77,7 +83,7 @@ struct FolderCard: View {
                     .fill((Color(hex: folder.appearance.colorHex) ?? .accentColor).opacity(0.14))
                 EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 34)
             }
-            .frame(height: 132)
+            .frame(height: previewHeight)
             .frame(maxWidth: .infinity)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -93,15 +99,27 @@ struct FolderCard: View {
         .itemClick { onOpen() }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
+        // An explicit label replaces the combined children, so what the card
+        // shows about its contents has to be restated as a value.
+        .accessibilityValue(spokenItemCount)
         .accessibilityHint("Opens the folder")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var countParts: [String] {
+        var parts: [String] = []
+        if folder.subfolderCount > 0 { parts.append(Format.folderCount(folder.subfolderCount)) }
+        parts.append(Format.itemCount(folder.objectCount))
+        return parts
     }
 
     private var itemCountDescription: String {
-        var parts: [String] = []
-        if folder.subfolderCount > 0 {
-            parts.append(folder.subfolderCount == 1 ? "1 folder" : "\(folder.subfolderCount) folders")
-        }
-        parts.append(folder.objectCount == 1 ? "1 item" : "\(folder.objectCount) items")
-        return parts.joined(separator: " · ")
+        countParts.joined(separator: " · ")
+    }
+
+    private var spokenItemCount: String {
+        var parts = countParts
+        if folder.isLocked { parts.append("Locked") }
+        return parts.joined(separator: ", ")
     }
 }

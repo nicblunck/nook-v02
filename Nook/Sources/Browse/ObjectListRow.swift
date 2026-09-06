@@ -7,10 +7,17 @@ struct ObjectListRow: View {
     let object: ObjectSnapshot
     let isSelected: Bool
 
+    /// The metadata columns are sized to their content, so they have to grow
+    /// with the reader's type size or the text inside them truncates first.
+    @ScaledMetric(relativeTo: .body) private var thumbnailSize: CGFloat = 38
+    @ScaledMetric(relativeTo: .caption) private var kindWidth: CGFloat = 74
+    @ScaledMetric(relativeTo: .caption) private var sizeWidth: CGFloat = 68
+    @ScaledMetric(relativeTo: .caption) private var dateWidth: CGFloat = 84
+
     var body: some View {
         HStack(spacing: 12) {
             ThumbnailView(object: object, maximumSize: 128)
-                .frame(width: 38, height: 38)
+                .frame(width: thumbnailSize, height: thumbnailSize)
                 .clipShape(.rect(cornerRadius: 5))
 
             VStack(alignment: .leading, spacing: 1) {
@@ -38,17 +45,17 @@ struct ObjectListRow: View {
             Text(object.kind.displayName)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 74, alignment: .leading)
+                .frame(width: kindWidth, alignment: .leading)
 
             Text(Format.bytes(object.byteSize) ?? "—")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-                .frame(width: 68, alignment: .trailing)
+                .frame(width: sizeWidth, alignment: .trailing)
 
             Text(object.dateAdded.formatted(date: .numeric, time: .omitted))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-                .frame(width: 84, alignment: .trailing)
+                .frame(width: dateWidth, alignment: .trailing)
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
@@ -59,7 +66,10 @@ struct ObjectListRow: View {
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
-        .accessibilityValue(Format.caption(for: object))
+        .accessibilityValue(Format.spokenCaption(for: object))
+        // Selection is drawn as a tinted background, which is not something
+        // VoiceOver can see.
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -67,14 +77,16 @@ struct ObjectListRow: View {
 struct FolderListRow: View {
     let folder: FolderSnapshot
 
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 38
+
     var body: some View {
         HStack(spacing: 12) {
             EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 20)
-                .frame(width: 38, height: 38)
+                .frame(width: iconSize, height: iconSize)
 
             Text(folder.name).lineLimit(1)
             Spacer(minLength: 8)
-            Text(folder.objectCount == 1 ? "1 item" : "\(folder.objectCount) items")
+            Text(Format.itemCount(folder.objectCount))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -83,6 +95,14 @@ struct FolderListRow: View {
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
+        .accessibilityValue(folderValue)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var folderValue: String {
+        var parts = [Format.itemCount(folder.objectCount)]
+        if folder.isLocked { parts.append("Locked") }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -126,5 +146,7 @@ struct ObjectMasonryCard: View {
         .contentShape(.rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
+        .accessibilityValue(Format.spokenCaption(for: object))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }

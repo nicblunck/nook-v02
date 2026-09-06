@@ -28,7 +28,7 @@ struct BrowseView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.smooth(duration: 0.22), value: model.previewedObjectID)
+        .motionAware(.smooth(duration: 0.22), value: model.previewedObjectID)
         .navigationTitle(title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

@@ -18,6 +18,8 @@ struct GlobalSearchView: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isFieldFocused: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 0) {
             field
@@ -108,7 +110,12 @@ struct GlobalSearchView: View {
                 }
                 .onChange(of: highlighted) {
                     guard let highlighted else { return }
-                    withAnimation { proxy.scrollTo(highlighted, anchor: .center) }
+                    // Arrow-keying through results still has to bring the row
+                    // into view; Reduce Motion only asks that it not scroll
+                    // there.
+                    withAnimation(reduceMotion ? nil : .default) {
+                        proxy.scrollTo(highlighted, anchor: .center)
+                    }
                 }
             }
         }

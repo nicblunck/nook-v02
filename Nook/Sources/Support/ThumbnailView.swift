@@ -14,6 +14,8 @@ struct ThumbnailView: View {
     @State private var image: Image?
     @State private var didAttempt = false
 
+    @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 1
+
     var body: some View {
         ZStack {
             if let image {
@@ -25,13 +27,17 @@ struct ThumbnailView: View {
             }
         }
         .task(id: object.id) { await load() }
+        // The picture is the object, and the surface showing it already
+        // announces which object that is. Left visible to VoiceOver it would
+        // add an unnamed image to every card.
+        .accessibilityHidden(true)
     }
 
     private var placeholder: some View {
         ZStack {
             Rectangle().fill(.quaternary.opacity(0.5))
             Image(systemName: object.isLocked ? "lock.fill" : object.kind.symbolName)
-                .font(.system(size: 22, weight: .regular))
+                .font(.system(size: 22 * typeScale, weight: .regular))
                 .foregroundStyle(.secondary)
                 .opacity(didAttempt ? 1 : 0.55)
         }

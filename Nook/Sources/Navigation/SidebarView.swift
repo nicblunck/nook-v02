@@ -104,6 +104,11 @@ struct SidebarView: View {
         } icon: {
             Image(systemName: symbol)
         }
+        // Spoken, the trailing number is just a number: "Inbox, 12" could as
+        // easily be a name as a tally. The count becomes the row's value.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
         .tag(LibraryDestination.scope(scope))
     }
 
@@ -118,6 +123,9 @@ struct SidebarView: View {
         } icon: {
             EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(folder.name)
+        .accessibilityValue(folder.isLocked ? "Locked" : "")
         .tag(LibraryDestination.scope(.folder(folder.id)))
         .draggable(FolderTransfer(id: folder.id))
         .contextMenu {
@@ -158,6 +166,9 @@ struct SidebarView: View {
         } icon: {
             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(collection.name)
+        .accessibilityValue(collection.memberCount > 0 ? Format.itemCount(collection.memberCount) : "")
         .tag(LibraryDestination.scope(.collection(collection.id)))
         .contextMenu {
             Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
@@ -190,6 +201,9 @@ struct SidebarView: View {
         } icon: {
             EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tag.name)
+        .accessibilityValue(Format.itemCount(tag.objectCount))
         .tag(LibraryDestination.scope(.tag(tag.id)))
         .contextMenu {
             Button("Rename…") { prompt(.renameTag(tag.id), initial: tag.name) }
