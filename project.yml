@@ -2,16 +2,27 @@ name: Nook
 options:
   bundleIdPrefix: com.nicolasblunck
   deploymentTarget:
-    iOS: "17.0"
-    macOS: "14.0"
+    iOS: "26.0"
+    macOS: "26.0"
 settings:
-  SWIFT_VERSION: "5.0"
+  SWIFT_VERSION: "6.0"
+  SWIFT_STRICT_CONCURRENCY: complete
+  DEVELOPMENT_TEAM: U4K77TMBRU
+  CODE_SIGN_STYLE: Automatic
+packages:
+  NookLibrary:
+    path: Packages/NookLibrary
 targets:
   Nook-iOS:
     type: application
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "26.0"
     sources: [Nook/Sources, Nook/Resources]
+    dependencies:
+      - package: NookLibrary
+        product: NookLibrary
+      - target: NookShareExtension
+        embed: true
     info:
       path: Nook/Sources/iOS-Info.plist
       properties:
@@ -24,11 +35,50 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_ENTITLEMENTS: Nook/Sources/Nook.entitlements
+
+  # Saves straight into the shared library container, so something shared from
+  # Safari is in the library before the app is ever opened.
+  NookShareExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources: [Nook/ShareExtension]
+    dependencies:
+      - package: NookLibrary
+        product: NookLibrary
+    info:
+      path: Nook/ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Save to Nook
+        NSExtension:
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 20
+              NSExtensionActivationSupportsImageWithMaxCount: 20
+              NSExtensionActivationSupportsMovieWithMaxCount: 20
+              NSExtensionActivationSupportsWebURLWithMaxCount: 20
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+    settings:
+      base:
+        PRODUCT_NAME: Save to Nook
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.share
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Nook/ShareExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Nook/ShareExtension/ShareExtension.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
   Nook-macOS:
     type: application
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "26.0"
     sources: [Nook/Sources, Nook/Resources]
+    dependencies:
+      - package: NookLibrary
+        product: NookLibrary
     settings:
       base:
         PRODUCT_NAME: Nook
@@ -38,6 +88,25 @@ targets:
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+  # The library has its own suite in the package. This covers the layer above
+  # it: the view state the app keeps, which the package cannot see.
+  NookTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources: [Nook/Tests]
+    dependencies:
+      - target: Nook-macOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.tests
+        # The host's product name is Nook, not the target name, so the default
+        # TEST_HOST xcodegen derives points at a bundle that is never built.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Nook.app/Contents/MacOS/Nook"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
 schemes:
   Nook-iOS:
     build:
@@ -51,7 +120,12 @@ schemes:
     build:
       targets:
         Nook-macOS: all
+        NookTests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - NookTests
     archive:
       config: Release
