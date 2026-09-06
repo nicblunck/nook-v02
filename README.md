@@ -89,10 +89,30 @@ app cannot see.
 surface are built and tested; nothing plugs into them yet. That ordering is the
 spec's: the library has to be useful on its own before it is useful to a model.
 
-**Hidden and Locked have no UI.** Enforcement is built and tested throughout,
-but nothing yet raises the access context above `.standard`, so there is no way
-to hide or lock anything from the interface. That split is deliberate: the spec
-puts the architecture in the MVP and the authentication flow after it.
+**The share extension cannot reach hidden destinations.** It lists folders
+under `.standard` access, so a hidden folder is not offered as somewhere to save
+to. The spec allows protected destinations there behind authentication; that
+needs the authentication flow inside the extension as well.
+
+### Hidden and Locked
+
+Both are set from the interface, and every change to either — in both
+directions — asks for Face ID, Touch ID or the device passcode before anything
+moves. `DeviceAuthenticator` is the only thing that constructs a raised
+`AccessContext`, and it is injected into `LibraryModel`, so the app's tests
+answer for the device owner rather than needing one.
+
+Hidden is a context rather than a per-item reveal. **Show Hidden Items**
+(⇧⌘H, or the eye in the sidebar) authenticates once and brings all hidden
+content into view; leaving puts it away again and drops every lock authenticated
+along the way with it. Locked content stays where it is and arrives redacted — a
+door with a name and nothing behind it — until whatever imposes the lock is
+authenticated, which may be an ancestor folder rather than the item itself.
+
+Hide and Lock are offered on what an item is in its own right. An object inside
+a hidden folder is hidden without being hidden itself, and only the folder can
+lift that, so snapshots carry the entity that imposed each protection rather
+than a bare flag.
 
 ## Tests
 

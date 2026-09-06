@@ -94,7 +94,9 @@ struct BrowseView: View {
 
     private var canvas: some View {
         Group {
-            if model.contents.isEmpty {
+            if let locked = model.lockedLocation {
+                lockedState(locked)
+            } else if model.contents.isEmpty {
                 emptyState
             } else {
                 ScrollViewReader { proxy in
@@ -231,6 +233,21 @@ struct BrowseView: View {
             .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
             .padding(8)
             .allowsHitTesting(false)
+    }
+
+    /// A locked place is a door before it is a location, so it is drawn as
+    /// one. Its name stays visible — the user has to be able to find what to
+    /// authenticate against — while nothing it holds is drawn behind it.
+    private func lockedState(_ location: (reference: LibraryReference, name: String)) -> some View {
+        ContentUnavailableView {
+            Label(location.name, systemImage: "lock.fill")
+        } description: {
+            Text("Authenticate to see what's in here.")
+        } actions: {
+            Button("Unlock") {
+                Task { await model.unlockCurrentLocation() }
+            }
+        }
     }
 
     private var emptyState: some View {

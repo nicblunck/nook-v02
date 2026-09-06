@@ -333,6 +333,8 @@ extension LibraryService {
             isFavorite: object.isFavorite,
             isHidden: privacy.isHidden,
             isLocked: privacy.isLocked,
+            hiddenSource: privacy.hiddenSource,
+            lockedSource: privacy.lockedSource,
             sourceURL: full ? object.sourceURL : nil,
             sourceDomain: full ? object.sourceDomain : nil,
             linkPageTitle: full ? object.linkPageTitle : nil,
@@ -374,6 +376,8 @@ extension LibraryService {
             objectCount: full ? discoverableObjects : 0,
             isHidden: privacy.isHidden,
             isLocked: privacy.isLocked,
+            hiddenSource: privacy.hiddenSource,
+            lockedSource: privacy.lockedSource,
             visibility: visibility,
             dateAdded: folder.dateAdded
         )
@@ -397,6 +401,8 @@ extension LibraryService {
             isSmart: collection.isSmart,
             isHidden: privacy.isHidden,
             isLocked: privacy.isLocked,
+            hiddenSource: privacy.hiddenSource,
+            lockedSource: privacy.lockedSource,
             visibility: visibility,
             dateAdded: collection.dateAdded
         )

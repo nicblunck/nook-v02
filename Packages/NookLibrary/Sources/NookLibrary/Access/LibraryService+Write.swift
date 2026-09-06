@@ -79,6 +79,23 @@ public extension LibraryService {
         try didMutate()
     }
 
+    /// Hidden and Locked are also settable one at a time, which is how the
+    /// interface sets them: hiding something says nothing about whether it is
+    /// locked, and writing both at once would make a caller restate a flag it
+    /// has no opinion about. Only the entity's own flag is ever written —
+    /// what it inherits from an ancestor remains the ancestor's to lift.
+    func setHidden(_ isHidden: Bool, forFolder id: FolderID) throws {
+        guard let target = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
+        target.isHidden = isHidden
+        try didMutate()
+    }
+
+    func setLocked(_ isLocked: Bool, forFolder id: FolderID) throws {
+        guard let target = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
+        target.isLocked = isLocked
+        try didMutate()
+    }
+
     // MARK: Objects
 
     func moveObjects(_ ids: [ObjectID], to destination: FolderID?) throws {
@@ -116,6 +133,20 @@ public extension LibraryService {
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
             object.isHidden = flags.isHidden
             object.isLocked = flags.isLocked
+        }
+        try didMutate()
+    }
+
+    func setHidden(_ isHidden: Bool, forObjects ids: [ObjectID]) throws {
+        for object in objects(withIdentifiers: ids.map(\.uuid)) {
+            object.isHidden = isHidden
+        }
+        try didMutate()
+    }
+
+    func setLocked(_ isLocked: Bool, forObjects ids: [ObjectID]) throws {
+        for object in objects(withIdentifiers: ids.map(\.uuid)) {
+            object.isLocked = isLocked
         }
         try didMutate()
     }
@@ -328,6 +359,22 @@ public extension LibraryService {
         }
         target.isHidden = flags.isHidden
         target.isLocked = flags.isLocked
+        try didMutate()
+    }
+
+    func setHidden(_ isHidden: Bool, forCollection id: CollectionID) throws {
+        guard let target = collection(withIdentifier: id.uuid) else {
+            throw LibraryError.collectionNotFound(id)
+        }
+        target.isHidden = isHidden
+        try didMutate()
+    }
+
+    func setLocked(_ isLocked: Bool, forCollection id: CollectionID) throws {
+        guard let target = collection(withIdentifier: id.uuid) else {
+            throw LibraryError.collectionNotFound(id)
+        }
+        target.isLocked = isLocked
         try didMutate()
     }
 

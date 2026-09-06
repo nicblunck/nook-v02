@@ -101,6 +101,17 @@ struct ObjectMenu: View {
 
             Divider()
 
+            // Hiding and locking each ask for Face ID, Touch ID or the
+            // passcode before anything moves — including on the way back out.
+            Button(hideTitle, systemImage: shouldHide ? "eye.slash" : "eye") {
+                Task { await model.setHidden(shouldHide, for: objects) }
+            }
+            Button(lockTitle, systemImage: shouldLock ? "lock" : "lock.open") {
+                Task { await model.setLocked(shouldLock, for: objects) }
+            }
+
+            Divider()
+
             Button("Delete", systemImage: "trash", role: .destructive) {
                 Task { await model.delete(ids) }
             }
@@ -112,5 +123,24 @@ struct ObjectMenu: View {
     private var favoriteTitle: String {
         shouldFavorite ? (objects.count == 1 ? "Favorite" : "Favorite \(objects.count) Items")
                        : (objects.count == 1 ? "Remove Favorite" : "Remove Favorites")
+    }
+
+    // What these offer is decided by what the objects are in their own right.
+    // An object inside a hidden folder is hidden without being hidden itself,
+    // and an Unhide there would promise something it cannot deliver: only the
+    // folder can lift what the folder imposed.
+    private var shouldHide: Bool { !objects.allSatisfy(\.isExplicitlyHidden) }
+    private var shouldLock: Bool { !objects.allSatisfy(\.isExplicitlyLocked) }
+
+    private var hideTitle: String {
+        title(shouldHide ? "Hide" : "Unhide")
+    }
+
+    private var lockTitle: String {
+        title(shouldLock ? "Lock" : "Unlock")
+    }
+
+    private func title(_ verb: String) -> String {
+        objects.count == 1 ? verb : "\(verb) \(objects.count) Items"
     }
 }

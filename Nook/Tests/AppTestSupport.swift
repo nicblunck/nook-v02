@@ -7,6 +7,7 @@ import NookLibrary
 @MainActor
 struct TestModel {
     let model: LibraryModel
+    let authenticator: StubAuthenticator
     let scratch: URL
     private let suiteName: String
 
@@ -14,9 +15,12 @@ struct TestModel {
         let suiteName = "nook.tests.\(UUID().uuidString)"
         self.suiteName = suiteName
         let library = try await Library.inMemory()
+        let authenticator = StubAuthenticator()
+        self.authenticator = authenticator
         model = LibraryModel(
             library: library,
-            settings: AppSettings(defaults: UserDefaults(suiteName: suiteName)!)
+            settings: AppSettings(defaults: UserDefaults(suiteName: suiteName)!),
+            authenticator: authenticator
         )
         scratch = URL.temporaryDirectory.appending(path: "NookAppTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -40,5 +44,20 @@ struct TestModel {
     func cleanUp() {
         try? FileManager.default.removeItem(at: scratch)
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
+    }
+}
+
+/// Stands in for Face ID, Touch ID and the passcode, so the tests can say what
+/// the device owner answered instead of asking for one.
+@MainActor
+final class StubAuthenticator: LibraryAuthenticating {
+    var outcome: AuthenticationOutcome = .succeeded
+    private(set) var reasons: [String] = []
+
+    var wasAsked: Bool { !reasons.isEmpty }
+
+    func authenticate(reason: String) async -> AuthenticationOutcome {
+        reasons.append(reason)
+        return outcome
     }
 }

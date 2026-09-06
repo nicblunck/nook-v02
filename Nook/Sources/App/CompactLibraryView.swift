@@ -150,6 +150,17 @@ struct CompactLibraryList: View {
                         model.namingPrompt = .newCollection
                     }
                     Divider()
+                    Button(model.isShowingHiddenContent ? "Hide Hidden Items" : "Show Hidden Items",
+                           systemImage: model.isShowingHiddenContent ? "eye" : "eye.slash") {
+                        Task {
+                            if model.isShowingHiddenContent {
+                                await model.hideHiddenContent()
+                            } else {
+                                await model.showHiddenContent()
+                            }
+                        }
+                    }
+                    Divider()
                     Button("Settings…", systemImage: "gear") { model.isSettingsPresented = true }
                 } label: {
                     Label("More", systemImage: "ellipsis.circle")

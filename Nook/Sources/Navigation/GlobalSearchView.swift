@@ -200,12 +200,11 @@ struct GlobalSearchView: View {
         Task {
             model.navigate(to: .scope(object.folderID.map { LibraryScope.folder($0) } ?? .inbox))
             await model.refreshContents()
-            model.selection = [object.id]
-            if object.kind == .link, let url = object.sourceURL {
-                OpenExternally.open(url)
-            } else {
-                model.previewedObjectID = object.id
-            }
+            // Opened the same way as anything on the canvas, so a locked
+            // result asks for authentication here too rather than arriving at
+            // a preview with nothing it is allowed to show.
+            let landed = model.contents.objects.first { $0.id == object.id } ?? object
+            model.openObject(landed)
         }
     }
 }

@@ -278,6 +278,23 @@ struct NookCommands: Commands {
 
             Divider()
 
+            // Whether hidden content is on screen is a state the whole window
+            // is in, so it belongs in the menu bar as well as in the sidebar.
+            Button(model?.isShowingHiddenContent == true ? "Hide Hidden Items" : "Show Hidden Items") {
+                guard let model else { return }
+                Task {
+                    if model.isShowingHiddenContent {
+                        await model.hideHiddenContent()
+                    } else {
+                        await model.showHiddenContent()
+                    }
+                }
+            }
+            .keyboardShortcut("h", modifiers: [.command, .shift])
+            .disabled(model == nil)
+
+            Divider()
+
             ForEach(LibraryViewMode.allCases) { mode in
                 Button(mode.displayName) {
                     guard let model else { return }

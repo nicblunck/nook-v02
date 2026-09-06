@@ -126,8 +126,10 @@ final class LibraryModel {
     var importFailure: ImportFailure?
 
     /// The authenticated state every read is made under. Hidden and locked
-    /// content stays out of reach until the authentication flow raises this.
-    private(set) var accessContext: AccessContext = .standard
+    /// content stays out of reach until the authentication flow raises this,
+    /// which only `LibraryModel+Privacy` does, and only after the device owner
+    /// has said yes.
+    var accessContext: AccessContext = .standard
 
     private var searchTask: Task<Void, Never>?
 
@@ -145,9 +147,16 @@ final class LibraryModel {
     var viewMode: LibraryViewMode { preferences.viewMode }
     var foldersFirst: Bool { preferences.foldersFirst }
 
-    init(library: Library, settings: AppSettings) {
+    /// Who vouches for the device owner before hidden or locked content moves.
+    /// Injected so the app's tests can answer without a device.
+    let authenticator: any LibraryAuthenticating
+
+    init(library: Library,
+         settings: AppSettings,
+         authenticator: any LibraryAuthenticating = DeviceAuthenticator()) {
         self.library = library
         self.settings = settings
+        self.authenticator = authenticator
         self.preferences = settings.defaultPreferences
     }
 
@@ -526,12 +535,9 @@ final class LibraryModel {
             navigate(to: .scope(object.folderID.map { LibraryScope.folder($0) } ?? .inbox))
             await loadPreferences()
             await refreshContents()
-            selection = [id]
-            if object.kind == .link, let url = object.sourceURL {
-                await MainActor.run { OpenExternally.open(url) }
-            } else {
-                previewedObjectID = id
-            }
+            // Through the same opening as a click, so an intent cannot show
+            // what a lock would have withheld on the canvas.
+            openObject(contents.objects.first { $0.id == id } ?? object)
         }
     }
 
@@ -796,7 +802,7 @@ final class LibraryModel {
         await perform { try await self.library.service.removeTag(id, from: ids) }
     }
 
-    private func perform(_ work: @escaping () async throws -> Void) async {
+    func perform(_ work: @escaping () async throws -> Void) async {
         do {
             try await work()
             await refreshAll()

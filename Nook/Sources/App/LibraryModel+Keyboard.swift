@@ -130,8 +130,26 @@ extension LibraryModel {
 
     /// Opening a thing. A link points at the live web rather than at stored
     /// content, so it opens where the user's browsing actually happens.
+    ///
+    /// A locked object is a door before it is a thing. Authenticating replaces
+    /// the redacted snapshot with a whole one, so what finally opens is read
+    /// from the canvas again rather than from the one that arrived without its
+    /// address or its bytes.
     func openObject(_ object: ObjectSnapshot) {
         cursor = .object(object.id)
+        guard object.isLocked else {
+            reveal(object)
+            return
+        }
+        Task {
+            guard await unlock(object, named: object.title),
+                  let unlocked = contents.objects.first(where: { $0.id == object.id })
+            else { return }
+            reveal(unlocked)
+        }
+    }
+
+    private func reveal(_ object: ObjectSnapshot) {
         if object.kind == .link, let url = object.sourceURL {
             OpenExternally.open(url)
             return
@@ -148,6 +166,10 @@ extension LibraryModel {
     /// the user did not ask for.
     func previewCursorItem() {
         guard let object = cursorObject, object.kind != .link else { return }
+        guard !object.isLocked else {
+            openObject(object)
+            return
+        }
         selection = [object.id]
         selectionAnchor = object.id
         previewedObjectID = object.id

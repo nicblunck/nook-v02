@@ -100,6 +100,23 @@ struct SidebarView: View {
         }
         .navigationTitle("Nook")
         .toolbar {
+            // One authentication reveals everything hidden, rather than one
+            // item at a time: hiding is about discovery, and a hidden thing
+            // that had to be found before it could be revealed would be no use
+            // to the person who hid it.
+            ToolbarItem {
+                Button(model.isShowingHiddenContent ? "Hide Hidden Items" : "Show Hidden Items",
+                       systemImage: model.isShowingHiddenContent ? "eye" : "eye.slash") {
+                    Task {
+                        if model.isShowingHiddenContent {
+                            await model.hideHiddenContent()
+                        } else {
+                            await model.showHiddenContent()
+                        }
+                    }
+                }
+            }
+
             ToolbarItem {
                 Menu {
                     Button("New Folder…", systemImage: "folder.badge.plus") {
@@ -146,16 +163,15 @@ struct SidebarView: View {
         Label {
             HStack {
                 Text(folder.name)
-                if folder.isLocked {
-                    Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.tertiary)
-                }
+                privacyBadges(isHidden: folder.isHidden, isLocked: folder.isLocked)
             }
         } icon: {
             EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(folder.name)
-        .accessibilityValue(folder.isLocked ? "Locked" : "")
+        .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.isLocked)
+            .joined(separator: ", "))
         .tag(LibraryDestination.scope(.folder(folder.id)))
         .draggable(FolderTransfer(id: folder.id))
         .contextMenu {
@@ -166,6 +182,10 @@ struct SidebarView: View {
                     reference: .folder(folder.id), title: folder.name, appearance: folder.appearance
                 )
             }
+            Divider()
+            privacyItems(for: folder,
+                         hide: { await model.setHidden($0, forFolder: folder) },
+                         lock: { await model.setLocked($0, forFolder: folder) })
             Divider()
             Button("Delete Folder", role: .destructive) {
                 Task { await model.deleteFolder(folder.id) }
@@ -188,6 +208,7 @@ struct SidebarView: View {
         Label {
             HStack {
                 Text(collection.name)
+                privacyBadges(isHidden: collection.isHidden, isLocked: collection.isLocked)
                 if collection.memberCount > 0 {
                     Spacer()
                     Text("\(collection.memberCount)").foregroundStyle(.tertiary).monospacedDigit()
@@ -198,7 +219,7 @@ struct SidebarView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(collection.name)
-        .accessibilityValue(collection.memberCount > 0 ? Format.itemCount(collection.memberCount) : "")
+        .accessibilityValue(spokenCollectionState(collection))
         .tag(LibraryDestination.scope(.collection(collection.id)))
         .contextMenu {
             Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
@@ -209,6 +230,13 @@ struct SidebarView: View {
                     appearance: collection.appearance
                 )
             }
+            Divider()
+            // A hidden or locked collection conceals the collection itself.
+            // What it gathers stays exactly as reachable as it was: the true
+            // folder hierarchy is where storage privacy lives.
+            privacyItems(for: collection,
+                         hide: { await model.setHidden($0, forCollection: collection) },
+                         lock: { await model.setLocked($0, forCollection: collection) })
             Divider()
             Button("Delete Collection", role: .destructive) {
                 Task { await model.deleteCollection(collection.id) }
@@ -251,6 +279,51 @@ struct SidebarView: View {
             Task { await model.addTag(tag.name, to: transfers.map(\.id)) }
             return true
         }
+    }
+
+    // MARK: Privacy
+
+    /// The marks a place carries when it is hidden, locked, or both. Small and
+    /// tertiary on purpose: they say what state a place is in, never anything
+    /// about what it holds.
+    @ViewBuilder
+    private func privacyBadges(isHidden: Bool, isLocked: Bool) -> some View {
+        if isHidden {
+            Image(systemName: "eye.slash").font(.caption2).foregroundStyle(.tertiary)
+        }
+        if isLocked {
+            Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+
+    /// Hide and Lock as a pair of menu items, offered on what the place is in
+    /// its own right — a subfolder of a hidden folder is hidden without being
+    /// hidden itself, and only the ancestor can lift that.
+    @ViewBuilder
+    private func privacyItems(for item: some PrivacyBearing,
+                              hide: @escaping (Bool) async -> Void,
+                              lock: @escaping (Bool) async -> Void) -> some View {
+        Button(item.isExplicitlyHidden ? "Unhide" : "Hide",
+               systemImage: item.isExplicitlyHidden ? "eye" : "eye.slash") {
+            Task { await hide(!item.isExplicitlyHidden) }
+        }
+        Button(item.isExplicitlyLocked ? "Unlock" : "Lock",
+               systemImage: item.isExplicitlyLocked ? "lock.open" : "lock") {
+            Task { await lock(!item.isExplicitlyLocked) }
+        }
+    }
+
+    private func spokenPrivacy(isHidden: Bool, isLocked: Bool) -> [String] {
+        var parts: [String] = []
+        if isHidden { parts.append("Hidden") }
+        if isLocked { parts.append("Locked") }
+        return parts
+    }
+
+    private func spokenCollectionState(_ collection: CollectionSnapshot) -> String {
+        var parts = collection.memberCount > 0 ? [Format.itemCount(collection.memberCount)] : []
+        parts.append(contentsOf: spokenPrivacy(isHidden: collection.isHidden, isLocked: collection.isLocked))
+        return parts.joined(separator: ", ")
     }
 
     // MARK: Naming

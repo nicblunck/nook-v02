@@ -27,6 +27,9 @@ targets:
       path: Nook/Sources/iOS-Info.plist
       properties:
         UILaunchScreen: {}
+        # Shown by the system when Nook asks for Face ID to reveal hidden
+        # content or open a locked item.
+        NSFaceIDUsageDescription: Nook uses Face ID to reveal hidden items and open locked ones.
     settings:
       base:
         PRODUCT_NAME: Nook
