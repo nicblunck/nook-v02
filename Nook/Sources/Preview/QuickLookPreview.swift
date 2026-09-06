@@ -25,6 +25,10 @@ struct QuickLookPreview: NSViewRepresentable {
         return view
     }
 
+    static func dismantleNSView(_ nsView: QLPreviewView, coordinator: ()) {
+        nsView.close()
+    }
+
     func updateNSView(_ nsView: QLPreviewView, context: Context) {
         guard (nsView.previewItem as? URL) != url else { return }
         nsView.previewItem = url as NSURL

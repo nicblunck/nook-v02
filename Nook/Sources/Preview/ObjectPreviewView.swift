@@ -39,9 +39,7 @@ struct ObjectPreviewView: View {
                 ImagePreview(url: resolvedURL)
             case .video, .audio:
                 MediaPreview(url: resolvedURL)
-            case .pdf:
-                DocumentPreview(url: resolvedURL)
-            case .file, .link:
+            case .pdf, .file, .link:
                 GenericPreview(object: object, url: resolvedURL)
                     .id(resolvedURL)
             }
@@ -80,6 +78,12 @@ struct ObjectPreviewView: View {
             Button(object.isFavorite ? "Remove Favorite" : "Favorite",
                    systemImage: object.isFavorite ? "star.fill" : "star") {
                 Task { await model.setFavorite(!object.isFavorite, for: [object.id]) }
+            }
+        }
+        ToolbarItem {
+            Button("Get Info", systemImage: "info.circle") {
+                model.selection = [object.id]
+                model.isInspectorPresented.toggle()
             }
         }
         ToolbarItem {
@@ -174,8 +178,7 @@ private struct GenericPreview: View {
                 Label(object.title, systemImage: object.kind.symbolName)
             } description: {
                 Text(Format.caption(for: object))
-            } actions: {
-                Button("Open in Default App") { OpenExternally.open(url) }
+                Text("A preview isn’t available for this file. You can open it from the info panel.")
             }
         }
     }
