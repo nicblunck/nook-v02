@@ -1,5 +1,4 @@
 import SwiftUI
-import AVKit
 import NookLibrary
 
 /// A content-first preview that replaces the browsing canvas.
@@ -37,9 +36,7 @@ struct ObjectPreviewView: View {
             switch object.kind {
             case .image, .screenshot:
                 ImagePreview(url: resolvedURL)
-            case .video, .audio:
-                MediaPreview(url: resolvedURL)
-            case .pdf, .file, .link:
+            case .video, .audio, .pdf, .file, .link:
                 GenericPreview(object: object, url: resolvedURL)
                     .id(resolvedURL)
             }
@@ -145,23 +142,6 @@ private struct ImagePreview: View {
                 return Image(platformData: data)
             }.value
         }
-    }
-}
-
-/// Native playback. The player is held in state so that a re-render — a
-/// selection change, a toolbar update — does not restart what is playing.
-private struct MediaPreview: View {
-    let url: URL
-    @State private var player: AVPlayer?
-
-    var body: some View {
-        VideoPlayer(player: player)
-            .onAppear { if player == nil { player = AVPlayer(url: url) } }
-            .onDisappear { player?.pause() }
-            .task(id: url) {
-                player?.pause()
-                player = AVPlayer(url: url)
-            }
     }
 }
 
