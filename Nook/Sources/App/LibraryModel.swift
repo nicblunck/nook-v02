@@ -146,6 +146,7 @@ final class LibraryModel {
     var sort: ObjectSort { preferences.sort }
     var viewMode: LibraryViewMode { preferences.viewMode }
     var foldersFirst: Bool { preferences.foldersFirst }
+    var itemScale: Double { preferences.itemScale }
 
     /// Who vouches for the device owner before hidden or locked content moves.
     /// Injected so the app's tests can answer without a device.
@@ -217,6 +218,20 @@ final class LibraryModel {
         var updated = preferences
         updated.sort = sort
         await apply(updated)
+    }
+
+    /// Live while the size control is being dragged. Size is a drawing
+    /// detail — nothing about which items belong here changes — so this moves
+    /// what is on screen without re-querying the library or writing anything.
+    func setItemScale(_ scale: Double) {
+        preferences.itemScale = LocationViewPreferences.clamped(scale: scale)
+    }
+
+    /// Called once the control is let go, so a drag across the whole range
+    /// writes one arrangement rather than a hundred.
+    func commitItemScale() async {
+        guard isRememberingLocation else { return }
+        try? await service.rememberPreferences(preferences, for: scope)
     }
 
     func setFoldersFirst(_ foldersFirst: Bool) async {

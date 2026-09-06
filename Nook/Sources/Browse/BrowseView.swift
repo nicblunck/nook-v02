@@ -21,6 +21,10 @@ struct BrowseView: View {
     #endif
     @State private var newCollectionTargets: [ObjectID]?
     @State private var draftCollectionName = ""
+    @State private var isViewOptionsPresented = false
+    /// The size the pinch started from, so the gesture's magnification is
+    /// measured against where the user was rather than compounding.
+    @State private var scaleAtPinchStart: Double?
 
     var body: some View {
         ZStack {
@@ -125,6 +129,7 @@ struct BrowseView: View {
                     .focusEffectDisabled()
                     .focused($isCanvasFocused)
                     .modifier(CanvasKeyboard(model: model, frames: itemFrames))
+                    .gesture(resizeGesture)
                     // Focus follows the model rather than being grabbed on
                     // appear: the sidebar is the other half of this, and a
                     // canvas that helps itself to the keyboard is a sidebar
@@ -153,6 +158,7 @@ struct BrowseView: View {
                     // relays the canvas, which is what reports the new ones:
                     // a frame that has not moved is never reported again.
                     .onChange(of: model.viewMode) { itemFrames = [:] }
+                    .onChange(of: model.itemScale) { itemFrames = [:] }
                     .onChange(of: model.contents) {
                         // Whatever is still on the canvas has not moved, so its
                         // position stands. Only what has left is dropped, which
@@ -171,19 +177,28 @@ struct BrowseView: View {
     }
 
     private var gridCanvas: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 16)], spacing: 16) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: gridCellWidth.lowerBound,
+                                                maximum: gridCellWidth.upperBound),
+                                     spacing: 8)],
+                  spacing: 14 * min(model.itemScale, 1.6)) {
             ForEach(model.canvasItems) { item in
                 switch item {
                 case .folder(let folder):
-                    FolderCard(folder: folder) { model.scope = .folder(folder.id) }
-                        .draggable(FolderTransfer(id: folder.id))
-                        .modifier(FolderDropTarget(model: model, folder: folder))
-                        .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
+                    FolderCard(folder: folder,
+                               isHighlighted: model.cursor == .folder(folder.id),
+                               scale: model.itemScale) {
+                        model.scope = .folder(folder.id)
+                    }
+                    .draggable(FolderTransfer(id: folder.id))
+                    .modifier(FolderDropTarget(model: model, folder: folder))
+                    .canvasItem(.folder(folder.id), model: model, radius: 10, ring: false, frames: $itemFrames)
                 case .object(let object):
                     ObjectCard(object: object,
-                               isSelected: model.selection.contains(object.id))
+                               isSelected: model.selection.contains(object.id),
+                               isCursor: model.cursor == .object(object.id),
+                               scale: model.itemScale)
                     .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
-                    .canvasItem(.object(object.id), model: model, radius: 12, frames: $itemFrames)
+                    .canvasItem(.object(object.id), model: model, radius: 10, ring: false, frames: $itemFrames)
                 }
             }
         }
@@ -191,18 +206,22 @@ struct BrowseView: View {
     }
 
     private var masonryCanvas: some View {
-        MasonryLayout(minimumColumnWidth: 168, spacing: 14) {
+        MasonryLayout(minimumColumnWidth: max(130, 168 * model.itemScale),
+                      spacing: 20 * min(max(model.itemScale, 0.75), 1.5)) {
             ForEach(model.canvasItems) { item in
                 switch item {
                 case .folder(let folder):
                     FolderCard(folder: folder) { model.scope = .folder(folder.id) }
                         .draggable(FolderTransfer(id: folder.id))
                         .modifier(FolderDropTarget(model: model, folder: folder))
-                        .canvasItem(.folder(folder.id), model: model, radius: 12, frames: $itemFrames)
+                        .canvasItem(.folder(folder.id), model: model, radius: 10, outset: 4, frames: $itemFrames)
                 case .object(let object):
-                    ObjectMasonryCard(object: object, isSelected: model.selection.contains(object.id))
+                    ObjectMasonryCard(object: object,
+                                      isSelected: model.selection.contains(object.id),
+                                      isCursor: model.cursor == .object(object.id),
+                                      scale: model.itemScale)
                         .modifier(ObjectItemBehavior(model: model, object: object, newCollection: startNewCollection))
-                        .canvasItem(.object(object.id), model: model, radius: 12, frames: $itemFrames)
+                        .canvasItem(.object(object.id), model: model, radius: 14, outset: 4, frames: $itemFrames)
                 }
             }
         }
@@ -303,32 +322,14 @@ struct BrowseView: View {
                 .labelStyle(.iconOnly)
             }
 
+            // A panel rather than a menu, because a size control is a slider
+            // and a menu has nowhere to put one.
             ToolbarItem {
-                Menu {
-                    Picker("Sort By", selection: sortFieldBinding) {
-                        ForEach(sortFields, id: \.self) { field in
-                            Text(field.displayName).tag(field)
-                        }
-                    }
-                    Picker("Order", selection: sortAscendingBinding) {
-                        Text("Ascending").tag(true)
-                        Text("Descending").tag(false)
-                    }
-
-                    Divider()
-                    Toggle("Folders First", isOn: foldersFirstBinding)
-
-                    Divider()
-                    // A change stays temporary unless the user says otherwise,
-                    // so no location quietly acquires a permanent exception.
-                    if model.canRememberLocation {
-                        Toggle("Remember for This Location", isOn: rememberBinding)
-                    }
-                    Button("Use as Default Everywhere") {
-                        model.useCurrentPreferencesAsDefault()
-                    }
-                } label: {
-                    Label("View Options", systemImage: "arrow.up.arrow.down")
+                Button("View Options", systemImage: "arrow.up.arrow.down") {
+                    isViewOptionsPresented.toggle()
+                }
+                .popover(isPresented: $isViewOptionsPresented, arrowEdge: .bottom) {
+                    viewOptions
                 }
             }
 
@@ -356,6 +357,78 @@ struct BrowseView: View {
         }
     }
 
+    /// The Finder's view options: how things are arranged, and how big.
+    private var viewOptions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if model.viewMode.resizesItems {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Size")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.grid.3x3.fill").imageScale(.small)
+                        Slider(value: itemScaleBinding,
+                               in: LocationViewPreferences.itemScaleRange) { isEditing in
+                            // One write when the drag ends, rather than one a
+                            // frame while it is under way.
+                            if !isEditing { Task { await model.commitItemScale() } }
+                        }
+                        .labelsHidden()
+                        Image(systemName: "square.fill").imageScale(.medium)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
+                Divider()
+            }
+
+            Picker("Sort By", selection: sortFieldBinding) {
+                ForEach(sortFields, id: \.self) { field in
+                    Text(field.displayName).tag(field)
+                }
+            }
+            Picker("Order", selection: sortAscendingBinding) {
+                Text("Ascending").tag(true)
+                Text("Descending").tag(false)
+            }
+            Toggle("Folders First", isOn: foldersFirstBinding)
+
+            Divider()
+            // A change stays temporary unless the user says otherwise, so no
+            // location quietly acquires a permanent exception.
+            if model.canRememberLocation {
+                Toggle("Remember for This Location", isOn: rememberBinding)
+            }
+            Button("Use as Default Everywhere") {
+                model.useCurrentPreferencesAsDefault()
+            }
+        }
+        .padding(14)
+        .frame(width: 268)
+    }
+
+    /// The cell holds the icon and two lines of name, and keeps room for the
+    /// name even where the icons themselves have been made small.
+    private var gridCellWidth: ClosedRange<CGFloat> {
+        let width = 96 * model.itemScale
+        return max(84, width)...max(112, width * 1.3)
+    }
+
+    /// Pinching resizes the items, as it does in the Finder's icon view.
+    private var resizeGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                guard model.viewMode.resizesItems else { return }
+                let start = scaleAtPinchStart ?? model.itemScale
+                scaleAtPinchStart = start
+                model.setItemScale(start * value.magnification)
+            }
+            .onEnded { _ in
+                scaleAtPinchStart = nil
+                Task { await model.commitItemScale() }
+            }
+    }
+
     private var sortFields: [ObjectSortField] {
         var fields: [ObjectSortField] = [.name, .dateAdded, .dateCreated, .kind, .size]
         if case .collection = model.scope { fields.insert(.manual, at: 0) }
@@ -381,6 +454,11 @@ struct BrowseView: View {
                 set: { ascending in
                     Task { await model.setSort(ObjectSort(field: model.sort.field, ascending: ascending)) }
                 })
+    }
+
+    private var itemScaleBinding: Binding<Double> {
+        Binding(get: { model.itemScale },
+                set: { scale in model.setItemScale(scale) })
     }
 
     private var foldersFirstBinding: Binding<Bool> {
@@ -614,17 +692,27 @@ private struct CanvasItemMarker: ViewModifier {
     let id: CanvasItemID
     let isCursor: Bool
     let radius: CGFloat
+    /// How far outside the item the ring is drawn. A gap between the picture
+    /// and the ring keeps the two readable as separate things where the item
+    /// is a full-bleed photograph and the ring would otherwise look like a
+    /// border on it. Rows sit a hair apart, so they take none.
+    let outset: CGFloat
+    /// The icon grid lights the item itself rather than ringing it, so it asks
+    /// for no ring: two highlights on one item would be one too many.
+    let showsRing: Bool
     @Binding var frames: [CanvasItemID: CGRect]
 
     func body(content: Content) -> some View {
         content
             .overlay {
-                // Selection is a fill; the cursor is a ring. An item can carry
-                // both, and a folder — which never joins a selection — has
-                // only this to show that the keyboard is on it.
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .opacity(isCursor ? 1 : 0)
+                // Selection is a fill in the list and a mat on the masonry
+                // wall; the cursor is this ring, and an item can carry both.
+                // A folder, which never joins a selection, has only the ring.
+                // The icon grid asks for none: it lights the item instead.
+                RoundedRectangle(cornerRadius: radius + outset)
+                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                    .padding(-outset)
+                    .opacity(isCursor && showsRing ? 1 : 0)
                     .allowsHitTesting(false)
             }
             .onGeometryChange(for: CGRect.self) {
@@ -638,10 +726,13 @@ private extension View {
         _ id: CanvasItemID,
         model: LibraryModel,
         radius: CGFloat,
+        outset: CGFloat = 0,
+        ring: Bool = true,
         frames: Binding<[CanvasItemID: CGRect]>
     ) -> some View {
         modifier(CanvasItemMarker(id: id, isCursor: model.cursor == id,
-                                  radius: radius, frames: frames))
+                                  radius: radius, outset: outset,
+                                  showsRing: ring, frames: frames))
     }
 }
 

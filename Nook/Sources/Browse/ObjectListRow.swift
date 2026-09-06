@@ -106,47 +106,96 @@ struct FolderListRow: View {
     }
 }
 
-/// A masonry card: the thumbnail keeps the object's own proportions.
+/// A masonry tile: the picture, full-bleed, at its own proportions.
+///
+/// Nothing is written on it at rest — the wall is there to be read as pictures,
+/// and a caption under every one turns it back into a list. The name arrives
+/// under the pointer instead, on a material bar that stays legible over any
+/// photograph in either appearance.
+///
+/// The two states a tile can be in are told apart by where they sit rather
+/// than by colour: selection is a grey mat laid behind the tile, and the
+/// keyboard's own position is the accent ring the canvas draws inside that
+/// mat. Neither touches the picture, which is the thing being looked at, and
+/// a selection of many tiles is legible without the cursor moving.
+///
+/// The caption follows the keyboard as well as the pointer. Arrowing across a
+/// wall of pictures is the same act as running the pointer over it, and it
+/// would be a poor trade if the names were readable only to a mouse.
 struct ObjectMasonryCard: View {
     let object: ObjectSnapshot
     let isSelected: Bool
+    let isCursor: Bool
+    /// Only the picture's resolution depends on this. The tile's width is the
+    /// column's, which the layout has already sized.
+    let scale: Double
+
+    @State private var isHovering = false
+
+    private var isCaptioned: Bool { isHovering || isCursor }
+
+    private let radius: CGFloat = 14
+    /// How far the mat reaches past the picture. Wider than the cursor ring's
+    /// standoff, so the ring lands on the mat rather than beyond it.
+    private let selectionInset: CGFloat = 8
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ThumbnailView(object: object)
+        ZStack(alignment: .bottom) {
+            ThumbnailView(object: object, maximumSize: min(1536, max(512, 420 * scale)))
                 .aspectRatio(object.aspectRatio ?? 1, contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .clipShape(.rect(cornerRadius: 10))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
-                }
-                .overlay(alignment: .topTrailing) {
-                    if object.isFavorite || object.isLocked {
-                        Image(systemName: object.isLocked ? "lock.fill" : "star.fill")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(4)
-                            .background(.black.opacity(0.45), in: .circle)
-                            .padding(6)
-                    }
-                }
 
-            Text(object.title)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            caption
+                .opacity(isCaptioned ? 1 : 0)
         }
-        .padding(6)
+        .clipShape(.rect(cornerRadius: radius))
+        .overlay(alignment: .topTrailing) { badge }
+        .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+        // Behind the tile, and behind its shadow, so a selected picture is
+        // shown exactly as an unselected one is.
         .background {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(0.18)) : AnyShapeStyle(.clear))
+            RoundedRectangle(cornerRadius: radius + selectionInset)
+                .fill(.secondary)
+                .opacity(isSelected ? 0.35 : 0)
+                .padding(-selectionInset)
         }
-        .contentShape(.rect(cornerRadius: 12))
+        .contentShape(.rect(cornerRadius: radius))
+        .onHover { isHovering = $0 }
+        .motionAware(.smooth(duration: 0.16), value: isCaptioned)
+        .motionAware(.smooth(duration: 0.16), value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
+        // The caption is only drawn where the pointer or the keyboard is, so
+        // everything it says has to reach a reader who never sees it.
         .accessibilityValue(Format.spokenCaption(for: object))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private var caption: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(object.title)
+                .font(.callout)
+                .lineLimit(2)
+                .truncationMode(.tail)
+            Text(Format.caption(for: object))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.regularMaterial)
+    }
+
+    @ViewBuilder
+    private var badge: some View {
+        if object.isFavorite || object.isLocked {
+            Image(systemName: object.isLocked ? "lock.fill" : "star.fill")
+                .font(.caption2.weight(.semibold))
+                .padding(5)
+                .background(.regularMaterial, in: .circle)
+                .padding(8)
+        }
     }
 }
