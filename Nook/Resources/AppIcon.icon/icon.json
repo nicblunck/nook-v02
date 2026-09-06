@@ -60,7 +60,7 @@
             }
           ],
           "glass" : true,
-          "hidden" : true,
+          "hidden" : false,
           "image-name" : "Quote 3.svg",
           "name" : "Face",
           "position-specializations" : [
@@ -175,7 +175,7 @@
     {
       "blend-mode" : "normal",
       "blur-material" : 1,
-      "hidden" : true,
+      "hidden" : false,
       "layers" : [
         {
           "fill-specializations" : [
