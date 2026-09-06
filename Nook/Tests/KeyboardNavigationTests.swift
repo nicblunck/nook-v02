@@ -514,6 +514,92 @@ struct KeyboardNavigationTests {
         #expect(model.cursor == model.canvasOrder.first)
     }
 
+    // MARK: Home
+
+    /// Home's bands are separate queries over the same library, so anything
+    /// recently imported and still unsorted is in both Inbox and Recent. An
+    /// object id alone would name two tiles, and light both.
+    @Test("A tile is identified by its band as well as its object")
+    func homeTilesAreDistinctPerBand() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+        let object = try #require(try await harness.importFile(named: "one.txt"))
+        await model.refreshHome()
+
+        // A file just imported into the Inbox is also among the Recent, so it
+        // is showing in two bands at once.
+        let tiles = model.homeOrder.filter { $0.object == object.id }
+        #expect(tiles.count == 2)
+        // Two tiles that can be told apart: same object, different bands.
+        #expect(Set(tiles).count == 2)
+        #expect(Set(tiles.map(\.scope)) == [.inbox, .recent])
+    }
+
+    @Test("Arrow keys walk Home's tiles")
+    func movesThroughHome() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.refreshHome()
+        let order = model.homeOrder
+        try #require(order.count > 1)
+
+        #expect(model.homeCursor == nil)
+        model.moveHomeCursor(.right)
+        #expect(model.homeCursor == order.first)
+
+        model.moveHomeCursor(.right)
+        #expect(model.homeCursor == order[1])
+
+        model.moveHomeCursorToEdge(.down)
+        #expect(model.homeCursor == order.last)
+    }
+
+    /// The same report the canvas makes, so Home can step back into the
+    /// sidebar when left runs out.
+    @Test("Left reports going nowhere at Home's first tile")
+    func homeReportsRunningOut() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.refreshHome()
+        try #require(!model.homeOrder.isEmpty)
+
+        #expect(model.moveHomeCursor(.right))
+        #expect(!model.moveHomeCursor(.left))
+    }
+
+    @Test("Arriving on Home lights a tile, so the key is seen to have worked")
+    func arrivingOnHomeLightsATile() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .home)
+        await model.refreshHome()
+        try #require(!model.homeOrder.isEmpty)
+        #expect(model.isShowingHome)
+
+        model.enterCanvas()
+        model.lightFirstItemIfNothingIsLit()
+        #expect(model.homeCursor == model.homeOrder.first)
+    }
+
+    @Test("Home's cursor lets go of a tile that is no longer there")
+    func homeCursorReleasesVanishedTiles() async throws {
+        let harness = try await harnessWithThreeObjects()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.refreshHome()
+
+        model.moveHomeCursor(.right)
+        let tile = try #require(model.homeCursor)
+        await model.delete([tile.object])
+        await model.refreshHome()
+        #expect(model.homeCursor == nil)
+    }
+
     /// Shift-clicking and shift-arrowing are the same rule, so the two cannot
     /// disagree about where a range starts.
     @Test("Shift-clicking extends from the item that was clicked first")

@@ -571,18 +571,6 @@ private struct CanvasKeyboard: ViewModifier {
     }
 }
 
-private extension CanvasDirection {
-    init?(_ key: KeyEquivalent) {
-        switch key {
-        case .upArrow: self = .up
-        case .downArrow: self = .down
-        case .leftArrow: self = .left
-        case .rightArrow: self = .right
-        default: return nil
-        }
-    }
-}
-
 /// Marks one item on the canvas: measures where it sits, and shows the cursor
 /// when the keyboard is resting on it.
 private struct CanvasItemMarker: ViewModifier {

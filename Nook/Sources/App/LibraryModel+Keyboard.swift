@@ -160,6 +160,71 @@ extension LibraryModel {
         return object.kind != .link
     }
 
+    // MARK: Home
+    //
+    // Home is a different shape — bands of horizontal strips rather than one
+    // sequence — but not a different rulebook. It moves by the same rules, on
+    // its own order and its own measured frames.
+
+    /// Home's tiles, band by band, in the order they read.
+    var homeOrder: [HomeTileID] {
+        homeSections.flatMap { section in
+            section.objects.map { HomeTileID(scope: section.scope, object: $0.id) }
+        }
+    }
+
+    func homeObject(_ tile: HomeTileID) -> ObjectSnapshot? {
+        homeSections.first { $0.scope == tile.scope }?
+            .objects.first { $0.id == tile.object }
+    }
+
+    /// Returns whether the cursor actually went anywhere, so a key that has
+    /// run out of Home can do something else with itself.
+    @discardableResult
+    func moveHomeCursor(
+        _ direction: CanvasDirection,
+        frames: [HomeTileID: CGRect] = [:]
+    ) -> Bool {
+        guard let target = CanvasNavigation.destination(
+            from: homeCursor, direction: direction, order: homeOrder, frames: frames
+        ) else { return false }
+        homeCursor = target
+        return true
+    }
+
+    func moveHomeCursorToEdge(_ direction: CanvasDirection) {
+        guard let target = CanvasNavigation.edge(direction, in: homeOrder) else { return }
+        homeCursor = target
+    }
+
+    /// Opening from Home lands in the place the item lives, with the rest of
+    /// that place's contents around it, so the next and previous keys work.
+    func openHomeTile(_ tile: HomeTileID) {
+        guard let object = homeObject(tile) else { return }
+        if object.kind == .link, let url = object.sourceURL {
+            OpenExternally.open(url)
+            return
+        }
+        navigate(to: .scope(tile.scope))
+        Task {
+            await refreshContents()
+            select(object.id, modifiers: [])
+            previewedObjectID = object.id
+        }
+    }
+
+    func openHomeCursorItem() {
+        guard let tile = homeCursor else { return }
+        openHomeTile(tile)
+    }
+
+    /// Space on Home means what it means on the canvas, and a link has no
+    /// stored content to show.
+    func previewHomeCursorItem() {
+        guard let tile = homeCursor, homeObject(tile)?.kind != .link else { return }
+        openHomeTile(tile)
+    }
+
     // MARK: The sidebar
 
     /// The folder the sidebar is pointing at, if it is pointing at one.
@@ -197,12 +262,17 @@ extension LibraryModel {
         navigate(to: .scope(.folder(parent)))
     }
 
-    /// Arriving in the canvas from the sidebar has to land on something.
-    /// Stepping across into an empty canvas, or one with nothing lit, looks
-    /// exactly like the key having done nothing.
+    /// Arriving from the sidebar has to land on something. Stepping across
+    /// into an empty canvas, or one with nothing lit, looks exactly like the
+    /// key having done nothing.
     func lightFirstItemIfNothingIsLit() {
-        guard cursor == nil else { return }
-        moveCursor(.down)
+        if isShowingHome {
+            guard homeCursor == nil else { return }
+            moveHomeCursor(.down)
+        } else {
+            guard cursor == nil else { return }
+            moveCursor(.down)
+        }
     }
 
     // MARK: Going up

@@ -58,6 +58,13 @@ final class LibraryModel {
     /// undo that.
     private(set) var canvasEntryRequest = 0
 
+    /// Where the keyboard is on Home.
+    ///
+    /// Home needs a cursor of its own because it is not a scope: its bands are
+    /// separate queries over the library, so the canvas cursor — which walks
+    /// the contents of one place — has nothing to walk here.
+    var homeCursor: HomeTileID?
+
     /// Which folders are open in the sidebar.
     ///
     /// Held here rather than inside an `OutlineGroup` because the left and
@@ -171,6 +178,8 @@ final class LibraryModel {
             sections.append(HomeSection(definition: definition, objects: objects))
         }
         homeSections = sections
+        let present = Set(homeOrder)
+        if let current = homeCursor, !present.contains(current) { homeCursor = nil }
     }
 
     // MARK: Presentation
@@ -917,6 +926,16 @@ struct HomeSection: Identifiable {
 enum LibraryDestination: Hashable {
     case home
     case scope(LibraryScope)
+}
+
+/// One tile on Home: an object, in the band it is showing in.
+///
+/// The band is part of the identity because Home's sections are independent
+/// queries — anything recently imported and still unsorted is in both Inbox
+/// and Recent — so an object id alone names two tiles at once.
+struct HomeTileID: Hashable, Sendable {
+    let scope: LibraryScope
+    let object: ObjectID
 }
 
 /// Which column the keyboard is talking to.

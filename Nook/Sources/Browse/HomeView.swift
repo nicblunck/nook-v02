@@ -1,6 +1,47 @@
 import SwiftUI
 import NookLibrary
 
+/// Home's own coordinate space, so tiles in different bands are measured
+/// against the same origin and can be compared across them.
+private let homeCoordinateSpace = "nook.home"
+
+/// The keys Home answers to — the canvas's, on Home's own order and frames.
+private struct HomeKeyboard: ViewModifier {
+    let model: LibraryModel
+    let frames: [HomeTileID: CGRect]
+
+    func body(content: Content) -> some View {
+        content
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow],
+                        phases: [.down, .repeat]) { press in
+                guard let direction = CanvasDirection(press.key) else { return .ignored }
+                let moved = model.moveHomeCursor(direction, frames: frames)
+                // Left with nowhere left to go steps back into the sidebar,
+                // exactly as it does on the canvas.
+                if !moved, direction == .left { model.focus(.sidebar) }
+                return .handled
+            }
+            .onKeyPress(keys: [.home, .end], phases: [.down]) { press in
+                model.moveHomeCursorToEdge(press.key == .home ? .up : .down)
+                return .handled
+            }
+            .onKeyPress(.tab) {
+                model.focusOtherPane()
+                return .handled
+            }
+            .onKeyPress(.return) {
+                guard model.homeCursor != nil else { return .ignored }
+                model.openHomeCursorItem()
+                return .handled
+            }
+            .onKeyPress(.space) {
+                guard model.homeCursor != nil else { return .ignored }
+                model.previewHomeCursorItem()
+                return .handled
+            }
+    }
+}
+
 /// A restrained way back into recent work — not a dashboard.
 ///
 /// Each band is a window onto a place that already exists in the library, so
@@ -8,12 +49,41 @@ import NookLibrary
 struct HomeView: View {
     @Bindable var model: LibraryModel
 
-    /// Which tile the last click landed on. Home has no selection of its own —
-    /// nothing acts on this but the highlight — so it lives here rather than
-    /// on the model.
-    @State private var highlighted: ObjectID?
+    /// Where each tile was drawn, which is what tells up and down what the
+    /// band above means. Home's bands scroll sideways independently, so their
+    /// tiles do not line up in columns and no index arithmetic finds them.
+    @State private var tileFrames: [HomeTileID: CGRect] = [:]
+    @FocusState private var isHomeFocused: Bool
 
     var body: some View {
+        ScrollViewReader { proxy in
+            content
+                .focusable()
+                .focusEffectDisabled()
+                .focused($isHomeFocused)
+                .modifier(HomeKeyboard(model: model, frames: tileFrames))
+                // Home is the other thing the canvas pane can be showing, so
+                // it follows the same focus arbitration the canvas does.
+                .onAppear { syncFocus() }
+                .onChange(of: model.keyboardFocusRequest) { syncFocus() }
+                .onChange(of: isHomeFocused) { _, focused in
+                    if focused { model.focus(.canvas) }
+                }
+                .onChange(of: model.canvasEntryRequest) {
+                    model.lightFirstItemIfNothingIsLit()
+                }
+                .onChange(of: model.homeCursor) { _, cursor in
+                    guard let cursor else { return }
+                    proxy.scrollTo(cursor)
+                }
+                .onChange(of: model.homeOrder) { _, order in
+                    let present = Set(order)
+                    tileFrames = tileFrames.filter { present.contains($0.key) }
+                }
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 ForEach(model.homeSections) { section in
@@ -32,8 +102,14 @@ struct HomeView: View {
                 }
             }
             .padding(24)
+            .coordinateSpace(.named(homeCoordinateSpace))
         }
         .navigationTitle("Home")
+    }
+
+    /// Puts the keyboard where the model says it belongs.
+    private func syncFocus() {
+        isHomeFocused = model.keyboardPane == .canvas
     }
 
     private func band(_ section: HomeSection) -> some View {
@@ -71,7 +147,11 @@ struct HomeView: View {
     }
 
     private func tile(_ object: ObjectSnapshot, in section: HomeSection) -> some View {
-        let isHighlighted = highlighted == object.id
+        // The band is part of the tile's identity: Inbox and Recent are
+        // separate queries, so the same object is routinely in both, and an
+        // object id alone would light two tiles at once.
+        let id = HomeTileID(scope: section.scope, object: object.id)
+        let isHighlighted = model.homeCursor == id
         return VStack(alignment: .leading, spacing: 6) {
             ThumbnailView(object: object)
                 .frame(width: 140, height: 110)
@@ -100,26 +180,18 @@ struct HomeView: View {
         .contentShape(.rect(cornerRadius: 12))
         // The same rule as the canvas. Home is an entry screen, not a
         // different rulebook.
-        .itemClick(select: { _ in highlighted = object.id },
-                   open: { open(object, in: section) })
+        .itemClick(select: { _ in
+                       model.focus(.canvas)
+                       model.homeCursor = id
+                   },
+                   open: { model.openHomeTile(id) })
+        .id(id)
+        .onGeometryChange(for: CGRect.self) {
+            $0.frame(in: .named(homeCoordinateSpace))
+        } action: { tileFrames[id] = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         .accessibilityAddTraits(isHighlighted ? [.isButton, .isSelected] : .isButton)
-    }
-
-    /// Opening from Home lands in the place the item lives, with the rest of
-    /// that place's contents around it, so the next and previous keys work.
-    private func open(_ object: ObjectSnapshot, in section: HomeSection) {
-        if object.kind == .link, let url = object.sourceURL {
-            OpenExternally.open(url)
-            return
-        }
-        model.navigate(to: .scope(section.scope))
-        Task {
-            await model.refreshContents()
-            model.selection = [object.id]
-            model.previewedObjectID = object.id
-        }
     }
 
     private func emptyCopy(for section: HomeSection) -> String {

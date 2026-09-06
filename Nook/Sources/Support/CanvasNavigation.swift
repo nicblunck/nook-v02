@@ -1,11 +1,25 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 
 /// Which way an arrow key is asking the cursor to go.
 enum CanvasDirection: Hashable {
     case up, down, left, right
 
     var isVertical: Bool { self == .up || self == .down }
+}
+
+extension CanvasDirection {
+    /// The arrow keys, named as directions.
+    init?(_ key: KeyEquivalent) {
+        switch key {
+        case .upArrow: self = .up
+        case .downArrow: self = .down
+        case .leftArrow: self = .left
+        case .rightArrow: self = .right
+        default: return nil
+        }
+    }
 }
 
 /// Moving a cursor across the canvas using the layout the user can actually
@@ -24,15 +38,19 @@ enum CanvasDirection: Hashable {
 /// destination has not been measured — the row below is still off screen, or
 /// the layout has not settled — movement falls back to stepping by the number
 /// of columns, which is the right answer for a grid and a fair one elsewhere.
+///
+/// Nothing here knows what it is moving between, so the same rules serve the
+/// library canvas and Home's bands. Each names its own items; only the order
+/// and the frames differ.
 enum CanvasNavigation {
 
     /// Where `direction` leads from `origin`, or `nil` if it leads nowhere.
-    static func destination(
-        from origin: CanvasItemID?,
+    static func destination<ID: Hashable>(
+        from origin: ID?,
         direction: CanvasDirection,
-        order: [CanvasItemID],
-        frames: [CanvasItemID: CGRect]
-    ) -> CanvasItemID? {
+        order: [ID],
+        frames: [ID: CGRect]
+    ) -> ID? {
         guard !order.isEmpty else { return nil }
 
         // Nothing holds the cursor yet: the first key press enters the canvas
@@ -55,7 +73,7 @@ enum CanvasNavigation {
     }
 
     /// The first or last item, for Home and End.
-    static func edge(_ direction: CanvasDirection, in order: [CanvasItemID]) -> CanvasItemID? {
+    static func edge<ID>(_ direction: CanvasDirection, in order: [ID]) -> ID? {
         direction == .up || direction == .left ? order.first : order.last
     }
 
@@ -69,12 +87,12 @@ enum CanvasNavigation {
     /// one below and across; in masonry, where a column is a run of items that
     /// share an x, it keeps movement inside the column the cursor is already
     /// in instead of drifting sideways down the canvas.
-    private static func nearest(
-        from origin: CanvasItemID,
+    private static func nearest<ID: Hashable>(
+        from origin: ID,
         direction: CanvasDirection,
-        order: [CanvasItemID],
-        frames: [CanvasItemID: CGRect]
-    ) -> CanvasItemID? {
+        order: [ID],
+        frames: [ID: CGRect]
+    ) -> ID? {
         guard let start = frames[origin] else { return nil }
 
         // A row's items rarely share an exact top to the point, so a candidate
@@ -82,7 +100,7 @@ enum CanvasNavigation {
         // being on another row at all.
         let tolerance: CGFloat = 1
 
-        var best: (id: CanvasItemID, score: CGFloat)?
+        var best: (id: ID, score: CGFloat)?
         for id in order where id != origin {
             guard let frame = frames[id] else { continue }
             let travel = frame.minY - start.minY
@@ -103,12 +121,12 @@ enum CanvasNavigation {
     /// what every other Mac list does at its edge. A short last row is not
     /// this case: it has been measured, so the nearest item in it answers
     /// before this does.
-    private static func rowStep(
+    private static func rowStep<ID: Hashable>(
         from index: Int,
         direction: CanvasDirection,
-        order: [CanvasItemID],
-        frames: [CanvasItemID: CGRect]
-    ) -> CanvasItemID? {
+        order: [ID],
+        frames: [ID: CGRect]
+    ) -> ID? {
         let stride = columnCount(in: frames)
         let target = direction == .down ? index + stride : index - stride
         return order.indices.contains(target) ? order[target] : nil
@@ -119,7 +137,7 @@ enum CanvasNavigation {
     /// Columns are counted by distinct leading edges rather than by dividing
     /// the width, so this holds for the grid, for masonry, and for the list —
     /// which has exactly one.
-    static func columnCount(in frames: [CanvasItemID: CGRect]) -> Int {
+    static func columnCount<ID: Hashable>(in frames: [ID: CGRect]) -> Int {
         guard !frames.isEmpty else { return 1 }
         // Bucketed, because a fractional column width leaves items in the same
         // column disagreeing about their leading edge in the last decimal.
