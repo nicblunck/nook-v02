@@ -4,16 +4,34 @@ A native personal library for macOS, iOS and iPadOS: import almost any file or
 link, organise it with real folders plus flexible collections and tags, browse
 it visually, and get the original back intact.
 
+## Requirements
+
+- macOS with Xcode 26 or newer
+- Swift 6.2 or newer
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.46 or newer
+
+Nook currently targets macOS 26, iOS 26 and iPadOS 26. Building the iOS app or
+share extension on a physical device also requires an Apple Developer account
+with matching signing and App Group capabilities.
+
 ## Getting started
 
 The Xcode project is generated from [`project.yml`](project.yml) via
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) and is not committed.
 
 ```bash
-xcodegen generate && open Nook.xcodeproj
+xcodegen generate
+open Nook.xcodeproj
 ```
 
 Targets deploy to macOS 26 / iOS 26 and build with Swift 6 strict concurrency.
+Select the `Nook-macOS` or `Nook-iOS` scheme in Xcode and run it normally. If
+you are using a different Apple Developer account, replace `DEVELOPMENT_TEAM`
+in `project.yml` before generating the project.
+
+The generated `.xcodeproj` is intentionally ignored. Make project-setting or
+target changes in `project.yml`, then regenerate it rather than committing
+changes to the generated project.
 
 ## Structure
 
@@ -72,28 +90,6 @@ and a way around the library's own rules.
 interface. Providers declare whether they process content remotely, because the
 user is entitled to know that before choosing one.
 
-## Not on yet
-
-**iCloud sync** is a one-line switch — `Library.bootstrap(locations:syncMode:)` —
-rather than a migration, because the schema has been CloudKit-shaped from the
-start. Turning it on needs a CloudKit container provisioned under the developer
-account plus the iCloud entitlement, so it stays `.local` until then. Mirroring
-would cover the metadata store only; originals stay behind `BlobStore`.
-
-**The app group** (`group.com.nicolasblunck.nook`) has to exist for the share
-extension to write into the app's library. Until it does, both fall back to
-their own Application Support directory and the extension saves somewhere the
-app cannot see.
-
-**No intelligence provider is implemented.** The abstraction and the tool
-surface are built and tested; nothing plugs into them yet. That ordering is the
-spec's: the library has to be useful on its own before it is useful to a model.
-
-**The share extension cannot reach hidden destinations.** It lists folders
-under `.standard` access, so a hidden folder is not offered as somewhere to save
-to. The spec allows protected destinations there behind authentication; that
-needs the authentication flow inside the extension as well.
-
 ### Hidden and Locked
 
 Both are set from the interface, and every change to either — in both
@@ -126,8 +122,59 @@ a hidden folder is hidden without being hidden itself, and only the folder can
 lift that, so snapshots carry the entity that imposed each protection rather
 than a bare flag.
 
+## Not on yet
+
+**iCloud sync** is a one-line switch — `Library.bootstrap(locations:syncMode:)` —
+rather than a migration, because the schema has been CloudKit-shaped from the
+start. Turning it on needs a CloudKit container provisioned under the developer
+account plus the iCloud entitlement, so it stays `.local` until then. Mirroring
+would cover the metadata store only; originals stay behind `BlobStore`.
+
+**The app group** (`group.com.nicolasblunck.nook`) has to exist for the share
+extension to write into the app's library. Until it does, both fall back to
+their own Application Support directory and the extension saves somewhere the
+app cannot see.
+
+**No intelligence provider is implemented.** The abstraction and the tool
+surface are built and tested; nothing plugs into them yet. That ordering is the
+spec's: the library has to be useful on its own before it is useful to a model.
+
+**The share extension cannot reach hidden destinations.** It lists folders
+under `.standard` access, so a hidden folder is not offered as somewhere to save
+to. The spec allows protected destinations there behind authentication; that
+needs the authentication flow inside the extension as well.
+
 ## Tests
+
+Run the core library suite directly with Swift Package Manager:
 
 ```bash
 cd Packages/NookLibrary && swift test
 ```
+
+After generating the Xcode project, run the app-layer tests with:
+
+```bash
+xcodebuild -project Nook.xcodeproj \
+  -scheme Nook-macOS \
+  -destination 'platform=macOS' \
+  test
+```
+
+## Documentation
+
+- [`Documentation/universal-file-library-complete-spec.md`](Documentation/universal-file-library-complete-spec.md)
+  is the complete product and architecture specification.
+- The package tests under `Packages/NookLibrary/Tests` document the expected
+  import, privacy, search, organisation and external-tool behaviour.
+
+## Development notes
+
+- Keep persistence, privacy and import logic in `NookLibrary`; the app target
+  should consume `LibraryService` snapshots rather than query SwiftData.
+- Treat `LibraryToolSurface` as the read-only boundary for future external or
+  model integrations.
+- Do not commit generated Xcode projects, build products, user-specific Xcode
+  state or local library data.
+- The project does not currently publish a release build or enable iCloud; see
+  **Not on yet** above for the capabilities still requiring provisioning.
