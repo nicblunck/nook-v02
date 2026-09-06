@@ -4,16 +4,34 @@ A native personal library for macOS, iOS and iPadOS: import almost any file or
 link, organise it with real folders plus flexible collections and tags, browse
 it visually, and get the original back intact.
 
+## Requirements
+
+- macOS with Xcode 26 or newer
+- Swift 6.2 or newer
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.46 or newer
+
+Nook currently targets macOS 26, iOS 26 and iPadOS 26. Building the iOS app or
+share extension on a physical device also requires an Apple Developer account
+with matching signing and App Group capabilities.
+
 ## Getting started
 
 The Xcode project is generated from [`project.yml`](project.yml) via
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) and is not committed.
 
 ```bash
-xcodegen generate && open Nook.xcodeproj
+xcodegen generate
+open Nook.xcodeproj
 ```
 
 Targets deploy to macOS 26 / iOS 26 and build with Swift 6 strict concurrency.
+Select the `Nook-macOS` or `Nook-iOS` scheme in Xcode and run it normally. If
+you are using a different Apple Developer account, replace `DEVELOPMENT_TEAM`
+in `project.yml` before generating the project.
+
+The generated `.xcodeproj` is intentionally ignored. Make project-setting or
+target changes in `project.yml`, then regenerate it rather than committing
+changes to the generated project.
 
 ## Structure
 
@@ -96,6 +114,35 @@ puts the architecture in the MVP and the authentication flow after it.
 
 ## Tests
 
+Run the core library suite directly with Swift Package Manager:
+
 ```bash
 cd Packages/NookLibrary && swift test
 ```
+
+After generating the Xcode project, run the app-layer tests with:
+
+```bash
+xcodebuild -project Nook.xcodeproj \
+  -scheme Nook-macOS \
+  -destination 'platform=macOS' \
+  test
+```
+
+## Documentation
+
+- [`Documentation/universal-file-library-complete-spec.md`](Documentation/universal-file-library-complete-spec.md)
+  is the complete product and architecture specification.
+- The package tests under `Packages/NookLibrary/Tests` document the expected
+  import, privacy, search, organisation and external-tool behaviour.
+
+## Development notes
+
+- Keep persistence, privacy and import logic in `NookLibrary`; the app target
+  should consume `LibraryService` snapshots rather than query SwiftData.
+- Treat `LibraryToolSurface` as the read-only boundary for future external or
+  model integrations.
+- Do not commit generated Xcode projects, build products, user-specific Xcode
+  state or local library data.
+- The project does not currently publish a release build or enable iCloud; see
+  **Not on yet** above for the capabilities still requiring provisioning.
