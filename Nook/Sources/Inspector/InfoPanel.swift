@@ -90,6 +90,14 @@ struct InfoPanel: View {
                         }
                 }
 
+                Section {
+                    if let url = object.kind == .link ? object.sourceURL : model.localURL(for: object) {
+                        Button("Open in Default App", systemImage: "arrow.up.forward.app") {
+                            OpenExternally.open(url)
+                        }
+                    }
+                }
+
                 Section("Details") {
                     row("Kind", object.kind.displayName)
                     row("Where", object.folderName ?? "Inbox")
