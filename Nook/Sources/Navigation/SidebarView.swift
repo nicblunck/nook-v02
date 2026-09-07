@@ -93,9 +93,15 @@ struct SidebarView: View {
 
             if !model.tags.isEmpty {
                 Section("Tags") {
-                    ForEach(model.tags) { tag in
-                        tagRow(tag)
+                    TagFlow(spacing: 5) {
+                        ForEach(model.tags) { tag in
+                            tagRow(tag)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 6, trailing: 12))
+                    .listRowSeparator(.hidden)
                 }
             }
 
@@ -296,16 +302,12 @@ struct SidebarView: View {
     }
 
     private func tagRow(_ tag: TagSnapshot) -> some View {
-        Label {
-            HStack {
-                Text(tag.name)
-                Spacer()
-                Text("\(tag.objectCount)").foregroundStyle(.tertiary).monospacedDigit()
-            }
-        } icon: {
-            EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
+        Button {
+            model.navigate(to: .scope(.tag(tag.id)))
+        } label: {
+            TagPill(tag: tag, isSelected: model.scope == .tag(tag.id))
         }
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
         .accessibilityLabel(tag.name)
         .accessibilityValue(Format.itemCount(tag.objectCount))
         .tag(LibraryDestination.scope(.tag(tag.id)))

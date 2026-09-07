@@ -167,6 +167,7 @@ final class LibraryModel {
     }
 
     private var searchTask: Task<Void, Never>?
+    private var navigationRefreshTask: Task<Void, Never>?
 
     // MARK: Presentation
     //
@@ -360,6 +361,12 @@ final class LibraryModel {
     private(set) var folderPeeks: [FolderID: [ObjectSnapshot]] = [:]
 
     func refreshContents() async {
+        navigationRefreshTask?.cancel()
+        navigationRefreshTask = nil
+        await performRefreshContents()
+    }
+
+    private func performRefreshContents() async {
         contentsRefreshGeneration += 1
         let generation = contentsRefreshGeneration
         let access = accessContext
@@ -386,7 +393,7 @@ final class LibraryModel {
                 matching: ObjectQuery(scope: .folder(folder.id), limit: 3), in: access
             )
         }
-        guard generation == contentsRefreshGeneration else { return }
+        guard generation == contentsRefreshGeneration, !Task.isCancelled else { return }
         folderPeeks = peeks
         contents = LocationContents(folders: folders, objects: objects)
         // A deletion, a move or an arriving import can take whatever the
@@ -432,14 +439,22 @@ final class LibraryModel {
         selectionAnchor = nil
         cursor = nil
         searchText = ""
-        Task {
+        navigationRefreshTask?.cancel()
+        navigationRefreshTask = Task { [weak self] in
+            guard let self else { return }
             // Hidden closes behind you: stepping out of it, or out of a folder
             // inside it, puts everything back out of reach so coming back asks
             // again.
             await closeHidden()
+            guard !Task.isCancelled else { return }
             await loadPreferences()
-            await refreshContents()
+            guard !Task.isCancelled else { return }
+            await refreshContentsFromNavigation()
         }
+    }
+
+    private func refreshContentsFromNavigation() async {
+        await performRefreshContents()
     }
 
     /// Search runs after a short pause so typing does not re-query per keystroke.

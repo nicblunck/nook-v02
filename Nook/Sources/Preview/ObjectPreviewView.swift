@@ -63,7 +63,7 @@ struct ObjectPreviewView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
+        ToolbarItem(placement: .navigation) {
             Button("Back", systemImage: "chevron.backward") { close() }
         }
         ToolbarItem {

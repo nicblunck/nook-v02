@@ -67,18 +67,20 @@ struct InfoPanel: View {
 
                 Section("Tags") {
                     if !object.tags.isEmpty {
-                        ForEach(object.tags) { tag in
-                            HStack {
-                                Label(tag.name, systemImage: "tag")
-                                Spacer()
-                                Button("Remove", systemImage: "xmark.circle.fill") {
-                                    Task { await model.removeTag(tag.id, from: [object.id]) }
-                                }
-                                .labelStyle(.iconOnly)
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.tertiary)
+                        TagFlow(spacing: 4) {
+                            ForEach(object.tags) { tag in
+                                TagPill(
+                                    tag: tag,
+                                    onSelect: {
+                                        model.navigate(to: .scope(.tag(tag.id)))
+                                    },
+                                    onRemove: {
+                                        Task { await model.removeTag(tag.id, from: [object.id]) }
+                                    }
+                                )
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     TextField("Add a tag", text: $tagDraft)
                         .focused($isEditingText)
