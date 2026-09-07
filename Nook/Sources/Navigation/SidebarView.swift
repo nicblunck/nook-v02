@@ -46,8 +46,20 @@ struct SidebarView: View {
                 Label("Home", systemImage: "house")
                     .tag(LibraryDestination.home)
                 systemRow(.inbox, title: "Inbox", symbol: "tray", count: model.counts[.inbox])
+                    .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                        let ids = transfers.flatMap(\.ids)
+                        guard !ids.isEmpty else { return false }
+                        Task { await model.move(ids, to: nil) }
+                        return true
+                    }
                 systemRow(.recent, title: "Recent", symbol: "clock")
                 systemRow(.favorites, title: "Favorites", symbol: "star", count: model.counts[.favorites])
+                    .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                        let ids = transfers.flatMap(\.ids)
+                        guard !ids.isEmpty else { return false }
+                        Task { await model.setFavorite(true, for: ids) }
+                        return true
+                    }
                 systemRow(.allObjects, title: "All Objects", symbol: "square.grid.2x2", count: model.counts[.allObjects])
             }
 
@@ -61,6 +73,12 @@ struct SidebarView: View {
                 }
             } header: {
                 Text("Folders")
+                    .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                        let ids = transfers.flatMap(\.ids)
+                        guard !ids.isEmpty else { return false }
+                        Task { await model.move(ids, to: nil) }
+                        return true
+                    }
                     .dropDestination(for: FolderTransfer.self) { transfers, _ in
                         guard let moved = transfers.first else { return false }
                         Task { await model.moveFolder(moved.id, to: nil) }
@@ -138,6 +156,12 @@ struct SidebarView: View {
                          symbol: "eye.slash",
                          isCurrent: model.scope == .hidden) {
                 Task { await model.openHidden() }
+            }
+            .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                let ids = transfers.flatMap(\.ids)
+                guard !ids.isEmpty else { return false }
+                Task { await model.setHidden(true, for: ids) }
+                return true
             }
             Spacer(minLength: 0)
         }
@@ -229,7 +253,9 @@ struct SidebarView: View {
         // Dropping objects onto a folder moves them: this is the true
         // hierarchy, so the drop is a real relocation.
         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.move(transfers.map(\.id), to: folder.id) }
+            let ids = transfers.flatMap(\.ids)
+            guard !ids.isEmpty else { return false }
+            Task { await model.move(ids, to: folder.id) }
             return true
         }
         .dropDestination(for: FolderTransfer.self) { transfers, _ in
@@ -279,7 +305,9 @@ struct SidebarView: View {
         }
         // A drop here adds a membership. Nothing moves.
         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.addToCollection(collection.id, objects: transfers.map(\.id)) }
+            let ids = transfers.flatMap(\.ids)
+            guard !ids.isEmpty else { return false }
+            Task { await model.addToCollection(collection.id, objects: ids) }
             return true
         }
     }
@@ -311,7 +339,9 @@ struct SidebarView: View {
             }
         }
         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.addTag(tag.name, to: transfers.map(\.id)) }
+            let ids = transfers.flatMap(\.ids)
+            guard !ids.isEmpty else { return false }
+            Task { await model.addTag(tag.name, to: ids) }
             return true
         }
     }

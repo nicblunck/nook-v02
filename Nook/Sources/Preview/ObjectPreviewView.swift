@@ -73,14 +73,6 @@ struct ObjectPreviewView: View {
             }
         }
         ToolbarItem {
-            Button("Get Info", systemImage: "info.circle") {
-                // Named the way the gallery underneath names it: the canvas
-                // selects an object, Home selects one of the tiles showing it.
-                model.selectPreviewed(object)
-                model.isInspectorPresented.toggle()
-            }
-        }
-        ToolbarItem {
             Menu("More", systemImage: "ellipsis.circle") {
                 ObjectMenu(model: model, objects: [object])
             }

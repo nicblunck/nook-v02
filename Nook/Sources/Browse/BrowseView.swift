@@ -9,7 +9,7 @@ struct BrowseView: View {
     @State private var isDropTargeted = false
     /// Where the canvas actually drew each item, which is what tells an arrow
     /// key what "the row above" means in a layout that is not a uniform grid.
-    @State private var itemFrames: [CanvasItemID: CGRect] = [:]
+    @State private var itemFrames = GalleryFrames<CanvasItemID>()
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isCanvasFocused: Bool
 
@@ -92,26 +92,18 @@ struct BrowseView: View {
                     }
                     // A different layout is a different set of positions, and
                     // the old ones would answer the next arrow key wrongly.
-                    // Discarding them is safe only because changing mode always
-                    // relays the canvas, which is what reports the new ones:
-                    // a frame that has not moved is never reported again.
-                    .onChange(of: model.viewMode) { itemFrames = [:] }
-                    .onChange(of: model.itemScale) { itemFrames = [:] }
-                    .onChange(of: model.itemScale) { itemFrames = [:] }
+                    .onChange(of: model.viewMode) { itemFrames.removeAll() }
+                    .onChange(of: model.itemScale) { itemFrames.removeAll() }
                     .onChange(of: model.contents) {
-                        // Whatever is still on the canvas has not moved, so its
-                        // position stands. Only what has left is dropped, which
-                        // keeps the map from growing as the user browses.
-                        let present = Set(model.canvasOrder)
-                        itemFrames = itemFrames.filter { present.contains($0.key) }
+                        itemFrames.keep(Set(model.canvasOrder))
                     }
                 }
             }
         }
-        .dropDestination(for: URL.self) { urls, _ in
+        .modifier(CanvasObjectDropTarget(model: model))
+        .externalURLDrop(isTargeted: $isDropTargeted) { urls in
             Task { await model.importFiles(at: urls) }
-            return true
-        } isTargeted: { isDropTargeted = $0 }
+        }
         .overlay { if isDropTargeted { GalleryDropIndicator() } }
     }
 
@@ -136,7 +128,7 @@ struct BrowseView: View {
                                  mode: model.viewMode,
                                  radius: model.viewMode.folderCornerRadius,
                                  in: canvasCoordinateSpace,
-                                 frames: $itemFrames)
+                                 frames: itemFrames)
                 case .object(let object):
                     let isSelected = model.selection.contains(object.id)
                     let isCursor = model.cursor == .object(object.id)
@@ -155,7 +147,7 @@ struct BrowseView: View {
                                  mode: model.viewMode,
                                  radius: model.viewMode.itemCornerRadius,
                                  in: canvasCoordinateSpace,
-                                 frames: $itemFrames)
+                                 frames: itemFrames)
                 }
             }
         }
@@ -270,6 +262,44 @@ struct BrowseView: View {
     }
 }
 
+/// The open folder and Inbox are real storage destinations. Dropping on empty
+/// canvas space is therefore a useful move, while collections, tags and other
+/// read-only scopes should not pretend to be folders.
+private struct CanvasObjectDropTarget: ViewModifier {
+    let model: LibraryModel
+
+    private var destination: FolderID? {
+        switch model.scope {
+        case .inbox: nil
+        case .folder(let id): id
+        default: nil
+        }
+    }
+
+    private var isActive: Bool {
+        if model.isShowingHome { return false }
+        switch model.scope {
+        case .inbox, .folder: return true
+        default: return false
+        }
+    }
+
+    func body(content: Content) -> some View {
+        if isActive {
+            content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                let ids = transfers.flatMap(\.ids)
+                guard !ids.isEmpty,
+                      !transfers.allSatisfy({ $0.isAlreadyIn(destination) })
+                else { return false }
+                Task { await model.move(ids, to: destination) }
+                return true
+            }
+        } else {
+            content
+        }
+    }
+}
+
 /// The canvas's own coordinate space. Item frames are measured in it, so they
 /// describe positions within the content rather than within the window.
 private let canvasCoordinateSpace = "nook.canvas"
@@ -282,7 +312,7 @@ private let canvasCoordinateSpace = "nook.canvas"
 /// search field and every other place text is typed.
 private struct CanvasKeyboard: ViewModifier {
     let model: LibraryModel
-    let frames: [CanvasItemID: CGRect]
+    let frames: GalleryFrames<CanvasItemID>
 
     func body(content: Content) -> some View {
         content
@@ -293,7 +323,7 @@ private struct CanvasKeyboard: ViewModifier {
                 guard let direction = CanvasDirection(press.key) else { return .ignored }
                 let moved = model.moveCursor(direction,
                                              extendingSelection: press.modifiers.contains(.shift),
-                                             frames: frames)
+                                             frames: frames.frames)
                 // Left with nowhere left to go carries on the way it was
                 // pointing and steps back into the sidebar, which is the
                 // mirror of right stepping out of it.

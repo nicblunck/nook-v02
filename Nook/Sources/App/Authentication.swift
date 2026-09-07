@@ -54,7 +54,7 @@ struct DeviceAuthenticator: LibraryAuthenticating {
         }
     }
 
-    private static func isCancellation(_ error: LAError) -> Bool {
+    nonisolated private static func isCancellation(_ error: LAError) -> Bool {
         switch error.code {
         case .userCancel, .appCancel, .systemCancel, .userFallback: true
         default: false

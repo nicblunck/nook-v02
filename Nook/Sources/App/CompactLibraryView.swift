@@ -57,7 +57,7 @@ struct CompactLibraryView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { model.isInspectorPresented = false }
+                            Button("Done") { model.setInspector(false) }
                         }
                     }
             }
@@ -86,7 +86,9 @@ struct CompactLibraryList: View {
                         }
                         .draggable(FolderTransfer(id: node.folder.id))
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                            Task { await model.move(transfers.map(\.id), to: node.folder.id) }
+                            let ids = transfers.flatMap(\.ids)
+                            guard !ids.isEmpty else { return false }
+                            Task { await model.move(ids, to: node.folder.id) }
                             return true
                         }
                         .dropDestination(for: FolderTransfer.self) { transfers, _ in
@@ -98,6 +100,12 @@ struct CompactLibraryList: View {
                 }
             } header: {
                 Text("Folders")
+                    .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                        let ids = transfers.flatMap(\.ids)
+                        guard !ids.isEmpty else { return false }
+                        Task { await model.move(ids, to: nil) }
+                        return true
+                    }
                     .dropDestination(for: FolderTransfer.self) { transfers, _ in
                         guard let moved = transfers.first else { return false }
                         Task { await model.moveFolder(moved.id, to: nil) }
@@ -110,6 +118,12 @@ struct CompactLibraryList: View {
                     ForEach(model.collections) { collection in
                         row(scope: .collection(collection.id), title: collection.name) {
                             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
+                        }
+                        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                            let ids = transfers.flatMap(\.ids)
+                            guard !ids.isEmpty else { return false }
+                            Task { await model.addToCollection(collection.id, objects: ids) }
+                            return true
                         }
                     }
                 }
@@ -129,12 +143,24 @@ struct CompactLibraryList: View {
                         row(scope: .tag(tag.id), title: tag.name) {
                             EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
                         }
+                        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                            let ids = transfers.flatMap(\.ids)
+                            guard !ids.isEmpty else { return false }
+                            Task { await model.addTag(tag.name, to: ids) }
+                            return true
+                        }
                     }
                 }
             }
 
             Section {
                 row(scope: .favorites, title: "Favorites") { Image(systemName: "star") }
+                    .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                        let ids = transfers.flatMap(\.ids)
+                        guard !ids.isEmpty else { return false }
+                        Task { await model.setFavorite(true, for: ids) }
+                        return true
+                    }
                 row(scope: .allObjects, title: "All Objects") { Image(systemName: "square.grid.2x2") }
             }
 
@@ -142,6 +168,12 @@ struct CompactLibraryList: View {
             // for authentication when it is opened, not when it is listed.
             Section {
                 row(scope: .hidden, title: "Hidden") { Image(systemName: "eye.slash") }
+                    .dropDestination(for: ObjectTransfer.self) { transfers, _ in
+                        let ids = transfers.flatMap(\.ids)
+                        guard !ids.isEmpty else { return false }
+                        Task { await model.setHidden(true, for: ids) }
+                        return true
+                    }
                 row(scope: .recentlyDeleted, title: "Recently Deleted") { Image(systemName: "trash") }
             }
         }

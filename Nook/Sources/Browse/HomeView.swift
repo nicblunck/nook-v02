@@ -20,7 +20,7 @@ struct HomeView: View {
     /// above means. Sections are separate galleries stacked in one scroll
     /// view, so no index arithmetic finds the item above one at a section's
     /// top edge — only a measured frame does.
-    @State private var tileFrames: [HomeTileID: CGRect] = [:]
+    @State private var tileFrames = GalleryFrames<HomeTileID>()
     @State private var isDropTargeted = false
     @FocusState private var isHomeFocused: Bool
 
@@ -91,19 +91,17 @@ struct HomeView: View {
                     }
                     // A different layout is a different set of positions, and
                     // the old ones would answer the next arrow key wrongly.
-                    .onChange(of: model.viewMode) { tileFrames = [:] }
-                    .onChange(of: model.itemScale) { tileFrames = [:] }
+                    .onChange(of: model.viewMode) { tileFrames.removeAll() }
+                    .onChange(of: model.itemScale) { tileFrames.removeAll() }
                     .onChange(of: model.homeOrder) { _, order in
-                        let present = Set(order)
-                        tileFrames = tileFrames.filter { present.contains($0.key) }
+                        tileFrames.keep(Set(order))
                     }
                 }
             }
         }
-        .dropDestination(for: URL.self) { urls, _ in
+        .externalURLDrop(isTargeted: $isDropTargeted) { urls in
             Task { await model.importFiles(at: urls) }
-            return true
-        } isTargeted: { isDropTargeted = $0 }
+        }
         .overlay { if isDropTargeted { GalleryDropIndicator() } }
     }
 
@@ -185,7 +183,7 @@ struct HomeView: View {
                          mode: model.viewMode,
                          radius: model.viewMode.itemCornerRadius,
                          in: homeCoordinateSpace,
-                         frames: $tileFrames)
+                         frames: tileFrames)
             .id(id)
     }
 
@@ -215,7 +213,7 @@ struct HomeView: View {
 /// The keys Home answers to — the canvas's, on Home's own order and frames.
 private struct HomeKeyboard: ViewModifier {
     let model: LibraryModel
-    let frames: [HomeTileID: CGRect]
+    let frames: GalleryFrames<HomeTileID>
 
     func body(content: Content) -> some View {
         content
@@ -225,7 +223,7 @@ private struct HomeKeyboard: ViewModifier {
                 let extending = press.modifiers.contains(.shift)
                 let moved = model.moveHomeCursor(direction,
                                                  extendingSelection: extending,
-                                                 frames: frames)
+                                                 frames: frames.frames)
                 // Left with nowhere left to go steps back into the sidebar,
                 // exactly as it does on the canvas.
                 if !moved, direction == .left, !extending { model.focus(.sidebar) }

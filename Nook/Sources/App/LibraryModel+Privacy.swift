@@ -103,6 +103,14 @@ extension LibraryModel {
         await perform { try await self.library.service.setHidden(isHidden, forObjects: ids) }
     }
 
+    /// The drag-and-drop surfaces already have stable ids, so they do not need
+    /// to reconstruct snapshots just to apply the same privacy operation.
+    func setHidden(_ isHidden: Bool, for ids: [ObjectID]) async {
+        guard !ids.isEmpty else { return }
+        guard await authenticate(reason: reason(isHidden ? "Hide" : "Unhide", count: ids.count)) else { return }
+        await perform { try await self.library.service.setHidden(isHidden, forObjects: ids) }
+    }
+
     func setLocked(_ isLocked: Bool, for objects: [ObjectSnapshot]) async {
         let ids = objects.map(\.id)
         guard !ids.isEmpty else { return }

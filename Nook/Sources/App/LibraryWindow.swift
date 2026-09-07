@@ -5,7 +5,8 @@ import NookLibrary
 import PhotosUI
 #endif
 
-/// Sidebar, canvas, and an inspector that stays out of the way until asked for.
+/// Sidebar and canvas. Metadata is not a column here: it comes up as a
+/// popover on the canvas's own Info button, so asking for it moves nothing.
 struct LibraryWindow: View {
     @Bindable var model: LibraryModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -106,6 +107,16 @@ struct LibraryWindow: View {
             }
             .modifier(NamingPromptModifier(model: model))
             .focusedSceneValue(\.libraryModel, model)
+            // The standard Edit > Paste command reaches this hook when the
+            // library surface owns the keyboard. Text fields keep their own
+            // paste behavior, and the guard keeps a focused field from also
+            // importing its text into the library.
+            #if os(macOS)
+            .onPasteCommand(of: [.fileURL, .url, .png, .tiff, .text]) { _ in
+                guard !model.isTypingText else { return }
+                Task { await model.importPasteboard() }
+            }
+            #endif
             // Picks up whatever an intent asked for, including a request that
             // arrived while the app was still launching.
             .task(id: navigator.pending) {
@@ -141,17 +152,6 @@ struct LibraryWindow: View {
                 BrowseView(model: model)
             }
         }
-        .inspector(isPresented: inspectorBinding) {
-            InfoPanel(model: model)
-                .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
-        }
-    }
-
-    /// The inspector is a side panel here; on iPhone the same content comes up
-    /// as a sheet instead.
-    private var inspectorBinding: Binding<Bool> {
-        Binding(get: { model.isInspectorPresented },
-                set: { model.isInspectorPresented = $0 })
     }
 
     #if os(iOS)
@@ -240,8 +240,8 @@ struct NookCommands: Commands {
                 guard let model else { return }
                 Task { await model.importPasteboard() }
             }
-            .keyboardShortcut("v", modifiers: [.command, .shift])
-            .disabled(model == nil)
+            // Let the focused search/name/notes field keep Command-V for text.
+            .disabled(model?.isTypingText ?? true)
         }
 
         CommandGroup(after: .pasteboard) {
@@ -255,7 +255,7 @@ struct NookCommands: Commands {
                 .disabled(model.map { $0.isTypingText || !$0.hasSelection } ?? true)
 
             Divider()
-            Button("Get Info") { model?.isInspectorPresented.toggle() }
+            Button("Get Info") { model?.toggleInspector() }
                 .keyboardShortcut("i")
                 .disabled(model == nil)
 

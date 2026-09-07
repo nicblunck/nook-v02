@@ -26,6 +26,13 @@ targets:
     info:
       path: Nook/Sources/iOS-Info.plist
       properties:
+        UTExportedTypeDeclarations: &nookExportedTypes
+          - UTTypeIdentifier: com.nicolasblunck.nook.object
+            UTTypeDescription: Nook Object
+            UTTypeConformsTo: [public.data]
+          - UTTypeIdentifier: com.nicolasblunck.nook.folder
+            UTTypeDescription: Nook Folder
+            UTTypeConformsTo: [public.data]
         UILaunchScreen: {}
         # Shown by the system when Nook asks for Face ID to reveal hidden
         # content or open a locked item.
@@ -75,6 +82,10 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
 
   Nook-macOS:
+    info:
+      path: Nook/macOS-Info.plist
+      properties:
+        UTExportedTypeDeclarations: *nookExportedTypes
     type: application
     platform: macOS
     deploymentTarget: "26.0"

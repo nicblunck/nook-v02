@@ -147,6 +147,40 @@ struct FolderItemView: View {
 
 // MARK: The cursor
 
+/// Where the gallery drew each item.
+///
+/// A reference the gallery writes into, rather than view state, on purpose.
+/// Every item reports its frame again whenever the canvas changes width — and
+/// the inspector opening changes it on every frame of its animation — so
+/// routing those reports through `@State` would re-evaluate, and so re-measure,
+/// the whole gallery once per item per frame, which is what made the icons and
+/// the masonry wall thrash while the panel came in. Nothing is drawn from these
+/// numbers: they are read once, when an arrow key asks what sits above the
+/// cursor, so a new one invalidates nothing.
+@MainActor
+final class GalleryFrames<ID: Hashable & Sendable> {
+    private(set) var frames: [ID: CGRect] = [:]
+
+    func record(_ frame: CGRect, for id: ID) {
+        frames[id] = frame
+    }
+
+    /// Forgets every position, for a change of layout: the old ones describe an
+    /// arrangement that is no longer on screen and would answer the next arrow
+    /// key from it. Safe only because changing the layout always relays the
+    /// gallery, which is what reports the new positions.
+    func removeAll() {
+        frames.removeAll()
+    }
+
+    /// Whatever is still in the gallery has not moved, so its position stands.
+    /// Only what has left is dropped, which keeps the map from growing as the
+    /// user browses.
+    func keep(_ present: Set<ID>) {
+        frames = frames.filter { present.contains($0.key) }
+    }
+}
+
 /// Marks one item in a gallery: measures where it sits, and rings it when the
 /// keyboard is resting there and the layout wants a ring.
 ///
@@ -159,7 +193,7 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
     let outset: CGFloat
     let showsRing: Bool
     let coordinateSpace: String
-    @Binding var frames: [ID: CGRect]
+    let frames: GalleryFrames<ID>
 
     func body(content: Content) -> some View {
         content
@@ -176,7 +210,7 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
             }
             .onGeometryChange(for: CGRect.self) {
                 $0.frame(in: .named(coordinateSpace))
-            } action: { frames[id] = $0 }
+            } action: { frames.record($0, for: id) }
     }
 }
 
@@ -187,7 +221,7 @@ extension View {
         mode: LibraryViewMode,
         radius: CGFloat,
         in coordinateSpace: String,
-        frames: Binding<[ID: CGRect]>
+        frames: GalleryFrames<ID>
     ) -> some View {
         modifier(GalleryItemMarker(id: id, isCursor: isCursor,
                                    radius: radius, outset: mode.ringOutset,
@@ -220,8 +254,17 @@ struct ObjectItemBehavior: ViewModifier {
             .contextMenu {
                 ObjectMenu(model: model, objects: targets) { select([]) }
             }
-            .draggable(ObjectTransfer(id: object.id, fileURL: model.localURL(for: object)))
+            .draggable(transfer)
             .modifier(ManualReorderTarget(model: model, object: object))
+    }
+
+    private var transfer: ObjectTransfer {
+        let objects = isSelected ? model.selectedObjects : [object]
+        return ObjectTransfer(
+            ids: objects.map(\.id),
+            fileURL: objects.count == 1 ? model.localURL(for: objects[0]) : nil,
+            sourceFolderIDs: objects.map(\.folderID)
+        )
     }
 
     /// A menu opened on something already selected acts on the whole
@@ -246,7 +289,9 @@ private struct ManualReorderTarget: ViewModifier {
     func body(content: Content) -> some View {
         if isActive {
             content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                Task { await model.reorder(transfers.map(\.id), before: object.id) }
+                let ids = transfers.flatMap(\.ids)
+                guard !ids.isEmpty else { return false }
+                Task { await model.reorder(ids, before: object.id) }
                 return true
             }
         } else {
@@ -263,7 +308,9 @@ struct FolderDropTarget: ViewModifier {
     func body(content: Content) -> some View {
         content
             .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                Task { await model.move(transfers.map(\.id), to: folder.id) }
+                let ids = transfers.flatMap(\.ids)
+                guard !ids.isEmpty else { return false }
+                Task { await model.move(ids, to: folder.id) }
                 return true
             }
             .dropDestination(for: FolderTransfer.self) { transfers, _ in
@@ -322,6 +369,10 @@ struct GalleryDropIndicator: View {
 struct GalleryToolbar: ToolbarContent {
     let model: LibraryModel
 
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+
     @ToolbarContentBuilder
     var body: some ToolbarContent {
         // Preview sits in front of the gallery rather than beside it, so the
@@ -366,10 +417,59 @@ struct GalleryToolbar: ToolbarContent {
         }
 
         ToolbarItem {
-            Button("Info", systemImage: "info.circle") {
-                model.isInspectorPresented.toggle()
-            }
+            infoItem
         }
+    }
+
+    /// Info is a popover hung on its own button, rather than a panel beside the
+    /// canvas.
+    ///
+    /// A panel that occupies width has to take that width from something. On
+    /// macOS that means the window grows to make room, and the split view is
+    /// re-solved while the window is still growing — which is what threw the
+    /// sidebar off the leading edge and sent the icons and the masonry wall
+    /// reflowing. A popover floats above the canvas instead: no column changes
+    /// width, so nothing is re-measured and nothing reflows. It is also the one
+    /// presentation that is genuinely the same API on both platforms.
+    ///
+    /// The cost is that it is transient — clicking the canvas dismisses it — so
+    /// it answers "what is this?" rather than staying open while the selection
+    /// is walked. Everything that asks for Get Info lands here: the menu bar,
+    /// the context menu and the preview toolbar all set the same flag, and this
+    /// button is the anchor for all of them.
+    @ViewBuilder
+    private var infoItem: some View {
+        let button = Button("Info", systemImage: "info.circle") {
+            // While previewing, the gallery underneath has not been told what
+            // is being looked at, and the panel reads the selection. Naming it
+            // here is what makes Get Info describe the previewed object.
+            if let previewed = model.previewedObject {
+                model.selectPreviewed(previewed)
+            }
+            model.toggleInspector()
+        }
+
+        if showsInfoPopover {
+            button.popover(isPresented: infoBinding, arrowEdge: .bottom) {
+                InfoPanel(model: model)
+                    .frame(width: 340, height: 520)
+            }
+        } else {
+            button
+        }
+    }
+
+    #if os(iOS)
+    /// On iPhone the same content is put up as a sheet by the compact shell, so
+    /// the popover stands down rather than racing it for the same flag.
+    private var showsInfoPopover: Bool { horizontalSizeClass != .compact }
+    #else
+    private var showsInfoPopover: Bool { true }
+    #endif
+
+    private var infoBinding: Binding<Bool> {
+        Binding(get: { model.isInspectorPresented },
+                set: { model.setInspector($0) })
     }
 
     private var viewModeBinding: Binding<LibraryViewMode> {
