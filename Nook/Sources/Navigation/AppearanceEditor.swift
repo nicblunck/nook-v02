@@ -13,6 +13,11 @@ struct AppearanceEditor: View {
     let onSave: (EntityAppearance) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// The window's model, so the emoji field can say when it has the
+    /// keyboard. Command-V is the library's paste command, and it has to stand
+    /// down while a field wants it — including a field inside a sheet.
+    @Environment(LibraryModel.self) private var model
+    @FocusState private var isEmojiFieldFocused: Bool
     @State private var emojiDraft = ""
 
     private static let palette: [String?] = [
@@ -49,6 +54,7 @@ struct AppearanceEditor: View {
 
                 Section("Emoji") {
                     TextField("Emoji", text: $emojiDraft)
+                        .focused($isEmojiFieldFocused)
                         .onChange(of: emojiDraft) {
                             // One emoji stands in for the symbol; keeping both
                             // would make the same entity look like two things.
@@ -85,6 +91,8 @@ struct AppearanceEditor: View {
             }
         }
         .onAppear { emojiDraft = appearance.emoji ?? "" }
+        .onChange(of: isEmojiFieldFocused) { _, focused in model.isTextEntryFocused = focused }
+        .onDisappear { model.isTextEntryFocused = false }
         #if os(macOS)
         .frame(width: 420, height: 480)
         #endif

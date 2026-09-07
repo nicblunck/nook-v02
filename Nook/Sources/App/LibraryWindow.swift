@@ -236,12 +236,17 @@ struct NookCommands: Commands {
         }
 
         CommandGroup(after: .pasteboard) {
-            Button("Paste Into Library") {
+            // Plain Command-V: pasting into a library is pasting, and asking
+            // for a modifier on it would make the ordinary case the special
+            // one. It stands down while someone is typing — a menu command
+            // outranks the field editor, so leaving it enabled would take
+            // Command-V away from every text field in the app.
+            Button("Paste") {
                 guard let model else { return }
                 Task { await model.importPasteboard() }
             }
-            .keyboardShortcut("v", modifiers: [.command, .shift])
-            .disabled(model == nil)
+            .keyboardShortcut("v")
+            .disabled(model.map(\.isTypingText) ?? true)
         }
 
         CommandGroup(after: .pasteboard) {

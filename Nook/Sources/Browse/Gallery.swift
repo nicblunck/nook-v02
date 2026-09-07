@@ -220,7 +220,13 @@ struct ObjectItemBehavior: ViewModifier {
             .contextMenu {
                 ObjectMenu(model: model, objects: targets) { select([]) }
             }
-            .draggable(ObjectTransfer(id: object.id, fileURL: model.localURL(for: object)))
+            // A drag that starts on something selected takes the whole
+            // selection with it, the way dragging one of several selected
+            // files does in the Finder. Starting on anything else acts on that
+            // one thing, exactly as the context menu does.
+            .draggable(ObjectTransfer(id: object.id,
+                                      carrying: isSelected ? Array(model.selectedObjectIDs) : [],
+                                      fileURL: model.localURL(for: object)))
             .modifier(ManualReorderTarget(model: model, object: object))
     }
 
@@ -246,7 +252,7 @@ private struct ManualReorderTarget: ViewModifier {
     func body(content: Content) -> some View {
         if isActive {
             content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                Task { await model.reorder(transfers.map(\.id), before: object.id) }
+                Task { await model.reorder(transfers.flatMap(\.ids), before: object.id) }
                 return true
             }
         } else {
@@ -255,22 +261,60 @@ private struct ManualReorderTarget: ViewModifier {
     }
 }
 
-/// Dropping objects on a folder relocates them: this is the true hierarchy.
+/// Dropping on a folder relocates: this is the true hierarchy. Objects move
+/// into it, subfolders become its children, and files from outside are
+/// imported straight into it rather than landing in the Inbox first.
 struct FolderDropTarget: ViewModifier {
     let model: LibraryModel
     let folder: FolderSnapshot
 
     func body(content: Content) -> some View {
+        content.dropDestination(for: LibraryDropItem.self) { items, _ in
+            Task { await model.accept(items, at: .folder(folder.id)) }
+            return true
+        }
+    }
+}
+
+/// What a gallery does with a drop, and what it shows while one is overhead.
+///
+/// The dashed outline is a promise that what is being dragged is about to be
+/// added to the library, so it is shown only for something arriving from
+/// outside Nook. Dragging an item around inside the place it already lives is
+/// not an import, and ringing the whole canvas for it says the opposite of
+/// what the drop will do — which is nothing.
+struct GalleryDropTarget: ViewModifier {
+    let model: LibraryModel
+    @State private var isTargeted = false
+    @State private var isArrivingFromOutside = true
+
+    func body(content: Content) -> some View {
         content
-            .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                Task { await model.move(transfers.map(\.id), to: folder.id) }
+            .dropDestination(for: LibraryDropItem.self) { items, _ in
+                Task { await model.accept(items, at: .currentLocation) }
                 return true
-            }
-            .dropDestination(for: FolderTransfer.self) { transfers, _ in
-                guard let moved = transfers.first else { return false }
-                Task { await model.moveFolder(moved.id, to: folder.id) }
-                return true
-            }
+            } isTargeted: { isTargeted = $0 }
+            .modifier(DragOrigin(isArrivingFromOutside: $isArrivingFromOutside))
+            .overlay { if isTargeted, isArrivingFromOutside { GalleryDropIndicator() } }
+    }
+}
+
+/// Whether the drag overhead started somewhere other than Nook.
+///
+/// The drop session is what knows: a drag begun in this app carries a local
+/// session, one from the Finder does not. Where nothing reports it, a drag is
+/// taken at face value and the outline behaves as it always has.
+private struct DragOrigin: ViewModifier {
+    @Binding var isArrivingFromOutside: Bool
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.onDropSessionUpdated { session in
+            isArrivingFromOutside = session.localSession == nil
+        }
+        #else
+        content
+        #endif
     }
 }
 

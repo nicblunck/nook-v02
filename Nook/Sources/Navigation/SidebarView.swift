@@ -45,9 +45,16 @@ struct SidebarView: View {
             Section("Library") {
                 Label("Home", systemImage: "house")
                     .tag(LibraryDestination.home)
-                systemRow(.inbox, title: "Inbox", symbol: "tray", count: model.counts[.inbox])
+                // Inbox and Favorites are places a drop means something:
+                // dropping on Inbox files something out of every folder,
+                // dropping on Favorites stars it. Recent and All Objects are
+                // queries over the library rather than places in it, so
+                // nothing can be put into them.
+                systemRow(.inbox, title: "Inbox", symbol: "tray", count: model.counts[.inbox],
+                          dropTarget: .folder(nil))
                 systemRow(.recent, title: "Recent", symbol: "clock")
-                systemRow(.favorites, title: "Favorites", symbol: "star", count: model.counts[.favorites])
+                systemRow(.favorites, title: "Favorites", symbol: "star", count: model.counts[.favorites],
+                          dropTarget: .favorites)
                 systemRow(.allObjects, title: "All Objects", symbol: "square.grid.2x2", count: model.counts[.allObjects])
             }
 
@@ -60,12 +67,11 @@ struct SidebarView: View {
                     }
                 }
             } header: {
+                // The root of the hierarchy. A folder dropped here comes out
+                // to the top level; an object dropped here comes out of every
+                // folder, which is to say into the Inbox.
                 Text("Folders")
-                    .dropDestination(for: FolderTransfer.self) { transfers, _ in
-                        guard let moved = transfers.first else { return false }
-                        Task { await model.moveFolder(moved.id, to: nil) }
-                        return true
-                    }
+                    .libraryDropTarget(.folder(nil), model: model)
             }
 
             Section("Collections") {
@@ -129,14 +135,16 @@ struct SidebarView: View {
             footerButton(title: "Recently Deleted",
                          symbol: "trash",
                          isCurrent: model.scope == .recentlyDeleted,
-                         count: model.counts[.recentlyDeleted]) {
+                         count: model.counts[.recentlyDeleted],
+                         dropTarget: .trash) {
                 model.navigate(to: .scope(.recentlyDeleted))
             }
             // No count on this one. How much someone is keeping out of sight
             // is itself something they are keeping out of sight.
             footerButton(title: "Hidden",
                          symbol: "eye.slash",
-                         isCurrent: model.scope == .hidden) {
+                         isCurrent: model.scope == .hidden,
+                         dropTarget: .hidden) {
                 Task { await model.openHidden() }
             }
             Spacer(minLength: 0)
@@ -156,6 +164,7 @@ struct SidebarView: View {
                               symbol: String,
                               isCurrent: Bool,
                               count: Int? = nil,
+                              dropTarget: DropTarget? = nil,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
@@ -170,11 +179,17 @@ struct SidebarView: View {
         .accessibilityLabel(title)
         .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
         .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
+        .modifier(OptionalDropTarget(target: dropTarget, model: model))
     }
 
     // MARK: Rows
 
-    private func systemRow(_ scope: LibraryScope, title: String, symbol: String, count: Int? = nil) -> some View {
+    @ViewBuilder
+    private func systemRow(_ scope: LibraryScope,
+                           title: String,
+                           symbol: String,
+                           count: Int? = nil,
+                           dropTarget: DropTarget? = nil) -> some View {
         Label {
             HStack {
                 Text(title)
@@ -192,6 +207,7 @@ struct SidebarView: View {
         .accessibilityLabel(title)
         .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
         .tag(LibraryDestination.scope(scope))
+        .modifier(OptionalDropTarget(target: dropTarget, model: model))
     }
 
     private func folderRow(_ folder: FolderSnapshot) -> some View {
@@ -226,17 +242,9 @@ struct SidebarView: View {
                 Task { await model.deleteFolder(folder.id) }
             }
         }
-        // Dropping objects onto a folder moves them: this is the true
-        // hierarchy, so the drop is a real relocation.
-        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.move(transfers.map(\.id), to: folder.id) }
-            return true
-        }
-        .dropDestination(for: FolderTransfer.self) { transfers, _ in
-            guard let moved = transfers.first else { return false }
-            Task { await model.moveFolder(moved.id, to: folder.id) }
-            return true
-        }
+        // Dropping onto a folder moves: this is the true hierarchy, so the
+        // drop is a real relocation. Files from outside are imported into it.
+        .libraryDropTarget(.folder(folder.id), model: model)
     }
 
     private func collectionRow(_ collection: CollectionSnapshot) -> some View {
@@ -278,10 +286,7 @@ struct SidebarView: View {
             }
         }
         // A drop here adds a membership. Nothing moves.
-        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.addToCollection(collection.id, objects: transfers.map(\.id)) }
-            return true
-        }
+        .libraryDropTarget(.collection(collection.id), model: model)
     }
 
     private func tagRow(_ tag: TagSnapshot) -> some View {
@@ -310,10 +315,7 @@ struct SidebarView: View {
                 Task { await model.deleteTag(tag.id) }
             }
         }
-        .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-            Task { await model.addTag(tag.name, to: transfers.map(\.id)) }
-            return true
-        }
+        .libraryDropTarget(.tag(tag.id), model: model)
     }
 
     // MARK: Privacy
@@ -438,6 +440,23 @@ private struct FolderRows: View {
                 }
             }
         )
+    }
+}
+
+/// A drop target on a row that may not have one.
+///
+/// Rows are built by one function each, and some of the places they name —
+/// Recent, All Objects — are queries rather than places, so they take nothing.
+private struct OptionalDropTarget: ViewModifier {
+    let target: DropTarget?
+    let model: LibraryModel
+
+    func body(content: Content) -> some View {
+        if let target {
+            content.libraryDropTarget(target, model: model)
+        } else {
+            content
+        }
     }
 }
 
