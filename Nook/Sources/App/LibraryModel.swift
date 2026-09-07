@@ -620,11 +620,17 @@ final class LibraryModel {
 
     // MARK: Import
 
-    func importItems(_ items: [ImportItem]) async {
-        guard !items.isEmpty else { return }
-        // Home is not a place things go into, so importing from it puts them
-        // where anything imported without choosing a folder goes.
-        let destination: ImportDestination = isShowingHome ? .root : ImportDestination(scope: scope)
+    /// Brings items in, and hands back what arrived so a caller that asked for
+    /// somewhere in particular — a drop on a collection, on a tag — can put
+    /// them there.
+    ///
+    /// `destination` is the folder they land in. Left out, they land where the
+    /// user is: Home is not a place things go into, so importing from it puts
+    /// them where anything imported without choosing a folder goes.
+    @discardableResult
+    func importItems(_ items: [ImportItem], into destination: ImportDestination? = nil) async -> [ObjectID] {
+        guard !items.isEmpty else { return [] }
+        let destination = destination ?? (isShowingHome ? .root : ImportDestination(scope: scope))
 
         let report = await service.importItems(items, into: destination) { [weak self] progress in
             Task { @MainActor in self?.importProgress = progress.isFinished ? nil : progress }
@@ -651,10 +657,11 @@ final class LibraryModel {
                 message: "They were added again as separate items, sharing one stored copy of the file."
             )
         }
+        return report.importedIDs
     }
 
-    func importFiles(at urls: [URL]) async {
-        await importItems(urls.map { ImportItem.file(url: $0) })
+    func importFiles(at urls: [URL], into destination: ImportDestination? = nil) async {
+        await importItems(urls.map { ImportItem.file(url: $0) }, into: destination)
     }
 
     /// Brings in whatever is on the pasteboard — a copied file, a copied web

@@ -300,24 +300,60 @@ private struct ManualReorderTarget: ViewModifier {
     }
 }
 
-/// Dropping objects on a folder relocates them: this is the true hierarchy.
+/// Dropping on a folder relocates: this is the true hierarchy. Objects move
+/// into it, subfolders become its children, and files from outside are
+/// imported straight into it rather than landing in the Inbox first.
 struct FolderDropTarget: ViewModifier {
     let model: LibraryModel
     let folder: FolderSnapshot
 
     func body(content: Content) -> some View {
+        content.dropDestination(for: LibraryDropItem.self) { items, _ in
+            Task { await model.accept(items, at: .folder(folder.id)) }
+            return true
+        }
+    }
+}
+
+/// What a gallery does with a drop, and what it shows while one is overhead.
+///
+/// The dashed outline is a promise that what is being dragged is about to be
+/// added to the library, so it is shown only for something arriving from
+/// outside Nook. Dragging an item around inside the place it already lives is
+/// not an import, and ringing the whole canvas for it says the opposite of
+/// what the drop will do — which is nothing.
+struct GalleryDropTarget: ViewModifier {
+    let model: LibraryModel
+    @State private var isTargeted = false
+    @State private var isArrivingFromOutside = true
+
+    func body(content: Content) -> some View {
         content
-            .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                let ids = transfers.flatMap(\.ids)
-                guard !ids.isEmpty else { return false }
-                Task { await model.move(ids, to: folder.id) }
+            .dropDestination(for: LibraryDropItem.self) { items, _ in
+                Task { await model.accept(items, at: .currentLocation) }
                 return true
-            }
-            .dropDestination(for: FolderTransfer.self) { transfers, _ in
-                guard let moved = transfers.first else { return false }
-                Task { await model.moveFolder(moved.id, to: folder.id) }
-                return true
-            }
+            } isTargeted: { isTargeted = $0 }
+            .modifier(DragOrigin(isArrivingFromOutside: $isArrivingFromOutside))
+            .overlay { if isTargeted, isArrivingFromOutside { GalleryDropIndicator() } }
+    }
+}
+
+/// Whether the drag overhead started somewhere other than Nook.
+///
+/// The drop session is what knows: a drag begun in this app carries a local
+/// session, one from the Finder does not. Where nothing reports it, a drag is
+/// taken at face value and the outline behaves as it always has.
+private struct DragOrigin: ViewModifier {
+    @Binding var isArrivingFromOutside: Bool
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.onDropSessionUpdated { session in
+            isArrivingFromOutside = session.localSession == nil
+        }
+        #else
+        content
+        #endif
     }
 }
 

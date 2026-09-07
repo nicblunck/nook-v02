@@ -21,7 +21,6 @@ struct HomeView: View {
     /// view, so no index arithmetic finds the item above one at a section's
     /// top edge — only a measured frame does.
     @State private var tileFrames = GalleryFrames<HomeTileID>()
-    @State private var isDropTargeted = false
     @FocusState private var isHomeFocused: Bool
 
     var body: some View {
@@ -99,10 +98,7 @@ struct HomeView: View {
                 }
             }
         }
-        .externalURLDrop(isTargeted: $isDropTargeted) { urls in
-            Task { await model.importFiles(at: urls) }
-        }
-        .overlay { if isDropTargeted { GalleryDropIndicator() } }
+        .modifier(GalleryDropTarget(model: model))
     }
 
     /// The sections, stacked. The inset is the gallery's own, applied once

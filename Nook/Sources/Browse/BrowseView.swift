@@ -6,7 +6,6 @@ import NookLibrary
 /// object replaces the grid rather than stacking a window on top of it.
 struct BrowseView: View {
     @Bindable var model: LibraryModel
-    @State private var isDropTargeted = false
     /// Where the canvas actually drew each item, which is what tells an arrow
     /// key what "the row above" means in a layout that is not a uniform grid.
     @State private var itemFrames = GalleryFrames<CanvasItemID>()
@@ -100,11 +99,7 @@ struct BrowseView: View {
                 }
             }
         }
-        .modifier(CanvasObjectDropTarget(model: model))
-        .externalURLDrop(isTargeted: $isDropTargeted) { urls in
-            Task { await model.importFiles(at: urls) }
-        }
-        .overlay { if isDropTargeted { GalleryDropIndicator() } }
+        .modifier(GalleryDropTarget(model: model))
     }
 
     /// One arrangement for all three view modes: what differs between a grid,
