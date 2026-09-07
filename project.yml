@@ -17,7 +17,10 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "26.0"
-    sources: [Nook/Sources, Nook/Resources]
+    sources:
+      - path: Nook/Sources
+        excludes: [iOS-Info.plist]
+      - Nook/Resources
     dependencies:
       - package: NookLibrary
         product: NookLibrary
@@ -89,7 +92,10 @@ targets:
     type: application
     platform: macOS
     deploymentTarget: "26.0"
-    sources: [Nook/Sources, Nook/Resources]
+    sources:
+      - path: Nook/Sources
+        excludes: [iOS-Info.plist]
+      - Nook/Resources
     dependencies:
       - package: NookLibrary
         product: NookLibrary
