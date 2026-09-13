@@ -166,10 +166,12 @@ extension View {
     /// Every surface that names a place — a sidebar row, a folder card, the
     /// canvas itself — goes through here, so what dropping on a collection
     /// means cannot drift from what dropping on a folder means.
-    func libraryDropTarget(_ target: DropTarget, model: LibraryModel) -> some View {
+    func libraryDropTarget(_ target: DropTarget,
+                           model: LibraryModel,
+                           isTargeted: @escaping (Bool) -> Void = { _ in }) -> some View {
         dropDestination(for: LibraryDropItem.self) { items, _ in
             Task { await model.accept(items, at: target) }
             return true
-        }
+        } isTargeted: { isTargeted($0) }
     }
 }

@@ -255,6 +255,83 @@ struct DragAndDropTests {
         #expect(model.alert == nil)
     }
 
+    // MARK: The sidebar's answer while a drag is overhead
+
+    /// The sidebar lights a row only when letting go there would do
+    /// something, and the rules that decide that are the rules the drop is
+    /// then made by — so what lights up is what happens.
+    @Test("A folder is offered every folder but its own subtree")
+    func folderIsOfferedEverywhereButInsideItself() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Work", in: nil)
+        await model.createFolder(named: "Archive", in: nil)
+        let work = try #require(model.folderTree.first { $0.folder.name == "Work" }?.folder)
+        let archive = try #require(model.folderTree.first { $0.folder.name == "Archive" }?.folder)
+        await model.createFolder(named: "Notes", in: work.id)
+        let notes = try #require(model.allFolders.first { $0.folder.name == "Notes" }?.folder)
+
+        let dragging = SidebarDropRules.Payload.folder(work.id)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .folder(archive.id), model: model) == .move)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .folder(nil), model: model) == .move)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .folder(work.id), model: model) == .forbidden)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .folder(notes.id), model: model) == .forbidden)
+    }
+
+    @Test("A folder is not offered anywhere that gathers objects")
+    func folderIsNotOfferedToGatheringPlaces() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Work", in: nil)
+        let work = try #require(model.folderTree.first?.folder)
+        await model.createCollection(named: "Reading")
+        let collection = try #require(model.collections.first)
+
+        let dragging = SidebarDropRules.Payload.folder(work.id)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .collection(collection.id), model: model) == .nothing)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .favorites, model: model) == .nothing)
+        #expect(SidebarDropRules.verdict(for: dragging, on: .hidden, model: model) == .move)
+    }
+
+    /// The drag begins on the folder's own row, and which folder it is takes
+    /// a moment to learn. Until then no folder is lit — least of all that one.
+    @Test("A folder drag is offered nothing until it is known which folder")
+    func unidentifiedFolderIsOfferedNothing() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Work", in: nil)
+        let work = try #require(model.folderTree.first?.folder)
+
+        let pending = SidebarDropRules.Payload.folder(nil)
+        #expect(SidebarDropRules.verdict(for: pending, on: .folder(work.id), model: model) == .nothing)
+        #expect(SidebarDropRules.verdict(for: pending, on: .folder(nil), model: model) == .nothing)
+    }
+
+    @Test("Objects move into places and are added to what gathers them")
+    func objectsAreOfferedEveryPlace() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Work", in: nil)
+        let work = try #require(model.folderTree.first?.folder)
+        await model.createCollection(named: "Reading")
+        let collection = try #require(model.collections.first)
+
+        #expect(SidebarDropRules.verdict(for: .objects, on: .folder(work.id), model: model) == .move)
+        #expect(SidebarDropRules.verdict(for: .objects, on: .folder(nil), model: model) == .move)
+        #expect(SidebarDropRules.verdict(for: .objects, on: .collection(collection.id), model: model) == .add)
+        #expect(SidebarDropRules.verdict(for: .objects, on: .favorites, model: model) == .add)
+        #expect(SidebarDropRules.verdict(for: .files, on: .folder(work.id), model: model) == .add)
+        #expect(SidebarDropRules.verdict(for: .files, on: .collection(collection.id), model: model) == .add)
+    }
+
     @Test("Files dropped on a folder are imported into it")
     func filesDropIntoTheFolderTheyLandOn() async throws {
         let harness = try await TestModel()

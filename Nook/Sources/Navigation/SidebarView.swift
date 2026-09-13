@@ -5,41 +5,85 @@ import NookLibrary
 /// hierarchy, collections, media types and tags.
 ///
 /// Objects never appear here — the sidebar names places, not things.
+///
+/// On the Mac the rows are an `NSOutlineView`, the control every Mac sidebar
+/// is, so dragging, dropping, opening and closing behave as they do
+/// everywhere else on the Mac. The iPad keeps a SwiftUI list. Both name the
+/// same places, and everything around them — the footer, the toolbar, the
+/// prompts — is shared.
 struct SidebarView: View {
     @Bindable var model: LibraryModel
 
     @State private var editingAppearance: AppearanceTarget?
+    #if !os(macOS)
     /// The list itself holds the keyboard, rather than an invisible layer
-    /// beside it. That is the whole point: a sidebar list that AppKit knows is
-    /// focused paints its own selection — accent while it has the keyboard,
-    /// grey when it doesn't, full width, right shape — and recolours the
-    /// labels and symbols on it for contrast.
+    /// beside it: a list that the system knows is focused paints its own
+    /// selection, and recolours the labels and symbols on it for contrast.
     @FocusState private var isListFocused: Bool
+    #endif
 
     var body: some View {
-        list
         #if os(macOS)
-            // Up and down belong to the list, which does them the way every
-            // other Mac sidebar does. These are the few keys the sidebar means
-            // something particular by, taken before the list can decline them.
-            .background(
-                WindowKeyMonitor(
-                    isActive: model.keyboardPane == .sidebar && model.namingPrompt == nil,
-                    onKey: handleKey
-                )
+        decorated(
+            MacSidebar(
+                model: model,
+                folderTree: model.folderTree,
+                collections: model.collections,
+                tags: model.tags,
+                counts: model.counts,
+                destination: model.destination,
+                expandedFolders: model.expandedFolders,
+                wantsKeyboard: model.keyboardPane == .sidebar,
+                keyboardFocusRequest: model.keyboardFocusRequest,
+                onEditAppearance: { editingAppearance = $0 }
             )
+            // The outline runs the full height of the column and keeps its
+            // own content clear of the toolbar, as a Mac sidebar does.
+            .ignoresSafeArea(.container, edges: .top)
+        )
+        #else
+        decorated(
+            list
+                .focused($isListFocused)
+                .onAppear { syncFocus() }
+                .onChange(of: model.keyboardFocusRequest) { syncFocus() }
+                // Clicking a row is another way of saying the keyboard belongs
+                // here, and clicking the row you are already on changes no
+                // selection — so nothing else would say it.
+                .onChange(of: isListFocused) { _, focused in
+                    if focused { model.focus(.sidebar) }
+                }
+        )
         #endif
-            .focused($isListFocused)
-            .onAppear { syncFocus() }
-            .onChange(of: model.keyboardFocusRequest) { syncFocus() }
-            // Clicking a row is another way of saying the keyboard belongs
-            // here, and clicking the row you are already on changes no
-            // selection — so nothing else would say it.
-            .onChange(of: isListFocused) { _, focused in
-                if focused { model.focus(.sidebar) }
+    }
+
+    /// What surrounds the rows on both platforms.
+    private func decorated(_ rows: some View) -> some View {
+        rows
+            .navigationTitle("Nook")
+            .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+            .toolbar {
+                ToolbarItem {
+                    Menu {
+                        Button("New Folder…", systemImage: "folder.badge.plus") {
+                            prompt(.newFolder(parent: model.currentFolderID), initial: "")
+                        }
+                        Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
+                            prompt(.newCollection(adding: []), initial: "")
+                        }
+                    } label: {
+                        Label("New", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(item: $editingAppearance) { target in
+                AppearanceEditor(title: target.title, appearance: target.appearance) { appearance in
+                    Task { await model.setAppearance(appearance, for: target.reference) }
+                }
             }
     }
 
+    #if !os(macOS)
     private var list: some View {
         List(selection: selectionBinding) {
             Section("Library") {
@@ -106,28 +150,8 @@ struct SidebarView: View {
             }
 
         }
-        .navigationTitle("Nook")
-        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
-        .toolbar {
-            ToolbarItem {
-                Menu {
-                    Button("New Folder…", systemImage: "folder.badge.plus") {
-                        prompt(.newFolder(parent: model.currentFolderID), initial: "")
-                    }
-                    Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                        prompt(.newCollection(adding: []), initial: "")
-                    }
-                } label: {
-                    Label("New", systemImage: "plus")
-                }
-            }
-        }
-        .sheet(item: $editingAppearance) { target in
-            AppearanceEditor(title: target.title, appearance: target.appearance) { appearance in
-                Task { await model.setAppearance(appearance, for: target.reference) }
-            }
-        }
     }
+    #endif
 
     // MARK: Footer
 
@@ -152,12 +176,6 @@ struct SidebarView: View {
                          isCurrent: model.scope == .hidden,
                          dropTarget: .hidden) {
                 Task { await model.openHidden() }
-            }
-            .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                let ids = transfers.flatMap(\.ids)
-                guard !ids.isEmpty else { return false }
-                Task { await model.setHidden(true, for: ids) }
-                return true
             }
             Spacer(minLength: 0)
         }
@@ -196,6 +214,7 @@ struct SidebarView: View {
 
     // MARK: Rows
 
+    #if !os(macOS)
     @ViewBuilder
     private func systemRow(_ scope: LibraryScope,
                            title: String,
@@ -325,9 +344,11 @@ struct SidebarView: View {
         }
         .libraryDropTarget(.tag(tag.id), model: model)
     }
+    #endif
 
     // MARK: Privacy
 
+    #if !os(macOS)
     /// The marks a place carries when it is hidden, locked, or both. Small and
     /// tertiary on purpose: they say what state a place is in, never anything
     /// about what it holds.
@@ -370,6 +391,7 @@ struct SidebarView: View {
         parts.append(contentsOf: spokenPrivacy(isHidden: collection.isHidden, isLocked: collection.isLocked))
         return parts.joined(separator: ", ")
     }
+    #endif
 
     // MARK: Naming
 
@@ -379,28 +401,12 @@ struct SidebarView: View {
 
     // MARK: Bindings
 
+    #if !os(macOS)
     /// Puts the keyboard where the model says it belongs. Focus is set from
     /// one place so the two columns cannot each believe they have it.
     private func syncFocus() {
         isListFocused = model.keyboardPane == .sidebar
     }
-
-    #if os(macOS)
-    /// The keys the sidebar means something particular by. Up and down are
-    /// left to the list.
-    private func handleKey(_ event: NSEvent) -> Bool {
-        guard event.heldModifiers.subtracting(.shift).isEmpty else { return false }
-
-        switch event.keyCode {
-        case MacKey.left: model.collapseOrGoToParent()
-        case MacKey.right: model.expandOrEnterCanvas()
-        case MacKey.return, MacKey.keypadEnter: model.enterCanvas()
-        case MacKey.tab, MacKey.escape: model.focus(.canvas)
-        default: return false
-        }
-        return true
-    }
-    #endif
 
     private var selectionBinding: Binding<LibraryDestination?> {
         Binding(
@@ -411,9 +417,10 @@ struct SidebarView: View {
             }
         )
     }
-
+    #endif
 }
 
+#if !os(macOS)
 /// The folder tree, drawn from expansion state the arrow keys can reach.
 ///
 /// `OutlineGroup` keeps its own expansion privately, which leaves nothing for
@@ -450,18 +457,27 @@ private struct FolderRows: View {
         )
     }
 }
+#endif
 
-/// A drop target on a row that may not have one.
+/// A drop target on a row or button that may not have one.
 ///
-/// Rows are built by one function each, and some of the places they name —
-/// Recent, All Objects — are queries rather than places, so they take nothing.
+/// Some of the places named here — Recent, All Objects — are queries rather
+/// than places, so they take nothing. The rest light up while a drop is
+/// overhead, so they answer the way a folder in the sidebar does.
 private struct OptionalDropTarget: ViewModifier {
     let target: DropTarget?
     let model: LibraryModel
+    @State private var isTargeted = false
 
     func body(content: Content) -> some View {
         if let target {
-            content.libraryDropTarget(target, model: model)
+            content
+                .background {
+                    if isTargeted {
+                        RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.3))
+                    }
+                }
+                .libraryDropTarget(target, model: model) { isTargeted = $0 }
         } else {
             content
         }

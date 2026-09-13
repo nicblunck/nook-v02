@@ -135,12 +135,20 @@ extension LibraryModel {
 
     /// Whether a folder can become a child of `parent`.
     ///
-    /// A folder cannot be moved inside itself or anything beneath it, and
-    /// moving it where it already is changes nothing. The store refuses the
-    /// first of those too; refusing it here is what keeps the sidebar from
-    /// offering a drop that would only raise an alert.
+    /// Moving a folder where it already is changes nothing, so nothing is
+    /// written for it.
     private func canMoveFolder(_ id: FolderID, to parent: FolderID?) -> Bool {
         guard folderSnapshot(id)?.parentID != parent else { return false }
+        return folderCanBeDropped(id, into: parent)
+    }
+
+    /// Whether `parent` is somewhere a folder could go at all.
+    ///
+    /// A folder cannot be moved inside itself or anything beneath it. The
+    /// store refuses that too; refusing it here is what lets the sidebar show
+    /// the drop as refused while it is still overhead, rather than take it and
+    /// raise an alert.
+    func folderCanBeDropped(_ id: FolderID, into parent: FolderID?) -> Bool {
         guard let parent else { return true }
         return !isFolder(parent, atOrUnder: id)
     }
