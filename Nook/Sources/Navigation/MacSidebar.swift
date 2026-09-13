@@ -3,11 +3,6 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
-import os
-
-// TEMP: launch-sequence tracing.
-private let trace = Logger(subsystem: "com.nicolasblunck.nook", category: "sidebar-trace")
-private func traceLog(_ message: String) { trace.error("\(message, privacy: .public)") }
 
 // MARK: - The outline
 
@@ -229,7 +224,6 @@ extension MacSidebar {
 
             syncExpansion(with: sidebar.expandedFolders, outline: outline)
             select(sidebar.destination, outline: outline)
-            traceSelection("apply done", outline: outline)
 
             wantsKeyboard = sidebar.wantsKeyboard
             if sidebar.keyboardFocusRequest != appliedFocusRequest {
@@ -315,12 +309,6 @@ extension MacSidebar {
             let row = outline.row(forItem: item)
             guard row >= 0, outline.selectedRow != row else { return }
             outline.selectRowIndexes([row], byExtendingSelection: false)
-        }
-
-        func traceSelection(_ tag: String, outline: NSOutlineView) {
-            let rv = outline.selectedRow >= 0 ? outline.rowView(atRow: outline.selectedRow, makeIfNecessary: false) : nil
-            let sel = rv?.subviews.first { $0 is NSVisualEffectView }
-            traceLog("TRACE \(tag): outline=\(outline.frame.debugDescription) scroll=\(outline.enclosingScrollView?.frame.debugDescription ?? "-") clip=\(outline.enclosingScrollView?.contentView.bounds.debugDescription ?? "-") selectedRow=\(outline.selectedRow) row=\(rv?.frame.debugDescription ?? "-") selection=\(sel?.frame.debugDescription ?? "-") window=\(outline.window?.frame.debugDescription ?? "nil")")
         }
 
         // MARK: The keyboard
@@ -712,22 +700,18 @@ final class SidebarOutlineView: NSOutlineView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        traceLog("TRACE viewDidMoveToWindow window=\(self.window?.frame.debugDescription ?? "nil") frame=\(self.frame.debugDescription)")
-        if window != nil { onMovedToWindow?() }
-    }
-
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        let rv = selectedRow >= 0 ? rowView(atRow: selectedRow, makeIfNecessary: false) : nil
-        let sel = rv?.subviews.first { $0 is NSVisualEffectView }
-        traceLog("TRACE setFrameSize \(newSize.debugDescription) selectedRow=\(self.selectedRow) row=\(rv?.frame.debugDescription ?? "-") selection=\(sel?.frame.debugDescription ?? "-")")
-    }
-
-    override func layout() {
-        super.layout()
-        let rv = selectedRow >= 0 ? rowView(atRow: selectedRow, makeIfNecessary: false) : nil
-        let sel = rv?.subviews.first { $0 is NSVisualEffectView }
-        traceLog("TRACE layout frame=\(self.frame.debugDescription) row=\(rv?.frame.debugDescription ?? "-") selection=\(sel?.frame.debugDescription ?? "-")")
+        guard window != nil else { return }
+        onMovedToWindow?()
+        // While the window is being put together the outline passes through
+        // the column's widest allowed width before settling at its real one,
+        // and a row first drawn in between keeps its selection at that width
+        // until it is laid out again. Once the window is there, every row is
+        // laid out once more at the width it ended up with.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.enumerateAvailableRowViews { row, _ in row.needsLayout = true }
+            self.needsLayout = true
+        }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
