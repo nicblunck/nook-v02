@@ -144,9 +144,9 @@ struct CompactLibraryList: View {
                 }
             }
 
-            if !model.presentMediaKinds.isEmpty {
+            if !model.mediaTypes.isEmpty {
                 Section("Media Types") {
-                    ForEach(ObjectKind.mediaTypes.filter(model.presentMediaKinds.contains)) { kind in
+                    ForEach(model.mediaTypes) { kind in
                         row(scope: .kind(kind), title: kind.pluralDisplayName) {
                             Image(systemName: kind.symbolName)
                         }

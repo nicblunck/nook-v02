@@ -169,10 +169,25 @@ final class LibraryModel {
     private(set) var collections: [CollectionSnapshot] = []
     private(set) var tags: [TagSnapshot] = []
     private(set) var counts: [ScopeCountKey: Int] = [:]
-    /// Media types the sidebar shows a row for. A media type earns its row
-    /// by holding something — an empty type would just be a name that leads
-    /// nowhere.
-    private(set) var presentMediaKinds: Set<ObjectKind> = []
+    /// The media types the library currently holds something of.
+    private(set) var populatedKinds: Set<ObjectKind> = []
+
+    /// Media types the sidebar shows a row for. The current scope remains
+    /// visible if its last item is deleted, so selection never disappears.
+    var presentMediaKinds: Set<ObjectKind> {
+        guard case .kind(let kind) = scope else { return populatedKinds }
+        return populatedKinds.union([kind])
+    }
+
+    /// The media types the sidebar lists.
+    ///
+    /// A library with no video in it has no use for a Videos row: the media
+    /// types are a way into what is there, not a catalogue of what could be.
+    /// The kind currently open stays listed either way, so deleting the last
+    /// image does not take the selected row out from under the selection.
+    var mediaTypes: [ObjectKind] {
+        ObjectKind.mediaTypes.filter(presentMediaKinds.contains)
+    }
 
     // MARK: Transient state
 
@@ -439,8 +454,8 @@ final class LibraryModel {
         self.collections = await collections
         self.tags = await tags
         if isReflowPending { sidebarReflowRevision += 1 }
-        pruneHistory()
         await refreshCounts()
+        pruneHistory()
     }
 
     /// Where the canvas is currently reading from.
@@ -514,13 +529,13 @@ final class LibraryModel {
         }
         counts = updated
 
-        var presentKinds: Set<ObjectKind> = []
+        var populated: Set<ObjectKind> = []
         for kind in ObjectKind.mediaTypes {
             if await service.objectCount(in: .kind(kind), access: access) > 0 {
-                presentKinds.insert(kind)
+                populated.insert(kind)
             }
         }
-        presentMediaKinds = presentKinds
+        populatedKinds = populated
     }
 
     private func onScopeChanged(from previous: LibraryScope) {
@@ -681,6 +696,9 @@ final class LibraryModel {
             case .folder(let id): return folders.contains(id)
             case .collection(let id): return collectionIDs.contains(id)
             case .tag(let id): return tagIDs.contains(id)
+            // A media type the library no longer holds anything of has left
+            // the sidebar, so Back should not walk into it either.
+            case .kind(let kind): return populatedKinds.contains(kind)
             default: return true
             }
         }
