@@ -78,10 +78,12 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Media Types") {
-                ForEach(ObjectKind.mediaTypes) { kind in
-                    Label(kind.pluralDisplayName, systemImage: kind.symbolName)
-                        .tag(LibraryDestination.scope(.kind(kind)))
+            if !model.mediaTypes.isEmpty {
+                Section("Media Types") {
+                    ForEach(model.mediaTypes) { kind in
+                        Label(kind.pluralDisplayName, systemImage: kind.symbolName)
+                            .tag(LibraryDestination.scope(.kind(kind)))
+                    }
                 }
             }
 

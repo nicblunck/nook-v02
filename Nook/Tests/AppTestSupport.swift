@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 import NookLibrary
 @testable import Nook
 
@@ -23,11 +24,16 @@ struct TestModel {
     }
 
     /// Imports a file into wherever the model is currently pointing.
+    ///
+    /// `as` declares the content type rather than leaving it to be read off
+    /// the file, so a test can make an image without carrying real pixels.
     @discardableResult
-    func importFile(named name: String, contents: String = "hello") async throws -> ObjectSnapshot? {
+    func importFile(named name: String,
+                    contents: String = "hello",
+                    as contentType: UTType? = nil) async throws -> ObjectSnapshot? {
         let url = scratch.appending(path: name)
         try Data(contents.utf8).write(to: url)
-        await model.importItems([.file(url: url)])
+        await model.importItems([.file(url: url, contentType: contentType)])
         return model.contents.objects.first { $0.originalFilename == name }
     }
 

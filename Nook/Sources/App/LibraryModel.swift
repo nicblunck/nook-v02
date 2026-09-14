@@ -118,6 +118,18 @@ final class LibraryModel {
     private(set) var tags: [TagSnapshot] = []
     private(set) var counts: [ScopeCountKey: Int] = [:]
     private(set) var homeSections: [HomeSection] = []
+    /// The media types the library currently holds something of.
+    private(set) var populatedKinds: Set<ObjectKind> = []
+
+    /// The media types the sidebar lists.
+    ///
+    /// A library with no video in it has no use for a Videos row: the media
+    /// types are a way into what is there, not a catalogue of what could be.
+    /// The kind currently open stays listed either way, so deleting the last
+    /// image does not take the selected row out from under the selection.
+    var mediaTypes: [ObjectKind] {
+        ObjectKind.mediaTypes.filter { populatedKinds.contains($0) || scope == .kind($0) }
+    }
 
     // MARK: Transient state
 
@@ -254,8 +266,8 @@ final class LibraryModel {
         self.folderTree = await loadFolderTree(under: nil)
         self.collections = await collections
         self.tags = await tags
-        pruneHistory()
         await refreshCounts()
+        pruneHistory()
     }
 
     /// Where the canvas is currently reading from.
@@ -297,6 +309,14 @@ final class LibraryModel {
             updated[key] = await service.objectCount(in: key.scope, access: access)
         }
         counts = updated
+
+        var populated: Set<ObjectKind> = []
+        for kind in ObjectKind.mediaTypes {
+            if await service.objectCount(in: .kind(kind), access: access) > 0 {
+                populated.insert(kind)
+            }
+        }
+        populatedKinds = populated
     }
 
     private func onScopeChanged(from previous: LibraryScope) {
@@ -424,6 +444,9 @@ final class LibraryModel {
             case .folder(let id): return folders.contains(id)
             case .collection(let id): return collectionIDs.contains(id)
             case .tag(let id): return tagIDs.contains(id)
+            // A media type the library no longer holds anything of has left
+            // the sidebar, so Back should not walk into it either.
+            case .kind(let kind): return populatedKinds.contains(kind)
             default: return true
             }
         }

@@ -115,10 +115,12 @@ struct CompactLibraryList: View {
                 }
             }
 
-            Section("Media Types") {
-                ForEach(ObjectKind.mediaTypes) { kind in
-                    row(scope: .kind(kind), title: kind.pluralDisplayName) {
-                        Image(systemName: kind.symbolName)
+            if !model.mediaTypes.isEmpty {
+                Section("Media Types") {
+                    ForEach(model.mediaTypes) { kind in
+                        row(scope: .kind(kind), title: kind.pluralDisplayName) {
+                            Image(systemName: kind.symbolName)
+                        }
                     }
                 }
             }
