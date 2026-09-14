@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
+#if os(iOS)
+import UIKit
+#endif
 
 /// One explicit batch of things that have just entered the library.
 ///
@@ -241,11 +244,20 @@ final class LibraryModel {
     var foldersFirst: Bool { preferences.foldersFirst }
     var masonryCaptionDisplay: MasonryCaptionDisplay { preferences.masonryCaptionDisplay }
     var showsMasonryTypeLabels: Bool { preferences.showsMasonryTypeLabels }
-    // On iOS, item size is decided by the adaptive grid rather than the
-    // user, so this always reads as the neutral size regardless of whatever
-    // scale a synced macOS preference carries.
+    // Item size is manual only where the interface has room to negotiate
+    // it: macOS windows and iPad's own screen. iPhone's single fixed-width
+    // column leaves nothing to negotiate, so the adaptive grid decides for
+    // itself regardless of whatever scale a synced preference carries.
+    var supportsManualItemScale: Bool {
+        #if os(macOS)
+        true
+        #else
+        UIDevice.current.userInterfaceIdiom == .pad
+        #endif
+    }
+
     #if os(iOS)
-    var itemScale: Double { 1 }
+    var itemScale: Double { supportsManualItemScale ? preferences.itemScale : 1 }
     #else
     var itemScale: Double { preferences.itemScale }
     #endif

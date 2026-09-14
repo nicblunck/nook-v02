@@ -736,36 +736,43 @@ private struct GalleryViewOptionsButton: View {
             Divider()
             #endif
 
-            // Always present rather than shown only for the view modes they
-            // affect — a row appearing or disappearing changes the
-            // popover's own height, and that resize is a UIKit animation we
-            // do not control and cannot anchor. Greying out an irrelevant
-            // row keeps the popover a constant size, which sidesteps the
-            // resize (and the jump) entirely.
-            Group {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Size")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.grid.3x3.fill").imageScale(.small)
-                        Slider(value: itemScaleBinding,
-                               in: LocationViewPreferences.itemScaleRange) { isEditing in
-                            // One write when the drag ends, rather than one a
-                            // frame while it is under way.
-                            if !isEditing { Task { await model.commitItemScale() } }
+            // iPhone has no item-size control here: the adaptive grid decides
+            // size on its own, so there is nothing for this slider to do.
+            // Whether this device gets one at all never changes mid-session,
+            // so unlike the row below this can be a plain conditional rather
+            // than an always-present, greyed-out one.
+            if model.supportsManualItemScale {
+                // Always present rather than shown only for the view modes
+                // it affects — a row appearing or disappearing changes the
+                // popover's own height, and that resize is a UIKit
+                // animation we do not control and cannot anchor. Greying
+                // out an irrelevant row keeps the popover a constant size,
+                // which sidesteps the resize (and the jump) entirely.
+                Group {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Size")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.grid.3x3.fill").imageScale(.small)
+                            Slider(value: itemScaleBinding,
+                                   in: LocationViewPreferences.itemScaleRange) { isEditing in
+                                // One write when the drag ends, rather than one a
+                                // frame while it is under way.
+                                if !isEditing { Task { await model.commitItemScale() } }
+                            }
+                            .labelsHidden()
+                            Image(systemName: "square.fill").imageScale(.medium)
                         }
-                        .labelsHidden()
-                        Image(systemName: "square.fill").imageScale(.medium)
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
-                }
 
-                Divider()
+                    Divider()
+                }
+                .disabled(!model.viewMode.resizesItems)
+                .opacity(model.viewMode.resizesItems ? 1 : 0.35)
+                .motionAware(NookMotion.interaction, value: model.viewMode)
             }
-            .disabled(!model.viewMode.resizesItems)
-            .opacity(model.viewMode.resizesItems ? 1 : 0.35)
-            .motionAware(NookMotion.interaction, value: model.viewMode)
 
             Group {
                 MasonryCaptionOption(display: masonryCaptionDisplayBinding)
