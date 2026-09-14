@@ -726,7 +726,18 @@ final class SidebarOutlineView: NSOutlineView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window != nil { onMovedToWindow?() }
+        guard window != nil else { return }
+        onMovedToWindow?()
+        // While the window is being put together the outline passes through
+        // the column's widest allowed width before settling at its real one,
+        // and a row first drawn in between keeps its selection at that width
+        // until it is laid out again. Once the window is there, every row is
+        // laid out once more at the width it ended up with.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.enumerateAvailableRowViews { row, _ in row.needsLayout = true }
+            self.needsLayout = true
+        }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
