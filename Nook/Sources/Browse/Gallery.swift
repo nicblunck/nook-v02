@@ -738,7 +738,14 @@ private struct GalleryViewOptionsButton: View {
 
             if model.viewMode == .masonry {
                 MasonryCaptionOption(display: masonryCaptionDisplayBinding)
-                Toggle("Type Labels", isOn: showsMasonryTypeLabelsBinding)
+                HStack {
+                    Text("Type Labels")
+                        .accessibilityHidden(true)
+                    Spacer()
+                    Toggle("Type Labels", isOn: showsMasonryTypeLabelsBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
                 Divider()
             }
 

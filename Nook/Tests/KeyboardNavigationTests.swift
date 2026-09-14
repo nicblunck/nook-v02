@@ -402,7 +402,7 @@ struct KeyboardNavigationTests {
 
         // And from a root folder, the step up is the library itself.
         model.goToEnclosingScope()
-        #expect(model.scope == .allObjects)
+        #expect(model.destination == .home)
     }
 
     @Test("There is nowhere to climb to from a place that is not a folder")

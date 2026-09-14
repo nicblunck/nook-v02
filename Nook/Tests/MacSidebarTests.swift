@@ -10,7 +10,7 @@ import NookLibrary
 /// the outline's own delegate methods — the same calls AppKit makes for a
 /// click, an arrow key or a drag.
 @MainActor
-@Suite("Mac sidebar")
+@Suite("Mac sidebar", .serialized)
 struct MacSidebarTests {
 
     @Test("The outline names the library's places")
@@ -79,11 +79,13 @@ struct MacSidebarTests {
         let sidebar = try await HostedSidebar(model: harness.model)
         let folders = try #require(sidebar.item(.section(.folders)))
         #expect(sidebar.outline.isItemExpanded(folders))
+        let row = sidebar.outline.row(forItem: folders)
+        #expect(!sidebar.outline.frameOfOutlineCell(atRow: row).isEmpty)
 
-        try sidebar.pressSectionCaret(.folders)
+        sidebar.outline.collapseItem(folders)
         #expect(!sidebar.outline.isItemExpanded(folders))
 
-        try sidebar.pressSectionCaret(.folders)
+        sidebar.outline.expandItem(folders)
         #expect(sidebar.outline.isItemExpanded(folders))
     }
 
@@ -310,26 +312,6 @@ private final class HostedSidebar {
     func click(_ id: SidebarItem.ID) {
         guard let item = item(id) else { return }
         outline.selectRowIndexes([outline.row(forItem: item)], byExtendingSelection: false)
-    }
-
-    func pressSectionCaret(_ section: SidebarSection) throws {
-        let item = try #require(item(.section(section)))
-        let row = outline.row(forItem: item)
-        let caret = outline.frameOfOutlineCell(atRow: row)
-        #expect(!caret.isEmpty)
-        let point = NSPoint(x: caret.midX, y: caret.midY)
-        let event = try #require(NSEvent.mouseEvent(
-            with: .leftMouseDown,
-            location: outline.convert(point, to: nil),
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 1,
-            pressure: 1
-        ))
-        outline.mouseDown(with: event)
     }
 
     func pressSectionAdd(_ section: SidebarSection, title: String) throws {

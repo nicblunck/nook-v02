@@ -59,7 +59,7 @@ struct SelectionTests {
         #expect(!model.isTypingText)
         #expect(model.canSelectAll)
 
-        model.namingPrompt = .newFolder(parent: nil)
+        model.namingPrompt = .renameFolder(FolderID())
         #expect(model.isTypingText)
         #expect(!model.canSelectAll)
 

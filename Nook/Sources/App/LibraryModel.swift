@@ -324,6 +324,16 @@ final class LibraryModel {
     /// the global default so an unremembered location never inherits the last
     /// one's arrangement.
     func loadPreferences() async {
+        navigationRefreshTask?.cancel()
+        navigationRefreshTask = nil
+        await loadCurrentPreferences()
+    }
+
+    /// Reads the current destination's arrangement without cancelling the
+    /// navigation task that asked for it. Public callers cancel that task
+    /// first, so an explicit toolbar action cannot be overwritten by a slower
+    /// load that navigation started a moment earlier.
+    private func loadCurrentPreferences() async {
         // Home is one fixed place rather than a row in the library, so what it
         // remembers is kept beside the global default rather than on a folder.
         if isShowingHome {
@@ -332,8 +342,12 @@ final class LibraryModel {
             isRememberingLocation = settings.homePreferences != nil
             return
         }
-        canRememberLocation = await service.canRememberPreferences(for: scope)
-        if let remembered = await service.rememberedPreferences(for: scope) {
+        let canRemember = await service.canRememberPreferences(for: scope)
+        guard !Task.isCancelled else { return }
+        let remembered = await service.rememberedPreferences(for: scope)
+        guard !Task.isCancelled else { return }
+        canRememberLocation = canRemember
+        if let remembered {
             preferences = remembered
             isRememberingLocation = true
         } else {
@@ -548,10 +562,14 @@ final class LibraryModel {
         selectionAnchor = nil
         cursor = nil
         searchText = ""
+        scheduleNavigationRefresh()
+    }
+
+    private func scheduleNavigationRefresh() {
         navigationRefreshTask?.cancel()
         navigationRefreshTask = Task { [weak self] in
             guard let self else { return }
-            await loadPreferences()
+            await loadCurrentPreferences()
             guard !Task.isCancelled else { return }
             await refreshContentsFromNavigation()
         }
@@ -648,10 +666,7 @@ final class LibraryModel {
             // Arriving at a scope loads its arrangement through
             // `onScopeChanged`; arriving at Home changes no scope, so it asks
             // for its own here.
-            Task {
-                await loadPreferences()
-                await refreshContents()
-            }
+            scheduleNavigationRefresh()
         case .scope(let scope):
             isShowingHome = false
             searchText = ""
@@ -660,12 +675,7 @@ final class LibraryModel {
             // else would load that place's arrangement back.
             let wasAlreadyThere = self.scope == scope
             self.scope = scope
-            if wasAlreadyThere {
-                Task {
-                    await loadPreferences()
-                    await refreshContents()
-                }
-            }
+            if wasAlreadyThere { scheduleNavigationRefresh() }
         }
     }
 
