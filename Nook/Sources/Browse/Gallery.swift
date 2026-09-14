@@ -590,22 +590,8 @@ struct GalleryToolbar: ToolbarContent {
                 }
             }
 
+            #if os(macOS)
             ToolbarItem {
-                #if os(iOS)
-                // A segmented control reads as three buttons; on iPhone's
-                // narrower bar that is one button too many, so the choice
-                // moves behind a single one that shows the current mode.
-                Menu {
-                    Picker("View", selection: viewModeBinding) {
-                        ForEach(LibraryViewMode.allCases) { mode in
-                            Label(mode.displayName, systemImage: mode.symbolName).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Label("View", systemImage: model.viewMode.symbolName)
-                }
-                #else
                 Picker("View", selection: viewModeBinding) {
                     ForEach(LibraryViewMode.allCases) { mode in
                         Label(mode.displayName, systemImage: mode.symbolName).tag(mode)
@@ -613,9 +599,12 @@ struct GalleryToolbar: ToolbarContent {
                 }
                 .pickerStyle(.segmented)
                 .labelStyle(.iconOnly)
-                #endif
             }
+            #endif
 
+            // On iOS the view picker moves into the same popover as the sort
+            // and other view options, behind one ellipsis button — one
+            // control instead of two on iPhone's narrower bar.
             ToolbarItem {
                 GalleryViewOptionsButton(model: model)
             }
@@ -630,10 +619,12 @@ struct GalleryToolbar: ToolbarContent {
         }
     }
 
+    #if os(macOS)
     private var viewModeBinding: Binding<LibraryViewMode> {
         Binding(get: { model.viewMode },
                 set: { mode in Task { await model.setViewMode(mode) } })
     }
+    #endif
 }
 
 /// Info is a popover hung on its own button, rather than a panel beside the
@@ -704,17 +695,54 @@ private struct GalleryViewOptionsButton: View {
     @State private var isPresented = false
 
     var body: some View {
+        #if os(iOS)
+        // The ellipsis stands for "view and sort options" the same way it
+        // does elsewhere in the app, and the popover is pinned compact so
+        // iPhone gets a floating panel rather than the system's default
+        // full-screen adaptation.
+        Button("View Options", systemImage: "ellipsis.circle") {
+            isPresented.toggle()
+        }
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            options
+                .presentationCompactAdaptation(.popover)
+        }
+        #else
         Button("View Options", systemImage: "arrow.up.arrow.down") {
             isPresented.toggle()
         }
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             options
         }
+        #endif
     }
 
     private var options: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if model.viewMode.resizesItems {
+            #if os(iOS)
+            // View mode has no toolbar control of its own on iPhone, so it
+            // leads the popover rather than the sort options it used to
+            // trail behind. A segmented control reads as plain text once
+            // three modes are squeezed into it; an icon each reads at a
+            // glance and leaves room for the full name underneath.
+            HStack(spacing: 8) {
+                ForEach(LibraryViewMode.allCases) { mode in
+                    ViewModeButton(mode: mode, isSelected: mode == model.viewMode) {
+                        Task { await model.setViewMode(mode) }
+                    }
+                }
+            }
+
+            Divider()
+            #endif
+
+            // Always present rather than shown only for the view modes they
+            // affect — a row appearing or disappearing changes the
+            // popover's own height, and that resize is a UIKit animation we
+            // do not control and cannot anchor. Greying out an irrelevant
+            // row keeps the popover a constant size, which sidesteps the
+            // resize (and the jump) entirely.
+            Group {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Size")
                         .font(.caption)
@@ -735,8 +763,11 @@ private struct GalleryViewOptionsButton: View {
 
                 Divider()
             }
+            .disabled(!model.viewMode.resizesItems)
+            .opacity(model.viewMode.resizesItems ? 1 : 0.35)
+            .motionAware(NookMotion.interaction, value: model.viewMode)
 
-            if model.viewMode == .masonry {
+            Group {
                 MasonryCaptionOption(display: masonryCaptionDisplayBinding)
                 HStack {
                     Text("Type Labels")
@@ -748,6 +779,9 @@ private struct GalleryViewOptionsButton: View {
                 }
                 Divider()
             }
+            .disabled(model.viewMode != .masonry)
+            .opacity(model.viewMode == .masonry ? 1 : 0.35)
+            .motionAware(NookMotion.interaction, value: model.viewMode)
 
             HStack {
                 Text("Sort By")
@@ -794,7 +828,16 @@ private struct GalleryViewOptionsButton: View {
             }
         }
         .padding(14)
+        #if os(iOS)
+        // A little extra room below the last row, so it doesn't sit flush
+        // against the popover's own bottom curve.
+        .padding(.bottom, 10)
+        // Wide enough for three view-mode buttons side by side without
+        // squeezing "Descending" onto two lines below.
+        .frame(width: 320)
+        #else
         .frame(width: 268)
+        #endif
     }
 
     // MARK: Bindings
@@ -838,6 +881,44 @@ private struct GalleryViewOptionsButton: View {
                 set: { value in Task { await model.setRememberingLocation(value) } })
     }
 }
+
+#if os(iOS)
+/// One view mode, shown as an icon over its name rather than packed into a
+/// segmented control — the same tile shape iOS's own view-options menus use,
+/// which also has somewhere to put a name as long as "Masonry Grid".
+private struct ViewModeButton: View {
+    let mode: LibraryViewMode
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: mode.symbolName)
+                    .font(.system(size: 20))
+                Text(mode.displayName)
+                    .font(.caption2)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                // ConcentricRectangle here read as sharp — nested this far
+                // inside a Button's label, it wasn't picking up the
+                // popover's declared containerShape. A plain continuous
+                // radius, sized to clearly belong to the same rounded
+                // family as the card around it, is the reliable version.
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? Color(uiColor: .systemGray5) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(mode.displayName)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+#endif
 
 private struct MasonryCaptionOption: View {
     @Binding var display: MasonryCaptionDisplay
