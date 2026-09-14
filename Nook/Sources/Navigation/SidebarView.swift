@@ -154,11 +154,11 @@ struct SidebarView: View {
             }
             // No count on this one. How much someone is keeping out of sight
             // is itself something they are keeping out of sight.
-            footerButton(title: "Show Hidden Items",
-                         symbol: model.isShowingHiddenContent ? "eye" : "eye.slash",
-                         isCurrent: model.isShowingHiddenContent,
+            footerButton(title: "Hidden",
+                         symbol: "eye.slash",
+                         isCurrent: model.scope == .hidden,
                          dropTarget: .hidden) {
-                Task { await model.toggleHiddenItems() }
+                Task { await model.openHidden() }
             }
             Spacer(minLength: 0)
         }

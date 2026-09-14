@@ -181,12 +181,7 @@ struct CompactLibraryList: View {
             }
 
             Section {
-                Button {
-                    Task { await model.toggleHiddenItems() }
-                } label: {
-                    Label("Show Hidden Items",
-                          systemImage: model.isShowingHiddenContent ? "eye" : "eye.slash")
-                }
+                row(scope: .hidden, title: "Hidden") { Image(systemName: "eye.slash") }
                     .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                         let ids = transfers.flatMap(\.ids)
                         guard !ids.isEmpty else { return false }
@@ -263,6 +258,10 @@ struct CompactLibraryList: View {
     }
 
     private func open(_ scope: LibraryScope) async {
+        guard scope != .hidden else {
+            await model.openHidden()
+            return
+        }
         model.navigate(to: .scope(scope))
         await model.loadPreferences()
         await model.refreshContents()

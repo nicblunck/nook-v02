@@ -51,9 +51,15 @@ extension LibraryModel {
                 await moveFolder(folder, to: parent)
             }
         } else if case .hidden = place {
+            // Not looked up in `allFolders`: that tree is always the ordinary
+            // one, so a folder reached only by having already descended into
+            // Hidden — the very thing this drop is for promoting to its top
+            // level — would never be found in it. Hiding is unconditional
+            // here for the same reason: an already-hidden folder dragged back
+            // onto this icon is how a nested one gets promoted, and hiding
+            // something already hidden is a harmless no-op otherwise.
             for folder in items.folderIDs {
-                guard let snapshot = folderSnapshot(folder), !snapshot.isExplicitlyHidden else { continue }
-                await setHidden(true, forFolder: snapshot)
+                await setHidden(true, forFolder: folder)
             }
         }
     }
@@ -100,7 +106,10 @@ extension LibraryModel {
             case .tag(let tag): return !object.tags.contains { $0.id == tag }
             case .favorites: return !object.isFavorite
             case .trash: return object.deletedAt == nil
-            case .hidden: return !object.isExplicitlyHidden
+            // Unconditional rather than skipped when already hidden: this is
+            // how an object nested inside a hidden folder gets promoted to
+            // Hidden's own top level, dragged straight onto the icon.
+            case .hidden: return true
             case .currentLocation: return false
             }
         }
@@ -123,7 +132,7 @@ extension LibraryModel {
         case .tag(let id): return .tag(id)
         case .favorites: return .favorites
         case .recentlyDeleted: return .trash
-        case .allObjects, .recent, .kind: return nil
+        case .allObjects, .recent, .kind, .hidden: return nil
         }
     }
 

@@ -69,6 +69,11 @@ public extension LibraryService {
     /// Deletes a folder and its subfolders. Contained objects are sent to
     /// Recently Deleted rather than removed, so the deletion stays reversible
     /// for the retention window.
+    ///
+    /// Nothing explicitly hidden is ever contained here: hiding an object
+    /// detaches it from its folder the moment it happens, so a folder never
+    /// holds anything the user could not currently see when they chose to
+    /// delete it.
     func deleteFolder(_ id: FolderID) throws {
         guard let target = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
 
@@ -78,17 +83,6 @@ public extension LibraryService {
         while let current = queue.popLast() {
             guard seen.insert(current.identifier).inserted else { continue }
             for object in current.containedObjects where object.deletedAt == nil {
-                // Something hidden in its own right is not on screen to be
-                // reconsidered, so deleting the folder it happens to sit in
-                // must not take it down with the folder. It stays in Hidden,
-                // and unhiding it later lands it in the Inbox, because the
-                // folder it came from is gone. Objects that were hidden only
-                // by this folder go the ordinary way: the user could see them
-                // when they chose to delete it.
-                if object.isHidden {
-                    object.folder = nil
-                    continue
-                }
                 object.deletedAt = now
                 object.folder = nil
             }
@@ -103,6 +97,7 @@ public extension LibraryService {
         guard let target = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
         target.isHidden = flags.isHidden
         target.isLocked = flags.isLocked
+        if flags.isHidden { target.parent = nil }
         try didMutate()
     }
 
@@ -111,9 +106,15 @@ public extension LibraryService {
     /// locked, and writing both at once would make a caller restate a flag it
     /// has no opinion about. Only the entity's own flag is ever written —
     /// what it inherits from an ancestor remains the ancestor's to lift.
+    ///
+    /// Hiding also detaches the folder from wherever it was — Hidden behaves
+    /// like a folder itself, and what is put into it does not need to
+    /// remember where it came from. A folder already hidden in its own right
+    /// stays exactly where hiding put it; only newly hiding one moves it.
     func setHidden(_ isHidden: Bool, forFolder id: FolderID) throws {
         guard let target = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
         target.isHidden = isHidden
+        if isHidden { target.parent = nil }
         try didMutate()
     }
 
@@ -160,13 +161,21 @@ public extension LibraryService {
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
             object.isHidden = flags.isHidden
             object.isLocked = flags.isLocked
+            if flags.isHidden { object.folder = nil }
         }
         try didMutate()
     }
 
+    /// Hiding moves an object into Hidden rather than marking it in place: it
+    /// no longer needs to remember which folder it came from, the way an
+    /// object dropped into any other folder does not remember the one it left.
+    /// Unhiding is the mirror of that — the object was detached, not filed
+    /// anywhere in particular, so it surfaces in the Inbox like anything else
+    /// without a folder.
     func setHidden(_ isHidden: Bool, forObjects ids: [ObjectID]) throws {
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
             object.isHidden = isHidden
+            if isHidden { object.folder = nil }
         }
         try didMutate()
     }

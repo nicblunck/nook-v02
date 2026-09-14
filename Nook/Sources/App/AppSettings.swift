@@ -68,6 +68,12 @@ enum HiddenRevealTimeout: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class AppSettings {
+    /// Posted whenever `defaultPreferences` changes, so a location that is
+    /// following it rather than remembering its own arrangement — the
+    /// ordinary case — picks up the change immediately instead of waiting for
+    /// its next navigation to notice.
+    static let defaultPreferencesDidChange = Notification.Name("Nook.defaultPreferencesDidChange")
+
     private enum Key {
         static let defaultPreferences = "nook.defaultViewPreferences"
         static let homePreferences = "nook.homeViewPreferences"
@@ -80,7 +86,10 @@ final class AppSettings {
     private let defaults: UserDefaults
 
     var defaultPreferences: LocationViewPreferences {
-        didSet { persist(defaultPreferences, forKey: Key.defaultPreferences) }
+        didSet {
+            persist(defaultPreferences, forKey: Key.defaultPreferences)
+            NotificationCenter.default.post(name: Self.defaultPreferencesDidChange, object: nil)
+        }
     }
 
     /// What Home has been asked to remember, or nil while it is still
