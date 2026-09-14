@@ -9,23 +9,29 @@ struct MasonryLayout: Layout {
     var minimumColumnWidth: CGFloat = 160
     var spacing: CGFloat = 16
 
+    /// The arrangement last worked out, and the width it was worked out for.
+    ///
+    /// Measuring the wall and placing it are two passes over the same numbers,
+    /// and every pass measures every tile — so without this, opening the
+    /// inspector measures the whole wall twice for each frame of the animation.
+    /// SwiftUI rebuilds the cache whenever the subviews change, and a tile's
+    /// height here follows from the column width and the object's proportions
+    /// alone, so what is kept can only describe the wall as it stands.
     struct Cache {
-        var columnCount: Int = 1
-        var heights: [CGFloat] = []
+        var width: CGFloat?
+        var resolved: Resolved?
     }
 
     func makeCache(subviews: Subviews) -> Cache { Cache() }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
-        let width = proposal.width ?? minimumColumnWidth
-        let layout = resolve(width: width, subviews: subviews)
-        cache.columnCount = layout.columnCount
-        cache.heights = layout.columnHeights
+        let width = layoutWidth(for: proposal)
+        let layout = resolve(width: width, subviews: subviews, cache: &cache)
         return CGSize(width: width, height: layout.columnHeights.max() ?? 0)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
-        let layout = resolve(width: bounds.width, subviews: subviews)
+        let layout = resolve(width: bounds.width, subviews: subviews, cache: &cache)
         for (index, subview) in subviews.enumerated() {
             let placement = layout.placements[index]
             subview.place(
@@ -35,16 +41,40 @@ struct MasonryLayout: Layout {
         }
     }
 
+    /// A scroll view can ask what the wall wants before it has a width to offer
+    /// it, and can offer an unbounded one. Neither is a width to lay out
+    /// against, so both fall back to the narrowest wall there is.
+    private func layoutWidth(for proposal: ProposedViewSize) -> CGFloat {
+        guard let width = proposal.width, width.isFinite, width > 0 else {
+            return minimumColumnWidth
+        }
+        return width
+    }
+
     // MARK: Placement
 
-    private struct Resolved {
-        var columnCount: Int
+    struct Resolved {
         var columnWidth: CGFloat
         var columnHeights: [CGFloat]
         var placements: [(x: CGFloat, y: CGFloat, height: CGFloat)]
     }
 
-    private func resolve(width: CGFloat, subviews: Subviews) -> Resolved {
+    private func resolve(width: CGFloat, subviews: Subviews, cache: inout Cache) -> Resolved {
+        // The count is checked as well as the width: SwiftUI rebuilds the
+        // cache when the subviews change, and this is what holds that promise
+        // to a placement rather than an assumption.
+        if let resolved = cache.resolved,
+           cache.width == width,
+           resolved.placements.count == subviews.count {
+            return resolved
+        }
+        let resolved = arrange(width: width, subviews: subviews)
+        cache.width = width
+        cache.resolved = resolved
+        return resolved
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> Resolved {
         let columnCount = max(1, Int((width + spacing) / (minimumColumnWidth + spacing)))
         let columnWidth = (width - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount)
 
@@ -66,8 +96,7 @@ struct MasonryLayout: Layout {
 
         // Trim the trailing gap the last row would otherwise leave.
         let trimmed = heights.map { max(0, $0 - spacing) }
-        return Resolved(columnCount: columnCount,
-                        columnWidth: columnWidth,
+        return Resolved(columnWidth: columnWidth,
                         columnHeights: trimmed,
                         placements: placements)
     }

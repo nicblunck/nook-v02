@@ -57,7 +57,7 @@ struct CompactLibraryView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { model.isInspectorPresented = false }
+                            Button("Done") { model.setInspector(false) }
                         }
                     }
             }

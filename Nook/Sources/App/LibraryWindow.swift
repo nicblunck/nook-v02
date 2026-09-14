@@ -5,7 +5,8 @@ import NookLibrary
 import PhotosUI
 #endif
 
-/// Sidebar, canvas, and an inspector that stays out of the way until asked for.
+/// Sidebar and canvas. Metadata is not a column here: it comes up as a
+/// popover on the canvas's own Info button, so asking for it moves nothing.
 struct LibraryWindow: View {
     @Bindable var model: LibraryModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -141,17 +142,6 @@ struct LibraryWindow: View {
                 BrowseView(model: model)
             }
         }
-        .inspector(isPresented: inspectorBinding) {
-            InfoPanel(model: model)
-                .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
-        }
-    }
-
-    /// The inspector is a side panel here; on iPhone the same content comes up
-    /// as a sheet instead.
-    private var inspectorBinding: Binding<Bool> {
-        Binding(get: { model.isInspectorPresented },
-                set: { model.isInspectorPresented = $0 })
     }
 
     #if os(iOS)
@@ -255,7 +245,7 @@ struct NookCommands: Commands {
                 .disabled(model.map { $0.isTypingText || !$0.hasSelection } ?? true)
 
             Divider()
-            Button("Get Info") { model?.isInspectorPresented.toggle() }
+            Button("Get Info") { model?.toggleInspector() }
                 .keyboardShortcut("i")
                 .disabled(model == nil)
 

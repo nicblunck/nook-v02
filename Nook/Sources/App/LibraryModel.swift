@@ -45,6 +45,20 @@ final class LibraryModel {
     var previewedObjectID: ObjectID?
     var isInspectorPresented = false
 
+    /// Shows or hides the metadata panel.
+    ///
+    /// Every route to Get Info goes through here — the toolbar button, the menu
+    /// bar, the context menu, the preview — so the panel has one anchor to
+    /// appear at whichever way it was asked for. It is a popover on the canvas
+    /// toolbar's Info button at regular width, and a sheet on iPhone.
+    func setInspector(_ presented: Bool) {
+        isInspectorPresented = presented
+    }
+
+    func toggleInspector() {
+        setInspector(!isInspectorPresented)
+    }
+
     // MARK: Keyboard focus
     //
     // Which column the keyboard is talking to is decided here, in one place,

@@ -29,7 +29,7 @@ struct ObjectMenu: View {
                 }
                 Button("Get Info", systemImage: "info.circle") {
                     select?()
-                    model.isInspectorPresented = true
+                    model.setInspector(true)
                 }
                 Divider()
             }
