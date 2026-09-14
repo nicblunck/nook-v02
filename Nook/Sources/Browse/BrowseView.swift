@@ -200,21 +200,28 @@ struct BrowseView: View {
             folderShelfHeader
             folderShelfBody
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
         .background {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.primary.opacity(0.035))
-                .padding(.horizontal, -12)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        // Bleeds the whole shelf — background, rounded corners, and the
+        // folder row's own scroll clip inside it — 12pt past its column on
+        // each side. Bleeding only the background (as this once did) leaves
+        // the corner clip above sized to the narrower, unbled column, which
+        // clips the row straight back down to it — a folder scrolled to the
+        // row's edge then stops short of the box with a bare gap in between
+        // instead of being cut off flush with it.
+        .padding(.horizontal, -12)
     }
 
     /// The drawer's handle: always present, so there is always something
     /// there to name what is inside and to open it back up. The caret just
-    /// points the way the drawer is about to move. No horizontal padding is
-    /// added here — the grey box already bleeds 12pt past this content on
-    /// each side, so leaving this flush and matching that same 12pt
-    /// vertically is what actually centers the caret in the box's corner,
-    /// rather than compounding the two into a lopsided inset.
+    /// points the way the drawer is about to move. The shelf around this
+    /// bleeds 12pt past its column on each side, so this needs its own
+    /// 12pt horizontal inset to land back where it was — flush with the
+    /// column, with the caret centered in the box's actual corner rather
+    /// than the wider, bled one.
     private var folderShelfHeader: some View {
         Button {
             withAnimation(reduceMotion ? nil : NookMotion.reflow) {
@@ -231,6 +238,7 @@ struct BrowseView: View {
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isFolderShelfExpanded ? 180 : 0))
             }
+            .padding(.horizontal, 12)
             .padding(.vertical, 12)
             .contentShape(Rectangle())
         }
@@ -253,13 +261,23 @@ struct BrowseView: View {
                         .frame(width: folderShelfItemWidth)
                 }
             }
+            // The shelf around this scroll view bleeds 12pt past its column
+            // on each side; padding the row in by the same amount keeps a
+            // folder at rest aligned with the grid column beneath it, while
+            // still leaving room to scroll out to the shelf's true, bled edge.
+            .padding(.horizontal, 12)
             .padding(.bottom, 12)
+            // Measured on the content itself, before the frame below locks
+            // the scroll view to its last-known height — otherwise, once a
+            // height is locked in, growing the items (larger object scale)
+            // would only ever measure the already-clipped, stale height and
+            // the shelf would never grow to hug its now-taller content.
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newHeight in
+                if isFolderShelfExpanded { measuredFolderShelfHeight = newHeight }
+            }
         }
         .frame(height: folderShelfBodyHeight, alignment: .top)
         .clipped()
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newHeight in
-            if isFolderShelfExpanded { measuredFolderShelfHeight = newHeight }
-        }
     }
 
     /// `nil` only until the drawer has measured itself once, so the very
