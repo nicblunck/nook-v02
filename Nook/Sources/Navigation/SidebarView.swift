@@ -63,23 +63,6 @@ struct SidebarView: View {
         rows
             .navigationTitle("Nook")
             .safeAreaInset(edge: .bottom, spacing: 0) { footer }
-            .toolbar {
-                ToolbarItem {
-                    Menu {
-                        Button("New Folder…", systemImage: "folder.badge.plus") {
-                            model.editingAppearance = .newFolder(parent: model.currentFolderID)
-                        }
-                        Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                            model.editingAppearance = .newCollection(adding: [])
-                        }
-                        Button("New Tag…", systemImage: "tag") {
-                            model.editingAppearance = .newTag()
-                        }
-                    } label: {
-                        Label("New", systemImage: "plus")
-                    }
-                }
-            }
             .animation(reduceMotion ? nil : NookMotion.reflow,
                        value: model.sidebarReflowRevision)
     }
