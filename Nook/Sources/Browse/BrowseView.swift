@@ -446,16 +446,6 @@ struct BrowseView: View {
     private var emptyState: some View {
         ContentUnavailableView {
             Label(emptyTitle, systemImage: emptySymbol)
-        } description: {
-            Text(emptyDescription)
-        } actions: {
-            if !model.searchText.isEmpty {
-                Button("Clear Search") { model.searchText = "" }
-            } else if model.isShowingHome {
-                Button("Import Files…") { model.isImporterPresented = true }
-            } else if model.scope != .recentlyDeleted, model.scope != .hidden {
-                Button("Import Files…") { model.isImporterPresented = true }
-            }
         }
     }
 
@@ -612,22 +602,6 @@ struct BrowseView: View {
         }
     }
 
-    private var emptyDescription: String {
-        if !model.searchText.isEmpty {
-            return "No items in \(title) match “\(model.searchText)”."
-        }
-        if model.isShowingHome {
-            return "Drag files in, import them, or share something to Nook."
-        }
-        switch model.scope {
-        case .inbox: return "Anything you import without choosing a folder waits here."
-        case .favorites: return "Items you favorite show up here."
-        case .recentlyDeleted: return "Deleted items stay here for 30 days before they're removed."
-        case .hidden: return "Items and folders you hide move here, and stay out of every other view. Unhiding one sends it back to the Inbox."
-        case .collection: return "Drag items here, or use Add to Collection, to gather them without moving them."
-        default: return "Drag files in, or import them, to get started."
-        }
-    }
 }
 
 /// The open folder and Inbox are real storage destinations. Dropping on empty
