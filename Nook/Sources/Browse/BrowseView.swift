@@ -29,8 +29,42 @@ struct BrowseView: View {
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isCanvasFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
 
     var body: some View {
+        searchableContent
+    }
+
+    /// Search has no home in the compact iPhone layout yet — the field is
+    /// suppressed there rather than resurfacing on every pushed screen — so
+    /// this is the one place that decides whether it's worth attaching at
+    /// all.
+    @ViewBuilder
+    private var searchableContent: some View {
+        if isSearchEnabled {
+            content
+                .searchable(text: $model.searchText, tokens: $model.searchTokens, prompt: searchPrompt) { token in
+                    Label(token.name, systemImage: token.symbolName)
+                }
+                .searchFocused($isSearchFocused)
+                .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
+                .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
+        } else {
+            content
+        }
+    }
+
+    private var isSearchEnabled: Bool {
+        #if os(iOS)
+        horizontalSizeClass != .compact
+        #else
+        true
+        #endif
+    }
+
+    private var content: some View {
         ZStack {
             if let previewed = model.previewedObject {
                 ObjectPreviewView(model: model, object: previewed)
@@ -57,13 +91,18 @@ struct BrowseView: View {
         #endif
         .toolbar {
             GalleryToolbar(model: model, showsHistoryControls: showsHistoryControls)
+            #if os(iOS)
+            // The same bar the compact landing list shows, so it reads as
+            // one continuous piece of chrome across every library view
+            // rather than something that comes and goes per screen. It
+            // drops out once an object is open in detail — nothing here to
+            // add content to at that point — the same way `GalleryToolbar`
+            // stands down above.
+            if horizontalSizeClass == .compact, model.previewedObjectID == nil {
+                CompactAddContentToolbar(model: model)
+            }
+            #endif
         }
-        .searchable(text: $model.searchText, tokens: $model.searchTokens, prompt: searchPrompt) { token in
-            Label(token.name, systemImage: token.symbolName)
-        }
-        .searchFocused($isSearchFocused)
-        .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
-        .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
         // Opening a preview swaps most of the toolbar's items out from under
         // it, and the search field is what AppKit hands the keyboard to when
         // nothing else claims it during that rebuild.

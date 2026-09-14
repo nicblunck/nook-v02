@@ -470,17 +470,15 @@ struct GalleryDropIndicator: View {
     }
 }
 
-/// The library's primary add action. On macOS this is a split button sized to
-/// match the window's other toolbar-style controls: the plus opens the system
-/// importer directly, while the attached chevron reveals the rest. Elsewhere
-/// a regular click opens the importer and a context menu keeps the rest
-/// nearby instead.
+#if os(macOS)
+/// The library's primary add action: a split button sized to match the
+/// window's other toolbar-style controls. The plus opens the system importer
+/// directly, while the attached chevron reveals the rest. iOS reaches the
+/// same actions through the compact shell's own bottom toolbar instead.
 struct LibraryFloatingActionButton: View {
     let model: LibraryModel
-    var fillsAccessory = false
 
     var body: some View {
-        #if os(macOS)
         // `Menu(label:primaryAction:)` renders on macOS as a native
         // NSComboButton-style split control whose height AppKit fixes
         // internally — no SwiftUI frame on the label reaches it. So this is
@@ -547,59 +545,9 @@ struct LibraryFloatingActionButton: View {
         .help("Add content")
         .accessibilityLabel("Add content")
         .accessibilityHint("Opens the Finder to import files. Use the arrow for more options.")
-        #else
-        Button {
-            model.isImporterPresented = true
-        } label: {
-            if fillsAccessory {
-                // The frame belongs on the label, not the button: sizing the
-                // button itself only widens its tappable area, leaving the
-                // glass style to draw its pill at the label's natural size —
-                // centered in that larger area rather than filling it. The
-                // label has to be the one asking for all the space so the
-                // glass chrome it sits behind grows to match.
-                Label("Add Content", systemImage: "plus")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Image(systemName: "plus")
-            }
-        }
-        .font(.title2.weight(.semibold))
-        .frame(width: fillsAccessory ? nil : 52,
-               height: fillsAccessory ? nil : 52)
-        .buttonStyle(.glass(.regular.tint(.accentColor).interactive()))
-        .tint(.accentColor)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button("Take Photo", systemImage: "camera") {
-                model.isCameraPresented = true
-            }
-            Button("Scan Document", systemImage: "doc.viewfinder") {
-                model.isDocumentScannerPresented = true
-            }
-            Button("Photo Library", systemImage: "photo.on.rectangle") {
-                model.isPhotosPickerPresented = true
-            }
-            Button("Add URL…", systemImage: "link.badge.plus") {
-                model.isAddURLPresented = true
-            }
-            Divider()
-            Button("New Folder…", systemImage: "folder.badge.plus") {
-                model.editingAppearance = .newFolder(parent: model.currentFolderID)
-            }
-            Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                model.editingAppearance = .newCollection(adding: [])
-            }
-            Button("New Tag…", systemImage: "tag") {
-                model.editingAppearance = .newTag()
-            }
-        }
-        .help("Add content")
-        .accessibilityLabel("Add content")
-        .accessibilityHint("Opens the Finder to import files. Control-click for more options.")
-        #endif
     }
 }
+#endif
 
 // MARK: Chrome
 
