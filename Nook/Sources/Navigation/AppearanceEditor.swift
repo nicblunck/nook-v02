@@ -131,7 +131,7 @@ struct AppearanceEditor: View {
     }
 
     var body: some View {
-        NavigationStack {
+        ZStack(alignment: .top) {
             ScrollView {
                 VStack(spacing: 10) {
                     AppearancePreviewHeader(
@@ -154,19 +154,11 @@ struct AppearanceEditor: View {
                     .background(.background.secondary, in: .rect(cornerRadius: 18))
                 }
                 .padding(16)
+                .padding(.top, 52)
             }
             .background(Color.primary.opacity(0.035))
-            .navigationTitle(target.editorTitle)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSaving)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: save)
-                        .disabled(isSaving || draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
+
+            header
         }
         .onDisappear { model.isTextEntryFocused = false }
         #if os(macOS)
@@ -174,6 +166,67 @@ struct AppearanceEditor: View {
         #else
         .presentationDetents([.medium, .large])
         #endif
+    }
+
+    // MARK: Header
+
+    /// A close on the left, a checkmark on the right: the two ways out of the
+    /// sheet, always in reach and never dependent on window chrome the
+    /// sheet's own presentation may or may not draw around it. Floats over
+    /// the scrolling content on a blur that fades out toward the bottom,
+    /// rather than a hard-edged bar. Mirrors the share extension's header
+    /// (see MacShareView.swift / ShareView.swift), but as a floating overlay.
+    private var header: some View {
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .keyboardShortcut(.cancelAction)
+            .disabled(isSaving)
+            .accessibilityLabel("Cancel")
+
+            Spacer()
+
+            Text(target.editorTitle)
+                .font(.headline)
+
+            Spacer()
+
+            Button(action: save) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.glassProminent)
+            .buttonBorderShape(.circle)
+            .tint(.accentColor)
+            .keyboardShortcut(.defaultAction)
+            .disabled(isSaving || draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity(draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
+            .accessibilityLabel("Done")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 28)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        colors: [.black, .black.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .allowsHitTesting(false)
+        )
     }
 
     private func save() {
@@ -341,16 +394,37 @@ private struct AppearancePicker: View {
     private var customColorPicker: some View {
         let isPreset = Self.palette.contains { $0.hex == appearance.colorHex }
         let selected = appearance.colorHex != nil && !isPreset
-        return Group {
+        return ZStack {
+            Circle()
+                .fill(
+                    AngularGradient(
+                        colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red],
+                        center: .center
+                    )
+                )
+            Image(systemName: "paintbrush.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+
             #if os(macOS)
-            MinimalColorWell(color: $customColor)
+            MinimalColorWell(color: $customColor, showsNativeAppearance: false)
             #else
             ColorPicker("Custom Color", selection: $customColor, supportsOpacity: false)
                 .labelsHidden()
+                .opacity(0.02)
             #endif
         }
-        .frame(width: 36, height: 36)
+        .frame(width: 28, height: 28)
+        .clipShape(Circle())
+        .overlay {
+            Circle()
+                .stroke(customColor, lineWidth: 2)
+                .frame(width: 36, height: 36)
+                .opacity(selected ? 1 : 0)
+        }
         .scaleEffect(reduceMotion || !selected ? 1 : 1.08)
+        .frame(height: 36)
         .motionAware(NookMotion.interaction, value: selected)
         .accessibilityLabel("Custom Color")
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -586,11 +660,16 @@ private enum AppearanceIconCatalog {
 /// drops down to AppKit to get the plain well back.
 private struct MinimalColorWell: NSViewRepresentable {
     @Binding var color: Color
+    /// When false, the well itself is drawn fully transparent — used when a
+    /// custom SwiftUI view supplies the visible appearance and this well only
+    /// needs to supply the click target and color-panel plumbing.
+    var showsNativeAppearance: Bool = true
 
     func makeNSView(context: Context) -> NSColorWell {
         let well = NSColorWell()
         well.colorWellStyle = .minimal
         well.color = NSColor(color)
+        well.alphaValue = showsNativeAppearance ? 1 : 0
         well.target = context.coordinator
         well.action = #selector(Coordinator.colorChanged(_:))
         return well
@@ -601,6 +680,7 @@ private struct MinimalColorWell: NSViewRepresentable {
         if well.color != nsColor {
             well.color = nsColor
         }
+        well.alphaValue = showsNativeAppearance ? 1 : 0
     }
 
     func makeCoordinator() -> Coordinator {
