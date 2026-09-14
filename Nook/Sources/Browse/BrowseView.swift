@@ -13,6 +13,19 @@ struct BrowseView: View {
     /// Where the canvas actually drew each item, which is what tells an arrow
     /// key what "the row above" means in a layout that is not a uniform grid.
     @State private var itemFrames = GalleryFrames<CanvasItemID>()
+    /// The grid's available width, measured once per layout pass rather than
+    /// per item — what lets the Folders First shelf resolve the same columns
+    /// the grid itself will, instead of drifting from them.
+    @State private var gridContentWidth: CGFloat = 0
+    /// Whether the Folders First shelf's drawer is open. Per view instance
+    /// rather than remembered: a location whose folders were glanced at once
+    /// and dismissed reopens with them showing again, the same way a fresh
+    /// visit would.
+    @State private var isFolderShelfExpanded = true
+    /// The drawer's last-measured open height, so collapsing and reopening
+    /// it animate between two concrete numbers instead of to or from
+    /// whatever "natural size" resolves to, which does not interpolate.
+    @State private var measuredFolderShelfHeight: CGFloat = 0
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isCanvasFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -143,32 +156,148 @@ struct BrowseView: View {
     /// are decided in `Gallery`.
     private var items: some View {
         VStack(spacing: 0) {
+            if showsFolderShelf {
+                folderShelfSection
+                    .padding(.bottom, 20)
+            }
             canvasGrid
             CloudSyncStatusView(model: model)
         }
+        // Measured before the inset padding below is applied, so this is the
+        // same width the grid's own columns resolve against — which is what
+        // lets the shelf's columns match them exactly rather than guess.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridContentWidth = $0 }
         .padding(model.viewMode.contentInsets)
         .animation(reduceMotion ? nil : NookMotion.reflow,
                    value: model.reflowRevision)
     }
 
+    /// Folders First pulls locations out of the grid entirely rather than
+    /// merely sorting them ahead of it: they read as a shelf of places, not
+    /// as items that happen to come first among the things being browsed.
+    private var showsFolderShelf: Bool {
+        model.foldersFirst && !model.contents.folders.isEmpty
+    }
+
+    /// The grid's own columns, resolved from the same width the grid itself
+    /// lays out against. Only meaningful in Grid mode — a masonry wall packs
+    /// by height and a list is one column, so neither has columns for the
+    /// shelf to line up with.
+    private var alignedGridColumns: GalleryMetrics.Columns? {
+        guard showsFolderShelf, model.viewMode == .grid else { return nil }
+        return GalleryMetrics.resolvedColumns(for: gridContentWidth, scale: model.itemScale)
+    }
+
+    /// A drawer: a header that always shows "Folders" and a caret, and
+    /// beneath it, the folders themselves — revealed or hidden by an
+    /// animated height clip rather than by swapping in a different view, so
+    /// opening and closing reads as the row actually sliding out or away
+    /// rather than one view dissolving into another.
+    private var folderShelfSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            folderShelfHeader
+            folderShelfBody
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.primary.opacity(0.035))
+                .padding(.horizontal, -12)
+        }
+    }
+
+    /// The drawer's handle: always present, so there is always something
+    /// there to name what is inside and to open it back up. The caret just
+    /// points the way the drawer is about to move. No horizontal padding is
+    /// added here — the grey box already bleeds 12pt past this content on
+    /// each side, so leaving this flush and matching that same 12pt
+    /// vertically is what actually centers the caret in the box's corner,
+    /// rather than compounding the two into a lopsided inset.
+    private var folderShelfHeader: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : NookMotion.reflow) {
+                isFolderShelfExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Folders")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isFolderShelfExpanded ? 180 : 0))
+            }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isFolderShelfExpanded ? "Hide Folders" : "Show Folders")
+    }
+
+    /// A horizontally scrolling row of locations, drawn at gallery size and
+    /// spacing — in Grid mode, in the grid's own columns, so folders line up
+    /// with the objects underneath. Its height is driven by state rather
+    /// than by its own content, clipped to that height, and pinned to the
+    /// top — so collapsing crops it away from the bottom up, the way a
+    /// drawer's contents actually slide behind its face, and expanding
+    /// grows it back out to the height it last measured itself at.
+    private var folderShelfBody: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: GalleryMetrics.columnSpacing) {
+                ForEach(model.contents.folders) { folder in
+                    canvasItem(.folder(folder), mode: .grid, scale: model.itemScale)
+                        .frame(width: folderShelfItemWidth)
+                }
+            }
+            .padding(.bottom, 12)
+        }
+        .frame(height: folderShelfBodyHeight, alignment: .top)
+        .clipped()
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newHeight in
+            if isFolderShelfExpanded { measuredFolderShelfHeight = newHeight }
+        }
+    }
+
+    /// `nil` only until the drawer has measured itself once, so the very
+    /// first (unanimated) layout can size to its natural height; every
+    /// toggle after that animates between two concrete numbers, which is
+    /// what actually interpolates smoothly.
+    private var folderShelfBodyHeight: CGFloat? {
+        guard isFolderShelfExpanded else { return 0 }
+        return measuredFolderShelfHeight > 0 ? measuredFolderShelfHeight : nil
+    }
+
+    private var folderShelfItemWidth: CGFloat {
+        alignedGridColumns?.width ?? max(84, 96 * model.itemScale)
+    }
+
+    /// What the grid itself draws. With Folders First on, folders have
+    /// already been pulled into the shelf above, so only the objects remain.
+    private var canvasGridItems: [CanvasItem] {
+        showsFolderShelf ? model.contents.objects.map(CanvasItem.object) : model.canvasItems
+    }
+
     private var canvasGrid: some View {
         GalleryLayout(mode: model.viewMode,
                       scale: model.itemScale,
-                      masonryCaptionDisplay: model.masonryCaptionDisplay) {
-            ForEach(model.canvasItems) { item in canvasItem(item) }
+                      masonryCaptionDisplay: model.masonryCaptionDisplay,
+                      fixedColumns: alignedGridColumns) {
+            ForEach(canvasGridItems) { item in canvasItem(item, mode: model.viewMode, scale: model.itemScale) }
         }
     }
 
     @ViewBuilder
-    private func canvasItem(_ item: CanvasItem) -> some View {
+    private func canvasItem(_ item: CanvasItem, mode: LibraryViewMode, scale: Double) -> some View {
         switch item {
         case .folder(let folder):
             let isSelected = model.cursor == .folder(folder.id)
             let isCursor = isSelected
-            FolderItemView(folder: folder, mode: model.viewMode,
+            FolderItemView(folder: folder, mode: mode,
                            peeks: model.folderPeeks[folder.id] ?? [],
                            isSelected: isSelected, isCursor: isCursor,
-                           scale: model.itemScale,
+                           scale: scale,
                            masonryCaptionDisplay: model.masonryCaptionDisplay,
                            select: { model.selectFolder(folder.id, modifiers: $0) }) {
                 model.navigate(to: .scope(.folder(folder.id)))
@@ -182,8 +311,8 @@ struct BrowseView: View {
             .modifier(FolderDropTarget(model: model, folder: folder))
             .galleryItem(CanvasItemID.folder(folder.id),
                          isCursor: isCursor,
-                         mode: model.viewMode,
-                         radius: model.viewMode.itemCornerRadius,
+                         mode: mode,
+                         radius: mode.itemCornerRadius,
                          in: canvasCoordinateSpace,
                          frames: itemFrames)
             .plopIn(trigger: arrivalTrigger(for: folder.id),
@@ -192,9 +321,9 @@ struct BrowseView: View {
         case .object(let object):
             let isSelected = model.selection.contains(object.id)
             let isCursor = model.cursor == .object(object.id)
-            ObjectItemView(object: object, mode: model.viewMode,
+            ObjectItemView(object: object, mode: mode,
                            isSelected: isSelected, isCursor: isCursor,
-                           scale: model.itemScale,
+                           scale: scale,
                            masonryCaptionDisplay: model.masonryCaptionDisplay,
                            showsMasonryTypeLabels: model.showsMasonryTypeLabels)
             .modifier(ObjectItemBehavior(
@@ -206,8 +335,8 @@ struct BrowseView: View {
             ))
             .galleryItem(CanvasItemID.object(object.id),
                          isCursor: isCursor,
-                         mode: model.viewMode,
-                         radius: model.viewMode.itemCornerRadius,
+                         mode: mode,
+                         radius: mode.itemCornerRadius,
                          in: canvasCoordinateSpace,
                          frames: itemFrames)
             .plopIn(trigger: arrivalTrigger(for: object.id),
