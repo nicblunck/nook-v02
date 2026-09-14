@@ -19,6 +19,17 @@ struct LibraryArrival: Equatable {
     func collectionOrder(_ id: CollectionID) -> Int? { collectionIDs.firstIndex(of: id) }
 }
 
+/// A short-lived confirmation for a completed library action.
+///
+/// The resource stays unresolved until SwiftUI renders it, so the toast uses
+/// the window's current locale rather than whichever locale was active when
+/// the operation began.
+struct LibraryToast: Equatable, Identifiable {
+    let id: Int
+    let message: LocalizedStringResource
+    let systemImage: String
+}
+
 /// The app's view state over a library.
 ///
 /// Every read goes through `LibraryService` and arrives as a `Sendable`
@@ -194,6 +205,9 @@ final class LibraryModel {
     private(set) var importProgress: ImportProgress?
     var alert: LibraryAlert?
     var importFailure: ImportFailure?
+    private(set) var toast: LibraryToast?
+    private var toastRevision = 0
+    @ObservationIgnored private var clearToastTask: Task<Void, Never>?
 
     // MARK: iCloud sync
 
@@ -784,6 +798,14 @@ final class LibraryModel {
         extractPendingContent()
         fetchPendingLinkMetadata()
 
+        if !report.importedIDs.isEmpty {
+            let count = report.importedIDs.count
+            let message: LocalizedStringResource = count == 1
+                ? "Added one item to Nook"
+                : "Added \(count) items to Nook"
+            showToast(message, systemImage: "plus.circle.fill")
+        }
+
         if report.hasFailures {
             let failedItems = zip(items, report.results).compactMap { item, result in
                 if case .failed = result { item } else { nil }
@@ -1029,6 +1051,14 @@ final class LibraryModel {
             }
         }
 
+        let exportedCount = objects.count - failures.count
+        if exportedCount > 0 {
+            let message: LocalizedStringResource = exportedCount == 1
+                ? "Exported one item"
+                : "Exported \(exportedCount) items"
+            showToast(message, systemImage: "square.and.arrow.up.fill")
+        }
+
         guard !failures.isEmpty else { return }
         alert = LibraryAlert(
             title: failures.count == 1
@@ -1085,7 +1115,10 @@ final class LibraryModel {
         in parent: FolderID?,
         appearance: EntityAppearance = .system
     ) async {
-        await perform {
+        await perform(
+            successToast: "Created folder “\(name)”",
+            systemImage: "folder.badge.plus"
+        ) {
             let created = try await self.library.service.createFolder(
                 named: name,
                 in: parent,
@@ -1096,41 +1129,87 @@ final class LibraryModel {
     }
 
     func rename(folder id: FolderID, to name: String) async {
-        await perform { try await self.library.service.renameFolder(id, to: name) }
+        await perform(
+            successToast: "Renamed folder to “\(name)”",
+            systemImage: "pencil.circle.fill"
+        ) {
+            try await self.library.service.renameFolder(id, to: name)
+        }
     }
 
     func moveFolder(_ id: FolderID, to parent: FolderID?) async {
-        await perform { try await self.library.service.moveFolder(id, to: parent) }
+        await perform(successToast: "Moved folder", systemImage: "folder.fill") {
+            try await self.library.service.moveFolder(id, to: parent)
+        }
     }
 
     func deleteFolder(_ id: FolderID) async {
         if case .folder(id) = scope { scope = .inbox }
-        await perform { try await self.library.service.deleteFolder(id) }
+        await perform(successToast: "Deleted folder", systemImage: "trash.fill") {
+            try await self.library.service.deleteFolder(id)
+        }
     }
 
     func move(_ ids: [ObjectID], to destination: FolderID?) async {
-        await perform { try await self.library.service.moveObjects(ids, to: destination) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Moved item"
+            : "Moved \(ids.count) items"
+        await perform(successToast: message, systemImage: "folder.fill") {
+            try await self.library.service.moveObjects(ids, to: destination)
+        }
     }
 
     func setFavorite(_ isFavorite: Bool, for ids: [ObjectID]) async {
-        await perform { try await self.library.service.setFavorite(isFavorite, for: ids) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource
+        if ids.count == 1 {
+            message = isFavorite ? "Added to Favorites" : "Removed from Favorites"
+        } else {
+            message = isFavorite
+                ? "Added \(ids.count) items to Favorites"
+                : "Removed \(ids.count) items from Favorites"
+        }
+        await perform(successToast: message, systemImage: isFavorite ? "star.fill" : "star.slash") {
+            try await self.library.service.setFavorite(isFavorite, for: ids)
+        }
     }
 
     func delete(_ ids: [ObjectID]) async {
+        guard !ids.isEmpty else { return }
         if let previewed = previewedObjectID, ids.contains(previewed) { previewedObjectID = nil }
-        await perform { try await self.library.service.delete(ids) }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Moved to Recently Deleted"
+            : "Moved \(ids.count) items to Recently Deleted"
+        await perform(successToast: message, systemImage: "trash.fill") {
+            try await self.library.service.delete(ids)
+        }
     }
 
     func restore(_ ids: [ObjectID]) async {
-        await perform { try await self.library.service.restore(ids) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Restored item"
+            : "Restored \(ids.count) items"
+        await perform(successToast: message, systemImage: "arrow.uturn.backward.circle.fill") {
+            try await self.library.service.restore(ids)
+        }
     }
 
     func permanentlyDelete(_ ids: [ObjectID]) async {
-        await perform { try await self.library.service.permanentlyDelete(ids) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Deleted item permanently"
+            : "Deleted \(ids.count) items permanently"
+        await perform(successToast: message, systemImage: "trash.slash") {
+            try await self.library.service.permanentlyDelete(ids)
+        }
     }
 
     func update(_ id: ObjectID, title: String? = nil, notes: String? = nil) async {
-        await perform { try await self.library.service.updateObject(id, title: title, notes: notes) }
+        await perform(successToast: "Changes saved", systemImage: "checkmark.circle.fill") {
+            try await self.library.service.updateObject(id, title: title, notes: notes)
+        }
     }
 
     // MARK: Collections
@@ -1140,7 +1219,10 @@ final class LibraryModel {
         adding ids: [ObjectID] = [],
         appearance: EntityAppearance = .system
     ) async {
-        await perform {
+        await perform(
+            successToast: "Created collection “\(name)”",
+            systemImage: "rectangle.stack.badge.plus"
+        ) {
             let created = try await self.library.service.createCollection(
                 named: name,
                 appearance: appearance
@@ -1153,21 +1235,40 @@ final class LibraryModel {
     }
 
     func addToCollection(_ collection: CollectionID, objects ids: [ObjectID]) async {
-        await perform { try await self.library.service.addObjects(ids, toCollection: collection) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Added to collection"
+            : "Added \(ids.count) items to collection"
+        await perform(successToast: message, systemImage: "rectangle.stack.badge.plus") {
+            try await self.library.service.addObjects(ids, toCollection: collection)
+        }
     }
 
     /// Removes membership only — the objects stay exactly where they live.
     func removeFromCollection(_ collection: CollectionID, objects ids: [ObjectID]) async {
-        await perform { try await self.library.service.removeObjects(ids, fromCollection: collection) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Removed from collection"
+            : "Removed \(ids.count) items from collection"
+        await perform(successToast: message, systemImage: "minus.circle.fill") {
+            try await self.library.service.removeObjects(ids, fromCollection: collection)
+        }
     }
 
     func renameCollection(_ id: CollectionID, to name: String) async {
-        await perform { try await self.library.service.renameCollection(id, to: name) }
+        await perform(
+            successToast: "Renamed collection to “\(name)”",
+            systemImage: "pencil.circle.fill"
+        ) {
+            try await self.library.service.renameCollection(id, to: name)
+        }
     }
 
     func deleteCollection(_ id: CollectionID) async {
         if case .collection(id) = scope { scope = .inbox }
-        await perform { try await self.library.service.deleteCollection(id) }
+        await perform(successToast: "Deleted collection", systemImage: "trash.fill") {
+            try await self.library.service.deleteCollection(id)
+        }
     }
 
     // MARK: Appearance
@@ -1177,7 +1278,7 @@ final class LibraryModel {
         name: String,
         appearance: EntityAppearance
     ) async {
-        await perform {
+        await perform(successToast: "Changes saved", systemImage: "checkmark.circle.fill") {
             switch reference {
             case .folder(let id):
                 try await self.library.service.updateFolder(id, name: name, appearance: appearance)
@@ -1192,7 +1293,7 @@ final class LibraryModel {
     }
 
     func setAppearance(_ appearance: EntityAppearance, for reference: LibraryReference) async {
-        await perform {
+        await perform(successToast: "Appearance updated", systemImage: "paintpalette.fill") {
             switch reference {
             case .folder(let id):
                 try await self.library.service.setAppearance(appearance, forFolder: id)
@@ -1213,7 +1314,10 @@ final class LibraryModel {
         adding ids: [ObjectID] = [],
         appearance: EntityAppearance = .system
     ) async {
-        await perform {
+        await perform(
+            successToast: "Created tag “\(name)”",
+            systemImage: "tag.fill"
+        ) {
             let created = try await self.library.service.createTag(named: name, appearance: appearance)
             if !ids.isEmpty {
                 try await self.library.service.addTag(named: created.name, to: ids)
@@ -1222,31 +1326,68 @@ final class LibraryModel {
     }
 
     func renameTag(_ id: TagID, to name: String) async {
-        await perform { try await self.library.service.renameTag(id, to: name) }
+        await perform(
+            successToast: "Renamed tag to “\(name)”",
+            systemImage: "pencil.circle.fill"
+        ) {
+            try await self.library.service.renameTag(id, to: name)
+        }
     }
 
     func deleteTag(_ id: TagID) async {
         if case .tag(id) = scope { scope = .inbox }
-        await perform { try await self.library.service.deleteTag(id) }
+        await perform(successToast: "Deleted tag", systemImage: "trash.fill") {
+            try await self.library.service.deleteTag(id)
+        }
     }
 
     func addTag(_ name: String, to ids: [ObjectID]) async {
-        await perform { try await self.library.service.addTag(named: name, to: ids) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Tagged with “\(name)”"
+            : "Tagged \(ids.count) items with “\(name)”"
+        await perform(successToast: message, systemImage: "tag.fill") {
+            try await self.library.service.addTag(named: name, to: ids)
+        }
     }
 
     func removeTag(_ id: TagID, from ids: [ObjectID]) async {
-        await perform { try await self.library.service.removeTag(id, from: ids) }
+        guard !ids.isEmpty else { return }
+        let message: LocalizedStringResource = ids.count == 1
+            ? "Removed tag"
+            : "Removed tag from \(ids.count) items"
+        await perform(successToast: message, systemImage: "minus.circle.fill") {
+            try await self.library.service.removeTag(id, from: ids)
+        }
     }
 
-    func perform(_ work: @escaping () async throws -> Void) async {
+    func perform(
+        successToast: LocalizedStringResource? = nil,
+        systemImage: String = "checkmark.circle.fill",
+        _ work: @escaping () async throws -> Void
+    ) async {
         isReflowPending = true
         do {
             try await work()
             NotificationCenter.default.post(name: Self.libraryDidChange, object: nil)
             await refreshAll()
+            if let successToast { showToast(successToast, systemImage: systemImage) }
         } catch {
             isReflowPending = false
             alert = LibraryAlert(title: "Something went wrong", message: error.localizedDescription)
+        }
+    }
+
+    private func showToast(_ message: LocalizedStringResource, systemImage: String) {
+        toastRevision += 1
+        let revision = toastRevision
+        toast = LibraryToast(id: revision, message: message, systemImage: systemImage)
+
+        clearToastTask?.cancel()
+        clearToastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled, self?.toast?.id == revision else { return }
+            self?.toast = nil
         }
     }
 

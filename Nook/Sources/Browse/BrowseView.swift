@@ -109,6 +109,28 @@ struct BrowseView: View {
         .onChange(of: model.previewedObjectID) { _, previewed in
             if previewed != nil { isSearchFocused = false }
         }
+        .overlay(alignment: .bottom) {
+            if let toast = model.toast {
+                LibraryToastView(toast: toast)
+                    .id(toast.id)
+                    .padding(.horizontal, 16)
+                    #if os(macOS)
+                    // The gallery's add-content dock owns its bottom center.
+                    // Confirmations stack above it while the dock is present.
+                    .padding(.bottom, model.previewedObjectID == nil ? 88 : 20)
+                    #else
+                    .padding(.bottom, 20)
+                    #endif
+                    .transition(.motionAware(
+                        .move(edge: .bottom).combined(with: .opacity),
+                        reduceMotion: reduceMotion
+                    ))
+            }
+        }
+        .animation(
+            reduceMotion ? NookMotion.reduced : NookMotion.presentation,
+            value: model.toast
+        )
     }
 
     private var previewTransition: AnyTransition {

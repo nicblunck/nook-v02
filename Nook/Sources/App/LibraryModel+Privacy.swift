@@ -157,14 +157,30 @@ extension LibraryModel {
         guard !ids.isEmpty else { return }
         // Hiding something while hidden content is not on screen takes it out
         // from under the selection, so the selection goes with it.
-        await perform { try await self.library.service.setHidden(isHidden, forObjects: ids) }
+        let message: LocalizedStringResource
+        if ids.count == 1 {
+            message = isHidden ? "Hidden item" : "Unhidden item"
+        } else {
+            message = isHidden ? "Hidden \(ids.count) items" : "Unhidden \(ids.count) items"
+        }
+        await perform(successToast: message, systemImage: isHidden ? "eye.slash.fill" : "eye.fill") {
+            try await self.library.service.setHidden(isHidden, forObjects: ids)
+        }
     }
 
     /// The drag-and-drop surfaces already have stable ids, so they do not need
     /// to reconstruct snapshots just to apply the same privacy operation.
     func setHidden(_ isHidden: Bool, for ids: [ObjectID]) async {
         guard !ids.isEmpty else { return }
-        await perform { try await self.library.service.setHidden(isHidden, forObjects: ids) }
+        let message: LocalizedStringResource
+        if ids.count == 1 {
+            message = isHidden ? "Hidden item" : "Unhidden item"
+        } else {
+            message = isHidden ? "Hidden \(ids.count) items" : "Unhidden \(ids.count) items"
+        }
+        await perform(successToast: message, systemImage: isHidden ? "eye.slash.fill" : "eye.fill") {
+            try await self.library.service.setHidden(isHidden, forObjects: ids)
+        }
     }
 
     func setLocked(_ isLocked: Bool, for objects: [ObjectSnapshot]) async {
@@ -172,7 +188,15 @@ extension LibraryModel {
         guard !ids.isEmpty else { return }
         guard await authenticate(reason: reason(isLocked ? "Lock" : "Unlock", count: ids.count)) else { return }
         if isLocked, let previewed = previewedObjectID, ids.contains(previewed) { previewedObjectID = nil }
-        await perform { try await self.library.service.setLocked(isLocked, forObjects: ids) }
+        let message: LocalizedStringResource
+        if ids.count == 1 {
+            message = isLocked ? "Locked item" : "Unlocked item"
+        } else {
+            message = isLocked ? "Locked \(ids.count) items" : "Unlocked \(ids.count) items"
+        }
+        await perform(successToast: message, systemImage: isLocked ? "lock.fill" : "lock.open.fill") {
+            try await self.library.service.setLocked(isLocked, forObjects: ids)
+        }
     }
 
     func setHidden(_ isHidden: Bool, forFolder folder: FolderSnapshot) async {
@@ -184,22 +208,42 @@ extension LibraryModel {
     /// Hidden never has a snapshot in the ordinary tree to hand over.
     func setHidden(_ isHidden: Bool, forFolder id: FolderID) async {
         if isHidden, !isShowingHiddenContent { await leave(.folder(id)) }
-        await perform { try await self.library.service.setHidden(isHidden, forFolder: id) }
+        await perform(
+            successToast: isHidden ? "Hidden folder" : "Unhidden folder",
+            systemImage: isHidden ? "eye.slash.fill" : "eye.fill"
+        ) {
+            try await self.library.service.setHidden(isHidden, forFolder: id)
+        }
     }
 
     func setLocked(_ isLocked: Bool, forFolder folder: FolderSnapshot) async {
         guard await authenticate(reason: "\(isLocked ? "Lock" : "Unlock") “\(folder.name)”.") else { return }
-        await perform { try await self.library.service.setLocked(isLocked, forFolder: folder.id) }
+        await perform(
+            successToast: isLocked ? "Locked folder" : "Unlocked folder",
+            systemImage: isLocked ? "lock.fill" : "lock.open.fill"
+        ) {
+            try await self.library.service.setLocked(isLocked, forFolder: folder.id)
+        }
     }
 
     func setHidden(_ isHidden: Bool, forCollection collection: CollectionSnapshot) async {
         if isHidden, !isShowingHiddenContent { await leave(.collection(collection.id)) }
-        await perform { try await self.library.service.setHidden(isHidden, forCollection: collection.id) }
+        await perform(
+            successToast: isHidden ? "Hidden collection" : "Unhidden collection",
+            systemImage: isHidden ? "eye.slash.fill" : "eye.fill"
+        ) {
+            try await self.library.service.setHidden(isHidden, forCollection: collection.id)
+        }
     }
 
     func setLocked(_ isLocked: Bool, forCollection collection: CollectionSnapshot) async {
         guard await authenticate(reason: "\(isLocked ? "Lock" : "Unlock") “\(collection.name)”.") else { return }
-        await perform { try await self.library.service.setLocked(isLocked, forCollection: collection.id) }
+        await perform(
+            successToast: isLocked ? "Locked collection" : "Unlocked collection",
+            systemImage: isLocked ? "lock.fill" : "lock.open.fill"
+        ) {
+            try await self.library.service.setLocked(isLocked, forCollection: collection.id)
+        }
     }
 
     // MARK: Internals

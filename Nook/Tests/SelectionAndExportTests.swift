@@ -98,6 +98,8 @@ struct ExportTests {
         #expect(FileManager.default.fileExists(atPath: written.path(percentEncoded: false)))
         #expect(try String(contentsOf: written, encoding: .utf8) == "kept")
         #expect(model.alert == nil)
+        #expect(model.toast?.message == LocalizedStringResource("Exported one item"))
+        #expect(model.toast?.systemImage == "square.and.arrow.up.fill")
     }
 
     /// Objects share stored files and can repeat an original filename, so an
@@ -139,5 +141,29 @@ struct ExportTests {
         model.beginExport(of: [link])
         #expect(!model.isExportPickerPresented)
         #expect(model.alert != nil)
+    }
+}
+
+@MainActor
+@Suite("Action confirmations")
+struct ActionConfirmationTests {
+
+    @Test("Imports and mutations publish success toasts")
+    func publishesSuccessToasts() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let object = try #require(try await harness.importFile(named: "toast.txt"))
+        #expect(model.toast?.message == LocalizedStringResource("Added one item to Nook"))
+
+        await model.setFavorite(true, for: [object.id])
+        #expect(model.toast?.message == LocalizedStringResource("Added to Favorites"))
+        #expect(model.toast?.systemImage == "star.fill")
+
+        await model.delete([object.id])
+        #expect(model.toast?.message == LocalizedStringResource("Moved to Recently Deleted"))
+        #expect(model.toast?.systemImage == "trash.fill")
     }
 }

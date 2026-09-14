@@ -452,6 +452,32 @@ struct ImportProgressBar: View {
     }
 }
 
+/// A compact confirmation that floats above the gallery's bottom center.
+struct LibraryToastView: View {
+    let toast: LibraryToast
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: toast.systemImage)
+                .foregroundStyle(.tint)
+            Text(toast.message)
+                .lineLimit(2)
+        }
+        .font(.callout.weight(.medium))
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: .capsule)
+        .overlay {
+            Capsule()
+                .stroke(.primary.opacity(0.1), lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+        .accessibilityElement(children: .combine)
+        .allowsHitTesting(false)
+    }
+}
+
 /// Lets the menu bar act on whichever library window is frontmost.
 extension FocusedValues {
     @Entry var libraryModel: LibraryModel?
