@@ -17,7 +17,7 @@ struct MacShareView: View {
     @State private var isLoading = true
 
     @State private var folders: [(folder: FolderSnapshot, depth: Int)] = []
-    @State private var destination: FolderID?
+    @State private var destination: SaveDestination = .inbox
 
     @State private var collections: [CollectionSnapshot] = []
     @State private var collectionID: CollectionID?
@@ -33,6 +33,16 @@ struct MacShareView: View {
         case ready
         case saving
         case failed(String)
+    }
+
+    /// Where saved items go. Hidden sits alongside ordinary folders here even
+    /// though it isn't one — it clears the item's folder and marks it hidden
+    /// once import succeeds, the same way hiding something already in the
+    /// library does.
+    private enum SaveDestination: Hashable {
+        case inbox
+        case folder(FolderID)
+        case hidden
     }
 
     var body: some View {
@@ -136,18 +146,22 @@ struct MacShareView: View {
     private var quickPickers: some View {
         VStack(spacing: 10) {
             Menu {
-                Button { destination = nil } label: {
+                Button { destination = .inbox } label: {
                     Label("Inbox", systemImage: "tray")
                 }
                 ForEach(folders, id: \.folder.id) { entry in
                     Button {
-                        destination = entry.folder.id
+                        destination = .folder(entry.folder.id)
                     } label: {
                         Text(String(repeating: "  ", count: entry.depth) + entry.folder.name)
                     }
                 }
+                Divider()
+                Button { destination = .hidden } label: {
+                    Label("Hidden", systemImage: "eye.slash")
+                }
             } label: {
-                QuickPickerLabel(systemImage: "folder.fill", title: "Folder", value: destinationName)
+                QuickPickerLabel(systemImage: destinationSystemImage, title: "Folder", value: destinationName)
             }
             .menuStyle(.borderlessButton)
 
@@ -170,8 +184,24 @@ struct MacShareView: View {
     }
 
     private var destinationName: String {
-        guard let destination else { return "Inbox" }
-        return folders.first(where: { $0.folder.id == destination })?.folder.name ?? "Inbox"
+        switch destination {
+        case .inbox: "Inbox"
+        case .folder(let id): folders.first(where: { $0.folder.id == id })?.folder.name ?? "Inbox"
+        case .hidden: "Hidden"
+        }
+    }
+
+    private var destinationSystemImage: String {
+        destination == .hidden ? "eye.slash" : "folder.fill"
+    }
+
+    /// Hidden isn't a folder to import into — the item lands in the root and
+    /// `setHidden` detaches it from there once the import succeeds.
+    private var importDestination: ImportDestination {
+        switch destination {
+        case .inbox, .hidden: .root
+        case .folder(let id): .folder(id)
+        }
     }
 
     private var collectionName: String {
@@ -300,7 +330,7 @@ struct MacShareView: View {
 
             let report = await library.service.importItems(
                 items.map(\.resolved.importItem),
-                into: destination.map(ImportDestination.folder) ?? .root
+                into: importDestination
             )
 
             var importedIDs: [ObjectID] = []
@@ -311,11 +341,24 @@ struct MacShareView: View {
                 if !title.isEmpty {
                     try? await library.service.updateObject(objectID, title: title)
                 }
+
+                // Metadata fetched while the sheet was open is applied now, so
+                // the app doesn't need to fetch the page again on next launch.
+                if let linkMetadata = items[index].linkMetadata {
+                    try? await library.service.applyLinkMetadata(linkMetadata.metadata, to: objectID)
+                    if let imageData = linkMetadata.previewImageData {
+                        await library.thumbnails.storePreviewImage(imageData, for: objectID)
+                    }
+                }
             }
 
             guard !importedIDs.isEmpty else {
                 state = .failed("Couldn't save these items.")
                 return
+            }
+
+            if destination == .hidden {
+                try? await library.service.setHidden(true, forObjects: importedIDs)
             }
 
             for tag in tags {

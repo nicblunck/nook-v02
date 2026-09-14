@@ -19,6 +19,9 @@ struct SharePreviewItem: Identifiable {
     var title: String
     var image: Image?
     var aspectRatio: Double?
+    /// Page metadata fetched for a link, carried through to save time so it
+    /// can be applied to the object without fetching the page again.
+    var linkMetadata: LinkMetadataFetcher.Result?
 }
 
 enum SharePreview {
@@ -29,8 +32,17 @@ enum SharePreview {
     static func makeItem(id: Int, resolved: ResolvedShareItem, fallbackName: String) async -> SharePreviewItem {
         switch resolved.importItem {
         case .link(let url):
+            let placeholderTitle = url.host() ?? url.absoluteString
+            guard let result = await LinkMetadataFetcher.fetch(for: url) else {
+                return SharePreviewItem(id: id, resolved: resolved, kind: .link,
+                                         title: placeholderTitle)
+            }
+            let fetchedTitle = result.metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let (image, aspectRatio) = imageAndAspectRatio(from: result.previewImageData)
             return SharePreviewItem(id: id, resolved: resolved, kind: .link,
-                                     title: url.host() ?? url.absoluteString)
+                                     title: (fetchedTitle?.isEmpty == false ? fetchedTitle! : placeholderTitle),
+                                     image: image, aspectRatio: aspectRatio,
+                                     linkMetadata: result)
 
         case .data(_, let contentType, let suggestedName):
             let kind = ObjectKind(contentType: contentType)
@@ -70,6 +82,16 @@ enum SharePreview {
         case .audio, .file, .link:
             return (nil, nil)
         }
+    }
+
+    /// Builds a thumbnail from a link's fetched preview image bytes, the same
+    /// way a file's own thumbnail is decoded from disk.
+    private static func imageAndAspectRatio(from data: Data?) -> (Image?, Double?) {
+        guard let data,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { return (nil, nil) }
+        return (Image(decorative: cgImage, scale: 1), Double(cgImage.width) / Double(cgImage.height))
     }
 
     private static func imageThumbnail(at url: URL) -> (Image?, Double?) {

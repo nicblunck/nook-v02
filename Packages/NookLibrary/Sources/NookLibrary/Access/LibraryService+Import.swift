@@ -62,9 +62,9 @@ public extension LibraryService {
 
     /// Saved links that have not been enriched with page metadata yet.
     ///
-    /// A link saved from the share sheet arrives with nothing but its URL —
-    /// the extension is too short-lived to go and fetch a page — so the app
-    /// fills these in afterwards.
+    /// The share sheet fetches this itself before saving, but a slow network
+    /// or an offline share can leave a link with nothing but its URL, so the
+    /// app sweeps for stragglers and fills them in afterwards.
     func linksAwaitingMetadata(limit: Int = 10) -> [ObjectID] {
         let linkKind = ObjectKind.link.rawValue
         var descriptor = FetchDescriptor<LibraryObject>(
