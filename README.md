@@ -102,14 +102,19 @@ moves. `DeviceAuthenticator` is the only thing that constructs a raised
 `AccessContext`, and it is injected into `LibraryModel`, so the app's tests
 answer for the device owner rather than needing one.
 
-Hidden is a place, not a filter — the shape Photos uses. Hidden things live in
-**Hidden** and are absent from Inbox, Recent, Favorites, All Objects, folders,
-search and every count, whether or not anyone is authenticated; opening Hidden
-(⇧⌘H, or the button at the foot of the sidebar) opens that one door, and it
-closes again as soon as the user leaves. Unhiding puts an object back in the
-folder it came from, or in the Inbox when that folder is gone — which is why
-deleting a folder detaches the hidden objects inside it rather than taking them
-to Recently Deleted, where nobody could have seen them go.
+Hidden is a place, not a filter — the shape Photos uses, and it behaves like a
+folder in its own right. Hiding something moves it there: an object detaches
+from whatever folder held it, and a folder detaches from whatever parent held
+it, the same way filing something into any other folder detaches it from
+wherever it used to be. Hidden things are absent from Inbox, Recent, Favorites,
+All Objects, folders, search and every count, whether or not anyone is
+authenticated; opening Hidden (⇧⌘H, or the button at the foot of the sidebar)
+opens that one door, and it closes again as soon as the user leaves. Unhiding
+does not remember where something came from — an object surfaces in the Inbox,
+a folder at the top level, the way anything with no folder of its own does.
+Hiding a folder nested inside another hidden folder both marks it and promotes
+it out from under that ancestor, straight to Hidden's own top level, which is
+how a subfolder that only inherited Hidden gets moved out on its own.
 
 Hidden and Recently Deleted sit in a row at the foot of the sidebar rather than
 in the list: neither is somewhere the library's structure leads to. Hidden shows

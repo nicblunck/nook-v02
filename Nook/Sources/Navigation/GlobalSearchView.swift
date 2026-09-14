@@ -207,6 +207,7 @@ struct GlobalSearchView: View {
         dismiss()
         Task {
             model.navigate(to: .scope(object.folderID.map { LibraryScope.folder($0) } ?? .inbox))
+            await model.loadPreferences()
             await model.refreshContents()
             // Opened the same way as anything on the canvas, so a locked
             // result asks for authentication here too rather than arriving at

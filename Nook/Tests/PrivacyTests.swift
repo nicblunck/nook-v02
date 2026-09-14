@@ -13,8 +13,8 @@ import NookLibrary
 @Suite("Privacy")
 struct PrivacyTests {
 
-    @Test("Hiding filters an item out and revealing restores it in place")
-    func hidingFiltersInPlace() async throws {
+    @Test("Hiding puts an item in Hidden, and it is nowhere else")
+    func hidingMovesItIntoHidden() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -25,18 +25,21 @@ struct PrivacyTests {
         #expect(!harness.authenticator.wasAsked)
         #expect(model.contents.objects.isEmpty)
 
-        await model.toggleHiddenItems()
-        #expect(model.scope == .inbox)
+        await model.openHidden()
+        #expect(model.scope == .hidden)
         #expect(harness.authenticator.wasAsked)
         #expect(model.contents.objects.map(\.id) == [object.id])
+
+        // Open is one place open, not the library turned transparent: nothing
+        // hidden comes back anywhere else, authenticated or not.
         let everything = await model.library.service.objects(
             matching: ObjectQuery(scope: .allObjects), in: model.accessContext
         )
-        #expect(everything.map(\.id) == [object.id])
+        #expect(everything.isEmpty)
     }
 
-    @Test("The toggle re-hides revealed items")
-    func toggleRehidesItems() async throws {
+    @Test("Hidden closes behind you")
+    func leavingHiddenClosesIt() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -44,16 +47,21 @@ struct PrivacyTests {
 
         let object = try #require(try await harness.importFile(named: "private.txt"))
         await model.setHidden(true, for: [object])
-        await model.toggleHiddenItems()
+        await model.openHidden()
         #expect(model.isShowingHiddenContent)
 
-        await model.toggleHiddenItems()
+        model.navigate(to: .scope(.inbox))
+        await model.loadPreferences()
+        await model.refreshContents()
         #expect(!model.isShowingHiddenContent)
         #expect(model.contents.objects.isEmpty)
     }
 
-    @Test("Unhiding puts an object back in the folder it came from")
-    func unhidingReturnsItToItsFolder() async throws {
+    /// Hidden behaves like a folder: hiding something moves it there, the way
+    /// filing an object into any other folder detaches it from wherever it
+    /// used to be, rather than marking it in place.
+    @Test("Hiding an object detaches it from its folder, and unhiding lands it in the Inbox")
+    func hidingDetachesAndUnhidingLandsInInbox() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -66,45 +74,50 @@ struct PrivacyTests {
 
         await model.setHidden(true, for: [object])
         model.navigate(to: .scope(.folder(folder.id)))
+        await model.loadPreferences()
         await model.refreshContents()
-        await model.toggleHiddenItems()
-        let hidden = try #require(model.contents.objects.first)
-        await model.setHidden(false, for: [hidden])
+        #expect(model.contents.objects.isEmpty)
 
+        await model.openHidden()
+        let hidden = try #require(model.contents.objects.first)
+        #expect(hidden.id == object.id)
+
+        // It was detached, not filed, so unhiding does not remember "Work" —
+        // it surfaces in the Inbox like anything else with no folder.
+        await model.setHidden(false, for: [hidden])
+        model.navigate(to: .scope(.inbox))
+        await model.loadPreferences()
         await model.refreshContents()
         #expect(model.contents.objects.map(\.id) == [object.id])
     }
 
-    /// The folder it came from can be gone by the time it comes back — deleted
-    /// while it was out of sight, and out of sight is exactly why nobody was
-    /// asked about it at the time.
-    @Test("An object whose folder was deleted while it was hidden lands in the Inbox")
-    func unhidingAfterTheFolderWentLandsInInbox() async throws {
+    /// Deleting a folder still sends what it visibly contains to Recently
+    /// Deleted, even when the folder itself is hidden — the user was looking
+    /// right at it, inside Hidden, when they chose to delete it. Nothing
+    /// hidden in its own right is ever at risk here: hiding always detaches,
+    /// so a folder never holds anything the user could not currently see.
+    @Test("Deleting a hidden folder sends its visible contents to Recently Deleted")
+    func deletingAHiddenFolderTrashesItsContents() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
         model.navigate(to: .scope(.inbox))
 
-        let object = try #require(try await harness.importFile(named: "kept.txt"))
-        await model.createFolder(named: "Work", in: nil)
+        let object = try #require(try await harness.importFile(named: "inside.txt"))
+        await model.createFolder(named: "Personal", in: nil)
         let folder = try #require(model.folderTree.first?.folder)
         await model.move([object.id], to: folder.id)
-        await model.setHidden(true, for: [object])
+        await model.setHidden(true, forFolder: folder)
 
         await model.deleteFolder(folder.id)
 
-        await model.toggleHiddenItems()
-        let revealed = await model.library.service.object(object.id, in: model.accessContext)
-        let hidden = try #require(revealed)
-        #expect(hidden.id == object.id)
-        await model.setHidden(false, for: [hidden])
-
-        model.navigate(to: .scope(.inbox))
+        model.navigate(to: .scope(.recentlyDeleted))
+        await model.loadPreferences()
         await model.refreshContents()
         #expect(model.contents.objects.map(\.id) == [object.id])
     }
 
-    @Test("A refused authentication reveals nothing")
+    @Test("A refused authentication hides nothing and opens nothing")
     func refusedAuthenticationChangesNothing() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
@@ -117,7 +130,7 @@ struct PrivacyTests {
         await model.setHidden(true, for: [object])
         #expect(model.contents.objects.isEmpty)
 
-        await model.toggleHiddenItems()
+        await model.openHidden()
         #expect(!model.isShowingHiddenContent)
         #expect(model.scope == .inbox)
         #expect(model.contents.objects.isEmpty)
@@ -164,8 +177,8 @@ struct PrivacyTests {
         #expect(try #require(model.contents.objects.first).visibility.isRedacted)
     }
 
-    @Test("A hidden root folder reappears in the sidebar when revealed")
-    func hiddenFolderReappearsInPlace() async throws {
+    @Test("A hidden folder moves into Hidden, and takes its contents with it")
+    func hiddenFolderMovesIntoHidden() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -183,16 +196,60 @@ struct PrivacyTests {
         await model.refreshContents()
         #expect(model.contents.objects.isEmpty)
 
-        await model.toggleHiddenItems()
-        #expect(model.folderTree.map(\.folder.id) == [folder.id])
+        await model.openHidden()
+        #expect(model.contents.folders.map(\.id) == [folder.id])
+        // Its contents are inside it, where they have always been, rather than
+        // spilled into Hidden alongside the folder.
+        #expect(model.contents.objects.isEmpty)
+        #expect(model.folderTree.isEmpty)
 
         model.navigate(to: .scope(.folder(folder.id)))
         await model.refreshContents()
         #expect(model.contents.objects.map(\.id) == [object.id])
 
-        await model.toggleHiddenItems()
-        #expect(model.scope == .inbox)
-        #expect(model.folderTree.isEmpty)
+        model.navigate(to: .scope(.inbox))
+        await model.loadPreferences()
+        #expect(!model.isShowingHiddenContent)
+    }
+
+    /// A subfolder hidden only because its parent is has no row of its own in
+    /// Hidden — it is reached by opening that parent. Hiding it explicitly is
+    /// how it gets one: the same "Hide" a subfolder offers anywhere else both
+    /// marks it and, because hiding detaches, promotes it out from under its
+    /// former parent.
+    @Test("Hiding a subfolder nested in a hidden folder promotes it to Hidden's top level")
+    func hidingANestedSubfolderPromotesItToHiddenRoot() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        await model.createFolder(named: "Personal", in: nil)
+        let parent = try #require(model.folderTree.first?.folder)
+        await model.createFolder(named: "Receipts", in: parent.id)
+        model.navigate(to: .scope(.folder(parent.id)))
+        await model.refreshContents()
+        let child = try #require(model.contents.folders.first)
+
+        await model.setHidden(true, forFolder: parent)
+
+        await model.openHidden()
+        #expect(model.contents.folders.map(\.id) == [parent.id])
+
+        model.navigate(to: .scope(.folder(parent.id)))
+        await model.refreshContents()
+        let nested = try #require(model.contents.folders.first { $0.id == child.id })
+        await model.setHidden(true, forFolder: nested)
+
+        model.navigate(to: .scope(.hidden))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(Set(model.contents.folders.map(\.id)) == [parent.id, child.id])
+
+        model.navigate(to: .scope(.folder(parent.id)))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(model.contents.folders.isEmpty)
     }
 
     @Test("Losing focus re-hides items without relocking unlocked content")
@@ -209,16 +266,19 @@ struct PrivacyTests {
         let locked = try #require(model.contents.objects.first { $0.id == lockedObject.id })
         #expect(await model.unlock(locked, named: locked.title))
 
-        await model.toggleHiddenItems()
+        await model.openHidden()
         #expect(model.contents.objects.contains { $0.id == hiddenObject.id })
         await model.appDidLoseFocus()
-
         #expect(!model.isShowingHiddenContent)
+
+        model.navigate(to: .scope(.inbox))
+        await model.loadPreferences()
+        await model.refreshContents()
         #expect(!model.contents.objects.contains { $0.id == hiddenObject.id })
         #expect(try #require(model.contents.objects.first { $0.id == lockedObject.id }).visibility == .full)
 
         model.settings.rehidesWhenAppLosesFocus = false
-        await model.toggleHiddenItems()
+        await model.openHidden()
         await model.appDidLoseFocus()
         #expect(model.isShowingHiddenContent)
         await model.rehideItems()
@@ -233,7 +293,7 @@ struct PrivacyTests {
         defer { harness.cleanUp() }
         let model = harness.model
 
-        await model.toggleHiddenItems()
+        await model.openHidden()
         await sleeper.waitUntilStarted(1)
         #expect(model.isShowingHiddenContent)
 

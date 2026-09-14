@@ -59,6 +59,10 @@ struct FolderMenu: View {
             )
         }
         Divider()
+        // Hiding a subfolder that only inherited Hidden from an ancestor
+        // marks it explicitly and, the same as hiding anything else, moves it
+        // to Hidden's own top level — so this doubles as how a nested folder
+        // gets promoted out from under whatever it was nested in.
         privacyMenuItems(for: folder,
                          hide: { await model.setHidden($0, forFolder: folder) },
                          lock: { await model.setLocked($0, forFolder: folder) })

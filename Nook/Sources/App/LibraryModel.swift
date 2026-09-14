@@ -334,6 +334,13 @@ final class LibraryModel {
     /// first, so an explicit toolbar action cannot be overwritten by a slower
     /// load that navigation started a moment earlier.
     private func loadCurrentPreferences() async {
+        // Hidden closes behind you: navigating anywhere that does not belong
+        // to it puts everything back out of reach before that place's own
+        // arrangement and contents are loaded, so coming back always asks
+        // again. Every navigation path — the scheduled refresh and the
+        // callers that await this directly — funnels through here.
+        await closeHidden()
+
         // Home is one fixed place rather than a row in the library, so what it
         // remembers is kept beside the global default rather than on a folder.
         if isShowingHome {
@@ -506,6 +513,11 @@ final class LibraryModel {
         } else if case .folder(let id) = effectiveScope {
             folders = await service.subfolders(of: id, in: access)
             breadcrumbs = await service.folderPath(to: id, in: access)
+        } else if effectiveScope == .hidden {
+            // Hidden holds folders as well as objects, which is what makes it
+            // a place rather than a list of loose things.
+            folders = await service.hiddenFolders(in: access)
+            breadcrumbs = []
         } else {
             folders = []
             breadcrumbs = []
@@ -709,6 +721,10 @@ final class LibraryModel {
             // A media type the library no longer holds anything of has left
             // the sidebar, so Back should not walk into it either.
             case .kind(let kind): return populatedKinds.contains(kind)
+            // Back never walks into Hidden: it closed when the user left, and
+            // a step through history is not somewhere to be asked for a
+            // fingerprint.
+            case .hidden: return isShowingHiddenContent
             default: return true
             }
         }

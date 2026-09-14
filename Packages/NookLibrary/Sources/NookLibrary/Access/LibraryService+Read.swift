@@ -5,18 +5,31 @@ public extension LibraryService {
 
     // MARK: Navigation
 
-    /// The sidebar's tree. Hidden folders are filtered by the access context.
+    /// The sidebar's tree. Hidden folders are never part of it, even in an
+    /// authenticated session: they live in Hidden, and are reached by opening
+    /// that place rather than by the library's structure leading to them.
     func rootFolders(in access: AccessContext = .standard) -> [FolderSnapshot] {
         let descriptor = FetchDescriptor<Folder>(
             predicate: #Predicate { $0.parent == nil }
         )
         let folders = (try? context.fetch(descriptor)) ?? []
-        return folderSnapshots(folders, access: access)
+        return folderSnapshots(folders, access: access.leavingHiddenContext())
     }
 
     func subfolders(of parent: FolderID, in access: AccessContext = .standard) -> [FolderSnapshot] {
         guard let folder = folder(withIdentifier: parent.uuid) else { return [] }
-        return folderSnapshots(folder.childFolders, access: access)
+        return folderSnapshots(folder.childFolders, access: self.access(access, reading: .folder(parent)))
+    }
+
+    /// What Hidden holds at its top level: the folders and objects hidden in
+    /// their own right. Anything nested under one of them is reached by opening
+    /// it, exactly as it would be anywhere else in the library.
+    func hiddenFolders(in access: AccessContext = .standard) -> [FolderSnapshot] {
+        let descriptor = FetchDescriptor<Folder>(
+            predicate: #Predicate { $0.isHidden }
+        )
+        let folders = (try? context.fetch(descriptor)) ?? []
+        return folderSnapshots(folders.filter { !hasHiddenAncestor($0.parent) }, access: access)
     }
 
     func folder(_ id: FolderID, in access: AccessContext = .standard) -> FolderSnapshot? {
@@ -67,6 +80,7 @@ public extension LibraryService {
     /// The single query entry point. Browsing, scoped search and global search
     /// all arrive here, so they cannot diverge in what they return or hide.
     func objects(matching query: ObjectQuery, in access: AccessContext = .standard) -> [ObjectSnapshot] {
+        let access = self.access(access, reading: query.scope)
         guard allowsReadingContents(of: query.scope, in: access) else { return [] }
         var candidates = candidateObjects(for: query.scope)
 
@@ -106,6 +120,10 @@ public extension LibraryService {
         switch scope {
         case .folder(let id), .folderTree(let id):
             folders = subfolders(of: id, in: access)
+        case .hidden:
+            // Hidden holds folders as well as objects, which is what makes it
+            // a place rather than a list of loose things.
+            folders = hiddenFolders(in: access)
         case .allObjects, .inbox:
             folders = []
         default:
@@ -151,6 +169,7 @@ public extension LibraryService {
     /// an object's tags, collection memberships and blob, which is a great deal
     /// of work to then discard and only keep the tally of.
     func objectCount(in scope: LibraryScope, access: AccessContext = .standard) -> Int {
+        let access = self.access(access, reading: scope)
         guard allowsReadingContents(of: scope, in: access) else { return 0 }
         return candidateObjects(for: scope).count { object in
             if scope.showsDeleted {
@@ -187,6 +206,38 @@ extension LibraryService {
         )
     }
 
+    /// Whether a scope is somewhere hidden content belongs.
+    ///
+    /// Only Hidden itself, and the branches beneath a hidden folder, show it.
+    /// Everywhere else reads as though nothing had been authenticated, so one
+    /// answered prompt opens a place rather than the whole library.
+    public func revealsHiddenContent(_ scope: LibraryScope) -> Bool {
+        switch scope {
+        case .hidden:
+            return true
+        case .folder(let id), .folderTree(let id):
+            guard let folder = folder(withIdentifier: id.uuid) else { return false }
+            return PrivacyResolver.effectivePrivacy(of: folder).isHidden
+        case .collection(let id):
+            // A hidden collection is a hidden place in its own right: being
+            // inside one is being somewhere hidden things belong.
+            guard let collection = collection(withIdentifier: id.uuid) else { return false }
+            return PrivacyResolver.surfacePrivacy(of: collection).isHidden
+        default:
+            return false
+        }
+    }
+
+    /// The access a scope is actually read under.
+    func access(_ access: AccessContext, reading scope: LibraryScope) -> AccessContext {
+        revealsHiddenContent(scope) ? access : access.leavingHiddenContext()
+    }
+
+    func hasHiddenAncestor(_ folder: Folder?) -> Bool {
+        guard let folder else { return false }
+        return PrivacyResolver.effectivePrivacy(of: folder).isHidden
+    }
+
     func isDiscoverable(_ object: LibraryObject, in access: AccessContext) -> Bool {
         broker.allowsDiscovery(
             of: PrivacyResolver.effectivePrivacy(of: object),
@@ -219,6 +270,16 @@ extension LibraryService {
                 predicate: #Predicate { $0.kindRaw == raw }
             )
             return (try? context.fetch(descriptor)) ?? []
+
+        case .hidden:
+            let descriptor = FetchDescriptor<LibraryObject>(
+                predicate: #Predicate { $0.isHidden }
+            )
+            let objects = (try? context.fetch(descriptor)) ?? []
+            // Something hidden inside a hidden folder is already reachable by
+            // opening that folder here, so listing it at the top as well would
+            // show the same thing twice.
+            return objects.filter { !hasHiddenAncestor($0.folder) }
 
         case .folder(let id):
             return folder(withIdentifier: id.uuid)?.containedObjects ?? []

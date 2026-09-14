@@ -272,6 +272,62 @@ struct DragAndDropTests {
         #expect(model.alert == nil)
     }
 
+    @Test("Dropping an object on the Hidden icon hides it and detaches it from its folder")
+    func objectDropOnHiddenIconMovesItToHiddenRoot() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let object = try #require(try await harness.importFile(named: "kept.txt"))
+        await model.createFolder(named: "Work", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.move([object.id], to: folder.id)
+
+        await model.accept([.object(ObjectTransfer(id: object.id))], at: .hidden)
+
+        await model.openHidden()
+        #expect(model.contents.objects.map(\.id) == [object.id])
+    }
+
+    /// A folder reached only by having descended into Hidden is never in the
+    /// ordinary tree, which is exactly the folder this drop exists to
+    /// promote — so it must not be looked up in that tree to be found.
+    @Test("Dropping a nested folder on the Hidden icon promotes it to Hidden's top level")
+    func nestedFolderDropOnHiddenIconPromotesIt() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        await model.createFolder(named: "Personal", in: nil)
+        let parent = try #require(model.folderTree.first?.folder)
+        await model.createFolder(named: "Receipts", in: parent.id)
+        model.navigate(to: .scope(.folder(parent.id)))
+        await model.refreshContents()
+        let child = try #require(model.contents.folders.first)
+
+        await model.setHidden(true, forFolder: parent)
+
+        await model.openHidden()
+        model.navigate(to: .scope(.folder(parent.id)))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(model.contents.folders.map(\.id) == [child.id])
+
+        await model.accept([.folder(FolderTransfer(id: child.id))], at: .hidden)
+
+        model.navigate(to: .scope(.hidden))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(Set(model.contents.folders.map(\.id)) == [parent.id, child.id])
+
+        model.navigate(to: .scope(.folder(parent.id)))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(model.contents.folders.isEmpty)
+    }
+
     // MARK: The sidebar's answer while a drag is overhead
 
     /// The sidebar lights a row only when letting go there would do

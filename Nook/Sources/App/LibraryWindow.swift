@@ -207,6 +207,19 @@ struct LibraryWindow: View {
                     await model.refreshAll()
                 }
             }
+            // A location following the global default rather than remembering
+            // its own arrangement is meant to track it live — otherwise a
+            // change made in Settings looks like it did nothing until the next
+            // navigation happens to reload it.
+            .task {
+                for await _ in NotificationCenter.default.notifications(
+                    named: AppSettings.defaultPreferencesDidChange
+                ) {
+                    guard !Task.isCancelled else { break }
+                    await model.loadPreferences()
+                    await model.refreshContents()
+                }
+            }
             .onAppFocusLoss {
                 await model.appDidLoseFocus()
             }
@@ -611,9 +624,9 @@ struct NookCommands: Commands {
 
             Divider()
 
-            Button("Show Hidden Items") {
+            Button("Hidden") {
                 guard let model else { return }
-                Task { await model.toggleHiddenItems() }
+                Task { await model.openHidden() }
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
             .disabled(model == nil)

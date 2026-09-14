@@ -81,7 +81,9 @@ struct BrowseView: View {
 
     private var canvas: some View {
         Group {
-            if let locked = model.lockedLocation {
+            if !model.isShowingHome, model.scope == .hidden, !model.isShowingHiddenContent {
+                hiddenDoor
+            } else if let locked = model.lockedLocation {
                 lockedState(locked)
             } else if model.contents.isEmpty {
                 emptyState
@@ -354,6 +356,21 @@ struct BrowseView: View {
         .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
     }
 
+    /// Hidden with nobody authenticated: reached by Back, or by a prompt the
+    /// user answered with no. It says what is behind it and asks again, rather
+    /// than showing an empty place that looks like nothing is hidden.
+    private var hiddenDoor: some View {
+        ContentUnavailableView {
+            Label("Hidden", systemImage: "eye.slash")
+        } description: {
+            Text("Authenticate to see the items and folders you've hidden.")
+        } actions: {
+            Button("Show Hidden Items") {
+                Task { await model.openHidden() }
+            }
+        }
+    }
+
     /// A locked place is a door before it is a location, so it is drawn as
     /// one. Its name stays visible — the user has to be able to find what to
     /// authenticate against — while nothing it holds is drawn behind it.
@@ -379,7 +396,7 @@ struct BrowseView: View {
                 Button("Clear Search") { model.searchText = "" }
             } else if model.isShowingHome {
                 Button("Import Files…") { model.isImporterPresented = true }
-            } else if model.scope != .recentlyDeleted {
+            } else if model.scope != .recentlyDeleted, model.scope != .hidden {
                 Button("Import Files…") { model.isImporterPresented = true }
             }
         }
@@ -519,6 +536,7 @@ struct BrowseView: View {
         case .inbox: return "Inbox Zero"
         case .favorites: return "No Favorites"
         case .recentlyDeleted: return "Nothing Deleted"
+        case .hidden: return "Nothing Hidden"
         case .collection: return "Empty Collection"
         default: return "Nothing Here Yet"
         }
@@ -531,6 +549,7 @@ struct BrowseView: View {
         case .inbox: return "tray"
         case .favorites: return "star"
         case .recentlyDeleted: return "trash"
+        case .hidden: return "eye.slash"
         case .collection: return "rectangle.stack"
         default: return "square.grid.2x2"
         }
@@ -547,6 +566,7 @@ struct BrowseView: View {
         case .inbox: return "Anything you import without choosing a folder waits here."
         case .favorites: return "Items you favorite show up here."
         case .recentlyDeleted: return "Deleted items stay here for 30 days before they're removed."
+        case .hidden: return "Items and folders you hide move here, and stay out of every other view. Unhiding one sends it back to the Inbox."
         case .collection: return "Drag items here, or use Add to Collection, to gather them without moving them."
         default: return "Drag files in, or import them, to get started."
         }

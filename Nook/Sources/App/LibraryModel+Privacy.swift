@@ -12,20 +12,45 @@ extension LibraryModel {
 
     // MARK: Hidden
 
-    /// Whether hidden items are currently visible throughout the library.
+    /// Whether Hidden is currently open.
     var isShowingHiddenContent: Bool { accessContext.hiddenContextUnlocked }
 
-    /// Reveals hidden items in place after authentication, or hides them again.
-    func toggleHiddenItems() async {
-        if isShowingHiddenContent {
-            await rehideItems()
-            return
+    /// Opens Hidden.
+    ///
+    /// It is a place rather than a filter: what is hidden lives there and is
+    /// absent from every other view, so authenticating opens one door instead
+    /// of turning the whole library transparent. Unhiding something puts it
+    /// back in the folder it came from — or in the Inbox, if that folder is
+    /// gone by the time it comes back.
+    func openHidden() async {
+        if !isShowingHiddenContent {
+            guard await authenticate(reason: "Show your hidden items.") else { return }
+            accessContext = accessContext.enteringHiddenContext()
+            scheduleRehide()
         }
-
-        guard await authenticate(reason: "Show your hidden items.") else { return }
-        accessContext = accessContext.enteringHiddenContext()
-        scheduleRehide()
+        navigate(to: .scope(.hidden))
         await refreshAll()
+    }
+
+    /// Closes Hidden once the destination the canvas is pointed at no longer
+    /// belongs to it — called on every navigation rather than only from a
+    /// button, so leaving Hidden always closes the door behind it. Standing
+    /// inside Hidden itself, or inside a folder hidden in its own right,
+    /// keeps it open.
+    ///
+    /// Narrows access and nothing else: the navigation this runs inside of
+    /// already refreshes the canvas for wherever it is heading next, and
+    /// every read is narrowed per scope regardless, so a second contents
+    /// refresh here would only race the one already under way.
+    func closeHidden() async {
+        guard isShowingHiddenContent else { return }
+        let destination: LibraryScope? = isShowingHome ? nil : scope
+        if let destination, await library.service.revealsHiddenContent(destination) { return }
+        hiddenRevealTask?.cancel()
+        hiddenRevealTask = nil
+        if previewedObject?.isHidden == true { previewedObjectID = nil }
+        accessContext = accessContext.leavingHiddenContext()
+        await refreshSidebar()
     }
 
     /// Filters hidden items out again without discarding authenticated locks.
@@ -151,8 +176,15 @@ extension LibraryModel {
     }
 
     func setHidden(_ isHidden: Bool, forFolder folder: FolderSnapshot) async {
-        if isHidden, !isShowingHiddenContent { await leave(.folder(folder.id)) }
-        await perform { try await self.library.service.setHidden(isHidden, forFolder: folder.id) }
+        await setHidden(isHidden, forFolder: folder.id)
+    }
+
+    /// The id-only entry point, for callers — a drop target among them — that
+    /// only ever had an id to begin with: a folder reached by descending into
+    /// Hidden never has a snapshot in the ordinary tree to hand over.
+    func setHidden(_ isHidden: Bool, forFolder id: FolderID) async {
+        if isHidden, !isShowingHiddenContent { await leave(.folder(id)) }
+        await perform { try await self.library.service.setHidden(isHidden, forFolder: id) }
     }
 
     func setLocked(_ isLocked: Bool, forFolder folder: FolderSnapshot) async {
