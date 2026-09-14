@@ -27,7 +27,7 @@ public enum LibraryViewMode: String, Codable, Sendable, CaseIterable, Identifiab
         switch self {
         case .list: "list.bullet"
         case .grid: "square.grid.2x2"
-        case .masonry: "rectangle.grid.2x2"
+        case .masonry: "rectangle.3.offgrid"
         }
     }
 }
