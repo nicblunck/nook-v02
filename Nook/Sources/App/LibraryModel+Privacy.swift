@@ -12,36 +12,68 @@ extension LibraryModel {
 
     // MARK: Hidden
 
-    /// Whether the Hidden place is currently open.
+    /// Whether hidden items are currently visible throughout the library.
     var isShowingHiddenContent: Bool { accessContext.hiddenContextUnlocked }
 
-    /// Opens Hidden.
-    ///
-    /// It is a place rather than a filter: what is hidden lives there and is
-    /// absent from every other view, so authenticating opens one door instead
-    /// of turning the whole library transparent. Unhiding something puts it
-    /// back in the folder it came from — or in the Inbox, if that folder is
-    /// gone by the time it comes back.
-    func openHidden() async {
-        if !isShowingHiddenContent {
-            guard await authenticate(reason: "Show your hidden items.") else { return }
-            accessContext = accessContext.enteringHiddenContext()
+    /// Reveals hidden items in place after authentication, or hides them again.
+    func toggleHiddenItems() async {
+        if isShowingHiddenContent {
+            await rehideItems()
+            return
         }
-        navigate(to: .scope(.hidden))
+
+        guard await authenticate(reason: "Show your hidden items.") else { return }
+        accessContext = accessContext.enteringHiddenContext()
+        scheduleRehide()
         await refreshAll()
     }
 
-    /// Closes it again, and drops every lock authenticated inside it with it.
-    ///
-    /// Called on the way out rather than by a button: leaving Hidden is what
-    /// shuts it, so coming back always asks again.
-    func closeHidden() async {
-        guard accessContext.hiddenContextUnlocked else { return }
-        guard !(await library.service.revealsHiddenContent(scope)) else { return }
-        accessContext = .standard
-        previewedObjectID = nil
+    /// Filters hidden items out again without discarding authenticated locks.
+    func rehideItems() async {
+        guard isShowingHiddenContent else { return }
+        hiddenRevealTask?.cancel()
+        hiddenRevealTask = nil
+
+        let previewWasHidden = previewedObject?.isHidden == true
+        accessContext = accessContext.leavingHiddenContext()
+        if previewWasHidden { previewedObjectID = nil }
+
         await refreshSidebar()
+        if case .folder(let id) = scope,
+           !allFolders.contains(where: { $0.folder.id == id }) {
+            await leave(.folder(id))
+        }
         await refreshContents()
+    }
+
+    func appDidLoseFocus() async {
+        guard settings.rehidesWhenAppLosesFocus, isShowingHiddenContent else { return }
+        await rehideItems()
+    }
+
+    /// Restarts the hidden-content deadline while the owner is actively using
+    /// this window. Activity has no privacy side effects before authentication
+    /// or when the user has chosen to keep hidden items revealed indefinitely.
+    func appDidReceiveUserActivity() {
+        guard isShowingHiddenContent,
+              settings.hiddenRevealTimeout.duration != nil
+        else { return }
+        scheduleRehide()
+    }
+
+    private func scheduleRehide() {
+        hiddenRevealTask?.cancel()
+        guard let timeout = settings.hiddenRevealTimeout.duration else {
+            hiddenRevealTask = nil
+            return
+        }
+        let sleep = hiddenRevealSleep
+        hiddenRevealTask = Task { [weak self, sleep] in
+            try? await sleep(timeout)
+            guard !Task.isCancelled, let self else { return }
+            guard isShowingHiddenContent else { return }
+            await rehideItems()
+        }
     }
 
     // MARK: Locks
@@ -64,6 +96,7 @@ extension LibraryModel {
 
     /// Whether the location on screen is one the user has yet to authenticate.
     var lockedLocation: (reference: LibraryReference, name: String)? {
+        guard !isShowingHome else { return nil }
         switch scope {
         case .folder(let id), .folderTree(let id):
             guard let folder = breadcrumbs.last, folder.id == id, folder.visibility.isRedacted else { return nil }
@@ -97,7 +130,6 @@ extension LibraryModel {
     func setHidden(_ isHidden: Bool, for objects: [ObjectSnapshot]) async {
         let ids = objects.map(\.id)
         guard !ids.isEmpty else { return }
-        guard await authenticate(reason: reason(isHidden ? "Hide" : "Unhide", count: ids.count)) else { return }
         // Hiding something while hidden content is not on screen takes it out
         // from under the selection, so the selection goes with it.
         await perform { try await self.library.service.setHidden(isHidden, forObjects: ids) }
@@ -107,7 +139,6 @@ extension LibraryModel {
     /// to reconstruct snapshots just to apply the same privacy operation.
     func setHidden(_ isHidden: Bool, for ids: [ObjectID]) async {
         guard !ids.isEmpty else { return }
-        guard await authenticate(reason: reason(isHidden ? "Hide" : "Unhide", count: ids.count)) else { return }
         await perform { try await self.library.service.setHidden(isHidden, forObjects: ids) }
     }
 
@@ -120,7 +151,6 @@ extension LibraryModel {
     }
 
     func setHidden(_ isHidden: Bool, forFolder folder: FolderSnapshot) async {
-        guard await authenticate(reason: "\(isHidden ? "Hide" : "Unhide") “\(folder.name)”.") else { return }
         if isHidden, !isShowingHiddenContent { await leave(.folder(folder.id)) }
         await perform { try await self.library.service.setHidden(isHidden, forFolder: folder.id) }
     }
@@ -131,7 +161,6 @@ extension LibraryModel {
     }
 
     func setHidden(_ isHidden: Bool, forCollection collection: CollectionSnapshot) async {
-        guard await authenticate(reason: "\(isHidden ? "Hide" : "Unhide") “\(collection.name)”.") else { return }
         if isHidden, !isShowingHiddenContent { await leave(.collection(collection.id)) }
         await perform { try await self.library.service.setHidden(isHidden, forCollection: collection.id) }
     }

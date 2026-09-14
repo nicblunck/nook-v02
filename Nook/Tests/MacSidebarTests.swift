@@ -24,13 +24,13 @@ struct MacSidebarTests {
         await model.createCollection(named: "Reading")
 
         let sidebar = try await HostedSidebar(model: model)
-        #expect(sidebar.titles(under: .section(.library)) == ["Home", "Inbox", "Recent", "Favorites", "All Objects"])
+        #expect(sidebar.titles(under: .section(.library)) == ["All", "Inbox", "Recent", "Favorites"])
         #expect(sidebar.titles(under: .section(.folders)) == ["Work"])
         #expect(sidebar.titles(under: .destination(.scope(.folder(work.id)))) == ["Notes"])
         #expect(sidebar.titles(under: .section(.collections)) == ["Reading"])
-        #expect(sidebar.titles(under: .section(.mediaTypes)) == ObjectKind.mediaTypes.map(\.pluralDisplayName))
-        // No tags, no Tags section.
-        #expect(sidebar.item(.section(.tags)) == nil)
+        // No objects, so there is no Media Types section yet.
+        #expect(sidebar.item(.section(.mediaTypes)) == nil)
+        #expect(sidebar.titles(under: .section(.tags)) == ["No tags yet"])
     }
 
     @Test("Selecting a row navigates, and navigating selects the row")
@@ -70,6 +70,42 @@ struct MacSidebarTests {
 
         sidebar.outline.collapseItem(workItem)
         #expect(!model.expandedFolders.contains(work.id))
+    }
+
+    @Test("A section header's native caret expands and collapses its rows")
+    func sectionCaretExpandsAndCollapses() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let sidebar = try await HostedSidebar(model: harness.model)
+        let folders = try #require(sidebar.item(.section(.folders)))
+        #expect(sidebar.outline.isItemExpanded(folders))
+
+        try sidebar.pressSectionCaret(.folders)
+        #expect(!sidebar.outline.isItemExpanded(folders))
+
+        try sidebar.pressSectionCaret(.folders)
+        #expect(sidebar.outline.isItemExpanded(folders))
+    }
+
+    @Test("Section add actions do not interfere with native expansion")
+    func sectionAddActionsPreserveExpansion() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        let sidebar = try await HostedSidebar(model: model)
+
+        for (section, title, kind) in [
+            (SidebarSection.folders, "New Folder…", AppearanceTarget.Kind.folder),
+            (.collections, "New Collection…", .collection),
+            (.tags, "New Tag…", .tag),
+        ] {
+            let item = try #require(sidebar.item(.section(section)))
+            #expect(sidebar.outline.isItemExpanded(item))
+            try sidebar.pressSectionAdd(section, title: title)
+            #expect(model.editingAppearance?.kind == kind)
+            #expect(sidebar.outline.isItemExpanded(item))
+            model.editingAppearance = nil
+        }
     }
 
     @Test("Rows come and go with the library, without losing their places")
@@ -274,6 +310,56 @@ private final class HostedSidebar {
     func click(_ id: SidebarItem.ID) {
         guard let item = item(id) else { return }
         outline.selectRowIndexes([outline.row(forItem: item)], byExtendingSelection: false)
+    }
+
+    func pressSectionCaret(_ section: SidebarSection) throws {
+        let item = try #require(item(.section(section)))
+        let row = outline.row(forItem: item)
+        let caret = outline.frameOfOutlineCell(atRow: row)
+        #expect(!caret.isEmpty)
+        let point = NSPoint(x: caret.midX, y: caret.midY)
+        let event = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: outline.convert(point, to: nil),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+        outline.mouseDown(with: event)
+    }
+
+    func pressSectionAdd(_ section: SidebarSection, title: String) throws {
+        let item = try #require(item(.section(section)))
+        let row = outline.row(forItem: item)
+        let cell = try #require(outline.view(atColumn: 0, row: row, makeIfNecessary: true))
+
+        func addButton(in view: NSView) -> NSButton? {
+            if let button = view as? NSButton, button.toolTip == title { return button }
+            for subview in view.subviews {
+                if let button = addButton(in: subview) { return button }
+            }
+            return nil
+        }
+
+        let button = try #require(addButton(in: cell))
+        button.isHidden = false
+        let point = cell.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
+        let event = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: cell.convert(point, to: nil),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+        cell.mouseDown(with: event)
     }
 
     func validate(_ drag: DragStandIn, on id: SidebarItem.ID, between childIndex: Int = NSOutlineViewDropOnItemIndex) -> NSDragOperation {

@@ -55,7 +55,7 @@ public struct EffectivePrivacy: Hashable, Sendable {
 /// that do not authenticate — search, Spotlight, Siri, MCP, model providers —
 /// get `.standard` and therefore never see hidden content.
 public struct AccessContext: Sendable {
-    /// True once the user has explicitly entered an authenticated Hidden context.
+    /// True while hidden items are revealed throughout the library.
     public var hiddenContextUnlocked: Bool
     /// Entities the user has authenticated against this session, by raw id.
     /// A folder here also releases everything beneath it.
@@ -83,9 +83,8 @@ public struct AccessContext: Sendable {
 
     /// The same context with hidden content out of reach again.
     ///
-    /// Used to read everywhere that is not Hidden: authenticating opens one
-    /// place, not the whole library. Locks already authenticated are kept,
-    /// because a lock is about content and hiding is about where things are.
+    /// Locks already authenticated are kept, because a lock is about content
+    /// and hiding is about visibility.
     public func leavingHiddenContext() -> AccessContext {
         var copy = self
         copy.hiddenContextUnlocked = false

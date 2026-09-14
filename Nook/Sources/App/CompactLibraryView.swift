@@ -6,21 +6,21 @@ import NookLibrary
 ///
 /// The same information architecture as the sidebar, reached the way iOS
 /// reaches things — tabs and pushes — rather than by shrinking a desktop
-/// sidebar into a phone. Home, Inbox, the library hierarchy and Search are the
+/// sidebar into a phone. All, Inbox, the library hierarchy and Search are the
 /// primary destinations; everything else lives one level in.
 struct CompactLibraryView: View {
     @Bindable var model: LibraryModel
 
-    @State private var tab: CompactTab = .home
+    @State private var tab: CompactTab = .all
 
     enum CompactTab: Hashable {
-        case home, inbox, library, search
+        case all, inbox, library, search
     }
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab("Home", systemImage: "house", value: CompactTab.home) {
-                NavigationStack { HomeView(model: model) }
+            Tab("All", systemImage: "square.grid.2x2", value: CompactTab.all) {
+                NavigationStack { BrowseView(model: model) }
             }
 
             Tab("Inbox", systemImage: "tray", value: CompactTab.inbox) {
@@ -35,9 +35,17 @@ struct CompactLibraryView: View {
                 NavigationStack { BrowseView(model: model) }
             }
         }
+        // Lets scrolling in any tab's content shrink the tab bar out of the
+        // way, the same as Apple's own apps; the accessory rides along,
+        // dropping in beside the collapsed bar rather than staying pinned
+        // above it at full size.
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory(isEnabled: tab != .search) {
+            LibraryFloatingActionButton(model: model, fillsAccessory: true)
+        }
         .onChange(of: tab) { _, newValue in
             switch newValue {
-            case .home:
+            case .all:
                 model.navigate(to: .home)
             case .inbox:
                 model.navigate(to: .scope(.inbox))
@@ -70,6 +78,7 @@ struct CompactLibraryView: View {
 /// types and tags.
 struct CompactLibraryList: View {
     @Bindable var model: LibraryModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         List {
@@ -85,6 +94,9 @@ struct CompactLibraryList: View {
                             EntityIcon(appearance: node.folder.appearance, fallbackSymbol: "folder")
                         }
                         .draggable(FolderTransfer(id: node.folder.id))
+                        .plopIn(trigger: arrivalTrigger(for: node.folder.id),
+                                order: arrivalOrder(for: node.folder.id))
+                        .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
                             guard !ids.isEmpty else { return false }
@@ -119,6 +131,9 @@ struct CompactLibraryList: View {
                         row(scope: .collection(collection.id), title: collection.name) {
                             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
                         }
+                        .plopIn(trigger: arrivalTrigger(for: collection.id),
+                                order: arrivalOrder(for: collection.id))
+                        .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
                             guard !ids.isEmpty else { return false }
@@ -129,10 +144,12 @@ struct CompactLibraryList: View {
                 }
             }
 
-            Section("Media Types") {
-                ForEach(ObjectKind.mediaTypes) { kind in
-                    row(scope: .kind(kind), title: kind.pluralDisplayName) {
-                        Image(systemName: kind.symbolName)
+            if !model.presentMediaKinds.isEmpty {
+                Section("Media Types") {
+                    ForEach(ObjectKind.mediaTypes.filter(model.presentMediaKinds.contains)) { kind in
+                        row(scope: .kind(kind), title: kind.pluralDisplayName) {
+                            Image(systemName: kind.symbolName)
+                        }
                     }
                 }
             }
@@ -161,13 +178,15 @@ struct CompactLibraryList: View {
                         Task { await model.setFavorite(true, for: ids) }
                         return true
                     }
-                row(scope: .allObjects, title: "All Objects") { Image(systemName: "square.grid.2x2") }
             }
 
-            // The two places the structure above does not lead to. Hidden asks
-            // for authentication when it is opened, not when it is listed.
             Section {
-                row(scope: .hidden, title: "Hidden") { Image(systemName: "eye.slash") }
+                Button {
+                    Task { await model.toggleHiddenItems() }
+                } label: {
+                    Label("Show Hidden Items",
+                          systemImage: model.isShowingHiddenContent ? "eye" : "eye.slash")
+                }
                     .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                         let ids = transfers.flatMap(\.ids)
                         guard !ids.isEmpty else { return false }
@@ -176,16 +195,30 @@ struct CompactLibraryList: View {
                     }
                 row(scope: .recentlyDeleted, title: "Recently Deleted") { Image(systemName: "trash") }
             }
+
+            Section {
+                CloudSyncStatusView(model: model)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+        }
+        .refreshable {
+            await model.refreshAll()
         }
         .navigationTitle("Library")
+        .animation(reduceMotion ? nil : NookMotion.reflow,
+                   value: model.sidebarReflowRevision)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button("New Folder…", systemImage: "folder.badge.plus") {
-                        model.namingPrompt = .newFolder(parent: nil)
+                        model.editingAppearance = .newFolder(parent: model.currentFolderID)
                     }
                     Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                        model.namingPrompt = .newCollection(adding: [])
+                        model.editingAppearance = .newCollection(adding: [])
+                    }
+                    Button("New Tag…", systemImage: "tag") {
+                        model.editingAppearance = .newTag()
                     }
                     Divider()
                     Button("Settings…", systemImage: "gear") { model.isSettingsPresented = true }
@@ -196,9 +229,33 @@ struct CompactLibraryList: View {
         }
     }
 
+    private var compactItemTransition: AnyTransition {
+        let movement = AnyTransition.scale(scale: 0.94).combined(with: .opacity)
+        return .motionAware(movement, reduceMotion: reduceMotion)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+    }
+
+    private func arrivalTrigger(for id: FolderID) -> Int? {
+        guard let arrival = model.arrival, arrival.folderOrder(id) != nil else { return nil }
+        return arrival.revision
+    }
+
+    private func arrivalOrder(for id: FolderID) -> Int {
+        model.arrival?.folderOrder(id) ?? 0
+    }
+
+    private func arrivalTrigger(for id: CollectionID) -> Int? {
+        guard let arrival = model.arrival, arrival.collectionOrder(id) != nil else { return nil }
+        return arrival.revision
+    }
+
+    private func arrivalOrder(for id: CollectionID) -> Int {
+        model.arrival?.collectionOrder(id) ?? 0
+    }
+
     private func row(scope: LibraryScope, title: String, @ViewBuilder icon: () -> some View) -> some View {
         NavigationLink {
-            BrowseView(model: model)
+            BrowseView(model: model, showsHistoryControls: false)
                 .task { await open(scope) }
         } label: {
             Label { Text(title) } icon: { icon() }
@@ -206,13 +263,17 @@ struct CompactLibraryList: View {
     }
 
     private func open(_ scope: LibraryScope) async {
-        guard scope != .hidden else {
-            await model.openHidden()
-            return
-        }
         model.navigate(to: .scope(scope))
         await model.loadPreferences()
         await model.refreshContents()
     }
 }
+
+#if DEBUG
+#Preview {
+    PreviewHost { model in
+        CompactLibraryView(model: model)
+    }
+}
+#endif
 #endif

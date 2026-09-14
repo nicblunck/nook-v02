@@ -17,10 +17,13 @@ with matching signing and App Group capabilities.
 ## Getting started
 
 The Xcode project is generated from [`project.yml`](project.yml) via
-[XcodeGen](https://github.com/yonaskolb/XcodeGen) and is not committed.
+[XcodeGen](https://github.com/yonaskolb/XcodeGen). The generated project is
+committed so a fresh checkout opens immediately, but `project.yml` remains the
+source of truth.
 
 ```bash
 xcodegen generate
+Scripts/check-generated-project.sh
 open Nook.xcodeproj
 ```
 
@@ -29,9 +32,10 @@ Select the `Nook-macOS` or `Nook-iOS` scheme in Xcode and run it normally. If
 you are using a different Apple Developer account, replace `DEVELOPMENT_TEAM`
 in `project.yml` before generating the project.
 
-The generated `.xcodeproj` is intentionally ignored. Make project-setting or
-target changes in `project.yml`, then regenerate it rather than committing
-changes to the generated project.
+Make project-setting or target changes in `project.yml`, regenerate, and commit
+the generated project alongside the spec. CI runs
+`Scripts/check-generated-project.sh` and rejects stale project, plist,
+entitlement, or shared-scheme output.
 
 ## Structure
 
@@ -174,7 +178,7 @@ xcodebuild -project Nook.xcodeproj \
   should consume `LibraryService` snapshots rather than query SwiftData.
 - Treat `LibraryToolSurface` as the read-only boundary for future external or
   model integrations.
-- Do not commit generated Xcode projects, build products, user-specific Xcode
-  state or local library data.
+- Do not hand-edit the generated Xcode project. Do not commit build products,
+  user-specific Xcode state or local library data.
 - The project does not currently publish a release build or enable iCloud; see
   **Not on yet** above for the capabilities still requiring provisioning.

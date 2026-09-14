@@ -69,7 +69,12 @@ struct ItemClick: ViewModifier {
             if click.isDoubleClick { open() } else { select(click.modifiers) }
         }
         #else
-        content.onTapGesture { open() }
+        // A plain `onTapGesture` loses the touch to the drag/context-menu
+        // interactions the item also carries: iOS claims the touch for
+        // those first, leaves the press highlight showing, and the tap
+        // never arrives. Giving the tap priority is what lets it win that
+        // race while long-press-to-drag and long-press-for-menu still work.
+        content.highPriorityGesture(TapGesture().onEnded { open() })
         #endif
     }
 }

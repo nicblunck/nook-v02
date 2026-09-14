@@ -1,22 +1,27 @@
 name: Nook
+
 options:
-  bundleIdPrefix: com.nicolasblunck
+  bundleIdPrefix: com.nicolasblunck.nook.app
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "26.1"
     macOS: "26.0"
+
 settings:
-  SWIFT_VERSION: "6.0"
-  SWIFT_STRICT_CONCURRENCY: complete
-  DEVELOPMENT_TEAM: U4K77TMBRU
-  CODE_SIGN_STYLE: Automatic
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: 84GFPQ65N9
+    CODE_SIGN_STYLE: Automatic
+
 packages:
   NookLibrary:
     path: Packages/NookLibrary
+
 targets:
   Nook-iOS:
     type: application
     platform: iOS
-    deploymentTarget: "26.0"
+    deploymentTarget: "26.1"
     sources:
       - path: Nook/Sources
         excludes: [iOS-Info.plist]
@@ -26,9 +31,27 @@ targets:
         product: NookLibrary
       - target: NookShareExtension
         embed: true
+      - sdk: AppIntents.framework
+      - sdk: CoreData.framework
+      - sdk: LinkPresentation.framework
+      - sdk: LocalAuthentication.framework
+      - sdk: PhotosUI.framework
+      - sdk: QuickLook.framework
+      - sdk: UniformTypeIdentifiers.framework
+      - sdk: VisionKit.framework
     info:
       path: Nook/Sources/iOS-Info.plist
       properties:
+        NSCameraUsageDescription: Nook uses the camera to take photos and scan documents you add to your library.
+        NSFaceIDUsageDescription: Nook uses Face ID to reveal hidden items and open locked ones.
+        UIBackgroundModes: [remote-notification]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: &allInterfaceOrientations
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad": *allInterfaceOrientations
         UTExportedTypeDeclarations: &nookExportedTypes
           - UTTypeIdentifier: com.nicolasblunck.nook.object
             UTTypeDescription: Nook Object
@@ -36,59 +59,71 @@ targets:
           - UTTypeIdentifier: com.nicolasblunck.nook.folder
             UTTypeDescription: Nook Folder
             UTTypeConformsTo: [public.data]
-        UILaunchScreen: {}
-        # Shown by the system when Nook asks for Face ID to reveal hidden
-        # content or open a locked item.
-        NSFaceIDUsageDescription: Nook uses Face ID to reveal hidden items and open locked ones.
+    entitlements:
+      path: Nook/Sources/Nook.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.icloud-container-identifiers: &appCloudContainers
+          - iCloud.com.nicolasblunck.nook
+          - iCloud.com.nicolasblunck.nook.app
+        com.apple.developer.icloud-services: &cloudServices
+          - CloudKit
+          - CloudDocuments
+        com.apple.developer.ubiquity-container-identifiers: *appCloudContainers
+        com.apple.security.application-groups: &appGroups
+          - group.com.nicolasblunck.nook.app
     settings:
       base:
         PRODUCT_NAME: Nook
-        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
-        CODE_SIGN_ENTITLEMENTS: Nook/Sources/Nook.entitlements
 
-  # Saves straight into the shared library container, so something shared from
-  # Safari is in the library before the app is ever opened.
   NookShareExtension:
     type: app-extension
     platform: iOS
-    deploymentTarget: "26.0"
+    deploymentTarget: "26.1"
     sources: [Nook/ShareExtension]
     dependencies:
       - package: NookLibrary
         product: NookLibrary
+      - sdk: AVFoundation.framework
+      - sdk: ImageIO.framework
+      - sdk: PDFKit.framework
+      - sdk: UniformTypeIdentifiers.framework
     info:
       path: Nook/ShareExtension/Info.plist
       properties:
         CFBundleDisplayName: Save to Nook
         NSExtension:
           NSExtensionAttributes:
-            NSExtensionActivationRule:
+            NSExtensionActivationRule: &shareActivationRule
               NSExtensionActivationSupportsFileWithMaxCount: 20
               NSExtensionActivationSupportsImageWithMaxCount: 20
               NSExtensionActivationSupportsMovieWithMaxCount: 20
+              NSExtensionActivationSupportsText: true
               NSExtensionActivationSupportsWebURLWithMaxCount: 20
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+    entitlements:
+      path: Nook/ShareExtension/ShareExtension.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.icloud-container-identifiers: &extensionCloudContainers
+          - iCloud.com.nicolasblunck.nook.app
+        com.apple.developer.icloud-services: *cloudServices
+        com.apple.developer.ubiquity-container-identifiers: *extensionCloudContainers
+        com.apple.security.application-groups: *appGroups
     settings:
       base:
         PRODUCT_NAME: Save to Nook
-        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.share
-        GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: Nook/ShareExtension/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Nook/ShareExtension/ShareExtension.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.app.share
         APPLICATION_EXTENSION_API_ONLY: YES
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
 
   Nook-macOS:
-    info:
-      path: Nook/macOS-Info.plist
-      properties:
-        UTExportedTypeDeclarations: *nookExportedTypes
     type: application
     platform: macOS
     deploymentTarget: "26.0"
@@ -99,16 +134,81 @@ targets:
     dependencies:
       - package: NookLibrary
         product: NookLibrary
+      - target: NookMacShare
+        embed: true
+      - sdk: AppIntents.framework
+      - sdk: CoreData.framework
+      - sdk: LinkPresentation.framework
+      - sdk: LocalAuthentication.framework
+      - sdk: QuickLook.framework
+      - sdk: QuickLookUI.framework
+      - sdk: UniformTypeIdentifiers.framework
+    info:
+      path: Nook/macOS-Info.plist
+      properties:
+        UTExportedTypeDeclarations: *nookExportedTypes
+    entitlements:
+      path: Nook-macOS.entitlements
+      properties:
+        com.apple.developer.aps-environment: development
+        com.apple.developer.icloud-container-identifiers: *appCloudContainers
+        com.apple.developer.icloud-services: *cloudServices
+        com.apple.developer.ubiquity-container-identifiers: *appCloudContainers
+        com.apple.security.application-groups: *appGroups
+        com.apple.security.network.client: true
     settings:
       base:
         PRODUCT_NAME: Nook
-        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
+        REGISTER_APP_GROUPS: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
+
+  NookMacShare:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources: [NookMacShare]
+    dependencies:
+      - package: NookLibrary
+        product: NookLibrary
+      - sdk: AVFoundation.framework
+      - sdk: ImageIO.framework
+      - sdk: PDFKit.framework
+      - sdk: UniformTypeIdentifiers.framework
+    info:
+      path: NookMacShare/Info.plist
+      properties:
+        CFBundleDisplayName: Save to Nook
+        CFBundleIconFile: icon
+        NSExtension:
+          NSExtensionAttributes:
+            NSExtensionActivationRule: *shareActivationRule
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+    entitlements:
+      path: NookMacShare/NookMacShare.entitlements
+      properties:
+        com.apple.developer.aps-environment: development
+        com.apple.developer.icloud-container-identifiers: *extensionCloudContainers
+        com.apple.developer.icloud-services: *cloudServices
+        com.apple.developer.ubiquity-container-identifiers: *extensionCloudContainers
+        com.apple.security.application-groups: *appGroups
+    settings:
+      base:
+        PRODUCT_NAME: NookMacShare
+        PRODUCT_BUNDLE_IDENTIFIER: com.nicolasblunck.nook.app.macshare
+        APPLICATION_EXTENSION_API_ONLY: YES
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_USER_SELECTED_FILES: readonly
+        REGISTER_APP_GROUPS: YES
+        SKIP_INSTALL: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
   # The library has its own suite in the package. This covers the layer above
   # it: the view state the app keeps, which the package cannot see.
   NookTests:
@@ -136,6 +236,14 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  NookShareExtension:
+    build:
+      targets:
+        NookShareExtension: all
+    run:
+      config: Debug
+
   Nook-macOS:
     build:
       targets:
@@ -149,3 +257,10 @@ schemes:
         - NookTests
     archive:
       config: Release
+
+  NookMacShare:
+    build:
+      targets:
+        NookMacShare: all
+    run:
+      config: Debug

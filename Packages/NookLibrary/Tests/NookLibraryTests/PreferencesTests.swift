@@ -23,7 +23,9 @@ struct PreferencesTests {
         let preferences = LocationViewPreferences(
             viewMode: .masonry,
             sort: ObjectSort(field: .name, ascending: true),
-            foldersFirst: false
+            foldersFirst: false,
+            masonryCaptionDisplay: .always,
+            showsMasonryTypeLabels: false
         )
 
         try await harness.service.rememberPreferences(preferences, for: .folder(folder.id))
@@ -40,7 +42,7 @@ struct PreferencesTests {
 
         let collection = try await harness.service.createCollection(named: "Mood")
         let preferences = LocationViewPreferences(
-            viewMode: .list, sort: ObjectSort(field: .manual, ascending: true), foldersFirst: true
+            viewMode: .list, sort: ObjectSort(field: .name, ascending: true), foldersFirst: true
         )
         try await harness.service.rememberPreferences(preferences, for: .collection(collection.id))
         #expect(await harness.service.rememberedPreferences(for: .collection(collection.id)) == preferences)
@@ -55,6 +57,8 @@ struct PreferencesTests {
 
         #expect(decoded.viewMode == .masonry)
         #expect(decoded.foldersFirst == false)
+        #expect(decoded.masonryCaptionDisplay == .automatic)
+        #expect(decoded.showsMasonryTypeLabels)
         #expect(decoded.itemScale == LocationViewPreferences.systemDefault.itemScale)
     }
 

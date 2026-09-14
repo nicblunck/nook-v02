@@ -1,193 +1,630 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import NookLibrary
 
-/// Choose where it goes, then save it.
-///
-/// The destination picker is the point of the sheet: import is context-aware
-/// everywhere else in the app, and the share sheet is the one place with no
-/// context to infer, so it asks.
+/// Review what is being shared, choose where it belongs, then save it.
 struct ShareView: View {
     let providers: [NSItemProvider]
     let onFinish: () -> Void
     let onCancel: () -> Void
 
+    @State private var items: [SharePreviewItem] = []
+    @State private var isLoading = true
+
     @State private var folders: [(folder: FolderSnapshot, depth: Int)] = []
     @State private var destination: FolderID?
+
+    @State private var collections: [CollectionSnapshot] = []
+    @State private var collectionID: CollectionID?
+
+    @State private var tags: [String] = []
+    @State private var tagDraft = ""
+    @State private var existingTags: [TagSnapshot] = []
+    @State private var isTagsExpanded = false
+
     @State private var state: SaveState = .ready
-    @State private var itemNames: [String] = []
+    @FocusState private var isTagFieldFocused: Bool
 
     private enum SaveState: Equatable {
         case ready
         case saving
-        case saved(Int)
         case failed(String)
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Saving") {
-                    if itemNames.isEmpty {
-                        Text("Preparing…").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(itemNames, id: \.self) { name in
-                            Label(name, systemImage: "doc")
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                }
+        VStack(spacing: 0) {
+            header
 
-                Section("Destination") {
-                    Picker("Folder", selection: $destination) {
-                        Label("Inbox", systemImage: "tray").tag(FolderID?.none)
-                        ForEach(folders, id: \.folder.id) { entry in
-                            Text(String(repeating: "   ", count: entry.depth) + entry.folder.name)
-                                .tag(FolderID?.some(entry.folder.id))
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
-
-                if case .failed(let message) = state {
-                    Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if case .failed(let message) = state {
                         Label(message, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
                             .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+
+                    itemDetails
+                    saveToSection
+                    previews
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
             }
-            .navigationTitle("Save to Nook")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { Task { await save() } }
-                        .disabled(state == .saving || itemNames.isEmpty)
-                }
-            }
-            .overlay {
-                if state == .saving {
-                    ProgressView("Saving…")
-                        .padding(20)
-                        .background(.regularMaterial, in: .rect(cornerRadius: 12))
-                }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .background(.background)
+        .overlay {
+            if state == .saving {
+                ProgressView("Saving…")
+                    .padding(20)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 12))
             }
         }
         .task { await load() }
     }
 
+    // MARK: Header
+
+    /// A close on the left, a checkmark on the right: the two ways out of the
+    /// sheet, always in reach and never dependent on a navigation bar the
+    /// extension's own presentation may or may not give room to draw.
+    private var header: some View {
+        HStack {
+            Button(action: onCancel) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .background(.quaternary, in: .circle)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Cancel")
+
+            Spacer()
+
+            Text("Save to Nook")
+                .font(.headline)
+
+            Spacer()
+
+            Button { Task { await save() } } label: {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.blue, in: .circle)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.defaultAction)
+            .disabled(state == .saving || items.isEmpty)
+            .opacity(items.isEmpty ? 0.4 : 1)
+            .accessibilityLabel("Save")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+    }
+
+    // MARK: Item details
+
+    @ViewBuilder
+    private var itemDetails: some View {
+        if isLoading {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.quaternary.opacity(0.5))
+                .frame(height: 174)
+                .overlay { ProgressView() }
+        } else if items.isEmpty {
+            Label("Nothing here could be saved.", systemImage: "questionmark.folder")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 120)
+        } else {
+            VStack(spacing: 12) {
+                ForEach($items) { $item in
+                    ShareItemDetailsCard(item: $item)
+                }
+            }
+        }
+    }
+
+    // MARK: Save to
+
+    private var saveToSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeading("Save to")
+
+            VStack(spacing: 0) {
+                Menu {
+                    Button { destination = nil } label: {
+                        Label("Inbox", systemImage: "tray")
+                    }
+                    ForEach(folders, id: \.folder.id) { entry in
+                        Button {
+                            destination = entry.folder.id
+                        } label: {
+                            Text(String(repeating: "  ", count: entry.depth) + entry.folder.name)
+                        }
+                    }
+                } label: {
+                    DestinationRow(systemImage: "folder", title: "Folder", value: destinationName)
+                }
+                .buttonStyle(.plain)
+
+                ShareDivider()
+
+                Menu {
+                    Button { collectionID = nil } label: {
+                        Text("None")
+                    }
+                    ForEach(collections) { collection in
+                        Button {
+                            collectionID = collection.id
+                        } label: {
+                            Text(collection.name)
+                        }
+                    }
+                } label: {
+                    DestinationRow(systemImage: "rectangle.stack", title: "Collection", value: collectionName)
+                }
+                .buttonStyle(.plain)
+
+                ShareDivider()
+
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        isTagsExpanded.toggle()
+                    }
+                } label: {
+                    DestinationRow(
+                        systemImage: "tag",
+                        title: "Tags",
+                        value: tags.isEmpty ? "None" : "\(tags.count)",
+                        isExpanded: isTagsExpanded
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            .background(.regularMaterial, in: .rect(cornerRadius: 20))
+
+            if isTagsExpanded {
+                tagsEditor
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private var destinationName: String {
+        guard let destination else { return "Inbox" }
+        return folders.first(where: { $0.folder.id == destination })?.folder.name ?? "Inbox"
+    }
+
+    private var collectionName: String {
+        guard let collectionID else { return "None" }
+        return collections.first(where: { $0.id == collectionID })?.name ?? "None"
+    }
+
+    // MARK: Tags
+
+    private var tagsEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !tags.isEmpty {
+                ShareTagFlow(spacing: 6) {
+                    ForEach(tags, id: \.self) { tag in
+                        ShareTagPill(name: tag, color: .accentColor) {
+                            tags.removeAll { $0 == tag }
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(.tertiary)
+                TextField("Add a tag", text: $tagDraft)
+                    .textFieldStyle(.plain)
+                    .focused($isTagFieldFocused)
+                    .onSubmit(addDraftTag)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+
+            if !tagSuggestions.isEmpty {
+                ShareTagFlow(spacing: 6) {
+                    ForEach(tagSuggestions) { suggestion in
+                        Button { addTag(suggestion.name) } label: {
+                            ShareTagPillLabel(name: suggestion.name,
+                                              color: Color(hex: suggestion.appearance.colorHex) ?? .accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: Preview
+
+    @ViewBuilder
+    private var previews: some View {
+        if !isLoading, !items.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeading(items.count == 1 ? "Preview" : "Previews")
+
+                ForEach(items) { item in
+                    ShareThumbnailCard(item: item)
+                }
+            }
+        }
+    }
+
+    /// Existing tags not already added, narrowed to what has been typed so far
+    /// so the field doubles as a quick filter once the library has more than a
+    /// handful of tags.
+    private var tagSuggestions: [TagSnapshot] {
+        let added = Set(tags.map { $0.lowercased() })
+        let query = tagDraft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return existingTags
+            .filter { !added.contains($0.name.lowercased()) }
+            .filter { query.isEmpty || $0.name.lowercased().contains(query) }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    private func addDraftTag() {
+        let name = tagDraft
+        tagDraft = ""
+        addTag(name)
+    }
+
+    private func addTag(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !tags.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
+        tags.append(trimmed)
+    }
+
     // MARK: Loading
 
     private func load() async {
-        itemNames = providers.map { $0.suggestedName ?? "Item" }
-        guard let service = try? await SharedLibrary.shared.current().service else { return }
+        async let previewItems = buildPreviewItems()
 
-        var flattened: [(FolderSnapshot, Int)] = []
-        var queue: [(FolderSnapshot, Int)] = await service.rootFolders().map { ($0, 0) }
-        while !queue.isEmpty {
-            let (folder, depth) = queue.removeFirst()
-            flattened.append((folder, depth))
-            let children = await service.subfolders(of: folder.id).map { ($0, depth + 1) }
-            queue.insert(contentsOf: children, at: 0)
+        do {
+            let service = try await SharedLibrary.shared.current().service
+            var flattened: [(FolderSnapshot, Int)] = []
+            var queue: [(FolderSnapshot, Int)] = await service.rootFolders().map { ($0, 0) }
+            while !queue.isEmpty {
+                let (folder, depth) = queue.removeFirst()
+                flattened.append((folder, depth))
+                let children = await service.subfolders(of: folder.id).map { ($0, depth + 1) }
+                queue.insert(contentsOf: children, at: 0)
+            }
+            folders = flattened
+            collections = await service.collections()
+            existingTags = await service.tags()
+        } catch {
+            state = .failed("Nook’s library couldn’t be opened.")
         }
-        folders = flattened
+
+        items = await previewItems
+        isLoading = false
+    }
+
+    private func buildPreviewItems() async -> [SharePreviewItem] {
+        var result: [SharePreviewItem] = []
+        for (index, provider) in providers.enumerated() {
+            guard let resolved = await ShareItemResolver.resolve(provider) else { continue }
+            let fallbackName = ShareItemResolver.displayName(for: provider)
+            result.append(await SharePreview.makeItem(id: index, resolved: resolved, fallbackName: fallbackName))
+        }
+        return result
     }
 
     // MARK: Saving
 
     private func save() async {
+        guard state != .saving, !items.isEmpty else { return }
         state = .saving
+
+        let pendingTag = tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var tagsToSave = tags
+        if !pendingTag.isEmpty,
+           !tagsToSave.contains(where: { $0.caseInsensitiveCompare(pendingTag) == .orderedSame }) {
+            tagsToSave.append(pendingTag)
+        }
+
         do {
             let library = try await SharedLibrary.shared.current()
-            let items = await resolveItems()
-            guard !items.isEmpty else {
-                state = .failed("Nothing here could be saved.")
-                return
+            defer {
+                for item in items { item.resolved.removeTemporaryFiles() }
             }
 
             let report = await library.service.importItems(
-                items,
+                items.map(\.resolved.importItem),
                 into: destination.map(ImportDestination.folder) ?? .root
             )
-            if report.hasFailures, report.importedIDs.isEmpty {
+
+            var importedIDs: [ObjectID] = []
+            for (index, result) in report.results.enumerated() {
+                guard let objectID = result.objectID else { continue }
+                importedIDs.append(objectID)
+                let title = items[index].title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let notes = items[index].notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !title.isEmpty || !notes.isEmpty {
+                    try? await library.service.updateObject(
+                        objectID,
+                        title: title.isEmpty ? nil : title,
+                        notes: notes.isEmpty ? nil : notes
+                    )
+                }
+            }
+
+            guard !importedIDs.isEmpty else {
                 state = .failed("Couldn't save these items.")
                 return
             }
-            state = .saved(report.importedIDs.count)
+
+            for tag in tagsToSave {
+                try? await library.service.addTag(named: tag, to: importedIDs)
+            }
+            if let collectionID {
+                try? await library.service.addObjects(importedIDs, toCollection: collectionID)
+            }
+
             onFinish()
         } catch {
             state = .failed(error.localizedDescription)
         }
     }
+}
 
-    /// Turns the share sheet's providers into import items. A URL becomes a
-    /// link object; anything file-backed is copied in.
-    @MainActor
-    private func resolveItems() async -> [ImportItem] {
-        var items: [ImportItem] = []
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
-               let url = try? await provider.loadWebURL(), !url.isFileURL {
-                items.append(.link(url))
-                continue
+// MARK: - Item details
+
+private struct ShareItemDetailsCard: View {
+    @Binding var item: SharePreviewItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DetailField(label: item.kind == .link ? "URL" : "Source") {
+                Text(item.source)
+                    .font(.body)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
             }
-            if let url = try? await provider.loadFileRepresentation(for: .item) {
-                items.append(.file(url: url, contentType: nil))
+
+            Divider()
+
+            DetailField(label: "Title") {
+                TextField("Title", text: $item.title, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...3)
             }
+
+            Divider()
+
+            TextField("Note", text: $item.notes, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...5)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
         }
-        return items
+        .background(.regularMaterial, in: .rect(cornerRadius: 20))
+        .clipShape(.rect(cornerRadius: 20))
     }
 }
 
-/// NSItemProvider is not Sendable, so these stay on the main actor with the
-/// view that owns them; only the resulting URLs cross back.
-@MainActor
-private extension NSItemProvider {
-    /// The loaded item is unwrapped inside the handler so only a URL — which
-    /// is Sendable — travels back to the caller.
-    func loadWebURL() async throws -> URL? {
-        try await withCheckedThrowingContinuation { continuation in
-            loadItem(forTypeIdentifier: UTType.url.identifier) { item, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
+private struct DetailField<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Preview card
+
+private struct ShareThumbnailCard: View {
+    let item: SharePreviewItem
+
+    var body: some View {
+        Group {
+            if let image = item.image {
+                image
+                    .resizable()
+                    .aspectRatio(item.aspectRatio ?? 1, contentMode: .fit)
+            } else {
+                ZStack {
+                    Rectangle().fill(.quaternary.opacity(0.5))
+                    Image(systemName: item.kind.symbolName)
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundStyle(.secondary)
                 }
-                continuation.resume(returning: item as? URL)
+                .aspectRatio(item.aspectRatio ?? 16.0 / 9.0, contentMode: .fit)
             }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(maxHeight: 320)
+        .clipShape(.rect(cornerRadius: 20))
+    }
+}
+
+// MARK: - Destination
+
+private struct DestinationRow: View {
+    let systemImage: String
+    let title: String
+    let value: String
+    var isExpanded = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 19))
+                .foregroundStyle(.tint)
+                .frame(width: 24)
+
+            Text(title)
+
+            Spacer()
+
+            Text(value)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(.rect)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 56)
+    }
+}
+
+private struct ShareDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 52)
+    }
+}
+
+private struct SectionHeading: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
+    }
+}
+
+// MARK: - Tags
+
+/// A tag shown as a pill with a way to remove it, for tags already chosen.
+private struct ShareTagPill: View {
+    let name: String
+    let color: Color
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("#\(name)")
+            Button("Remove", systemImage: "xmark", action: onRemove)
+                .labelStyle(.iconOnly)
+                .font(.system(size: 8, weight: .bold))
+                .accessibilityLabel("Remove \(name)")
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(color)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.16), in: Capsule())
+    }
+}
+
+/// A tag shown as a plain pill, for suggestions that add on tap.
+private struct ShareTagPillLabel: View {
+    let name: String
+    let color: Color
+
+    var body: some View {
+        Text("#\(name)")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(color.opacity(0.1), in: Capsule())
+    }
+}
+
+/// A wrapping layout for pills whose widths are determined by their labels.
+private struct ShareTagFlow: Layout {
+    var spacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize,
+                      subviews: Subviews,
+                      cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        let rows = arrange(subviews, in: width)
+        let height = rows.reduce(CGFloat.zero) { $0 + $1.height + spacing }
+        return CGSize(width: proposal.width ?? rows.map(\.width).max() ?? 0,
+                      height: max(0, height - spacing))
+    }
+
+    func placeSubviews(in bounds: CGRect,
+                       proposal: ProposedViewSize,
+                       subviews: Subviews,
+                       cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(subviews, in: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                    proposal: ProposedViewSize(size)
+                )
+                x += size.width + spacing
+            }
+            y += row.height + spacing
         }
     }
 
-    /// Copies the provided file somewhere the import can read it: the URL the
-    /// system hands over is only valid inside the completion handler.
-    func loadFileRepresentation(for type: UTType) async throws -> URL? {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = loadFileRepresentation(forTypeIdentifier: type.identifier) { url, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let url else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                let destination = URL.temporaryDirectory
-                    .appending(path: UUID().uuidString)
-                    .appending(path: url.lastPathComponent)
-                do {
-                    try FileManager.default.createDirectory(
-                        at: destination.deletingLastPathComponent(),
-                        withIntermediateDirectories: true
-                    )
-                    try FileManager.default.copyItem(at: url, to: destination)
-                    continuation.resume(returning: destination)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(_ subviews: Subviews, in width: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var row = Row()
+
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            if !row.indices.isEmpty, row.width + spacing + size.width > width {
+                rows.append(row)
+                row = Row()
             }
+            row.width += (row.indices.isEmpty ? 0 : spacing) + size.width
+            row.height = max(row.height, size.height)
+            row.indices.append(index)
         }
+
+        if !row.indices.isEmpty { rows.append(row) }
+        return rows
+    }
+}
+
+private extension Color {
+    /// Parses `#RRGGBB`, used for tag colours stored as text.
+    init?(hex: String?) {
+        guard let hex else { return nil }
+        var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("#") { value.removeFirst() }
+        guard value.count == 6, let number = UInt32(value, radix: 16) else { return nil }
+        self.init(
+            .sRGB,
+            red: Double((number >> 16) & 0xFF) / 255,
+            green: Double((number >> 8) & 0xFF) / 255,
+            blue: Double(number & 0xFF) / 255
+        )
     }
 }

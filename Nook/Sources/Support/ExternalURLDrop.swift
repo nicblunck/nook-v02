@@ -46,7 +46,21 @@ private enum ExternalURLDropLoader {
     }
 
     private static func url(from provider: NSItemProvider) async -> URL? {
-        await withCheckedContinuation { continuation in
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            let fileURL = await withCheckedContinuation { continuation in
+                provider.loadInPlaceFileRepresentation(
+                    forTypeIdentifier: UTType.fileURL.identifier
+                ) { url, _, _ in
+                    continuation.resume(returning: url)
+                }
+            }
+            if let fileURL { return fileURL }
+        }
+
+        guard provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) else {
+            return nil
+        }
+        return await withCheckedContinuation { continuation in
             provider.loadObject(ofClass: NSURL.self) { object, _ in
                 continuation.resume(returning: (object as? NSURL)?.absoluteURL)
             }

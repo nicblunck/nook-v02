@@ -94,7 +94,7 @@ public struct ObjectSnapshot: Identifiable, Hashable, Sendable, PrivacyBearing {
     public var isContentAccessible: Bool { visibility == .full }
 
     public var aspectRatio: Double? {
-        guard let pixelWidth, let pixelHeight, pixelHeight > 0 else { return nil }
+        guard let pixelWidth, let pixelHeight, pixelWidth > 0, pixelHeight > 0 else { return nil }
         return Double(pixelWidth) / Double(pixelHeight)
     }
 }

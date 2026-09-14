@@ -1,11 +1,24 @@
 import Foundation
 import UniformTypeIdentifiers
 
-public enum BlobStoreError: Error, Sendable {
+public enum BlobStoreError: Error, Sendable, LocalizedError {
     case notFound(ContentHash)
     case notAvailableLocally(ContentHash)
     case unreadableSource(URL)
     case writeFailed(underlying: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .notFound:
+            "The original file has not reached this device yet. Check iCloud and try again."
+        case .notAvailableLocally:
+            "The original file is still downloading from iCloud."
+        case .unreadableSource(let url):
+            "Nook couldn't read \(url.lastPathComponent)."
+        case .writeFailed(let detail):
+            "Nook couldn't save the original file to iCloud: \(detail)"
+        }
+    }
 }
 
 /// Where the immutable bytes live.

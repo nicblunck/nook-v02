@@ -57,7 +57,7 @@ struct ObjectMenu: View {
                 // The prompt is the window's, so this offers the same thing
                 // from the canvas, from Home and from inside preview.
                 Button("New Collection…") {
-                    model.namingPrompt = .newCollection(adding: ids)
+                    model.editingAppearance = .newCollection(adding: ids)
                 }
                 if !model.collections.isEmpty { Divider() }
                 ForEach(model.collections) { collection in
@@ -67,8 +67,12 @@ struct ObjectMenu: View {
                 }
             }
 
-            if !model.tags.isEmpty {
-                Menu("Tags", systemImage: "tag") {
+            Menu("Tags", systemImage: "tag") {
+                Button("New Tag…") {
+                    model.editingAppearance = .newTag(adding: ids)
+                }
+                if !model.tags.isEmpty {
+                    Divider()
                     ForEach(model.tags) { tag in
                         let isAppliedToAll = objects.allSatisfy { object in
                             object.tags.contains { $0.id == tag.id }

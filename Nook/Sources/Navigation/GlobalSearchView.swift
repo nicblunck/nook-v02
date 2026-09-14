@@ -51,7 +51,6 @@ struct GlobalSearchView: View {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("Search your whole library", text: $text)
                 .textFieldStyle(.plain)
-                .font(.title3)
                 .focused($isFieldFocused)
                 .onSubmit { openHighlighted() }
             if !text.isEmpty {
@@ -61,7 +60,8 @@ struct GlobalSearchView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     private var filters: some View {
@@ -81,6 +81,7 @@ struct GlobalSearchView: View {
                                         in: .capsule)
                     }
                     .buttonStyle(.plain)
+                    .motionAware(NookMotion.interaction, value: isOn)
                     .accessibilityAddTraits(isOn ? .isSelected : [])
                 }
             }
@@ -104,9 +105,15 @@ struct GlobalSearchView: View {
                         ForEach(results) { object in
                             resultRow(object)
                                 .id(object.id)
+                                .transition(.motionAware(
+                                    .scale(scale: 0.98).combined(with: .opacity),
+                                    reduceMotion: reduceMotion
+                                ))
                         }
                     }
                     .padding(8)
+                    .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
+                               value: results.map(\.id))
                 }
                 .onChange(of: highlighted) {
                     guard let highlighted else { return }
@@ -148,6 +155,7 @@ struct GlobalSearchView: View {
         .contentShape(.rect)
         .onTapGesture { open(object) }
         .onHover { if $0 { highlighted = object.id } }
+        .motionAware(NookMotion.interaction, value: highlighted == object.id)
     }
 
     private func location(of object: ObjectSnapshot) -> String {
@@ -214,3 +222,12 @@ private extension Comparable {
         min(max(self, range.lowerBound), range.upperBound)
     }
 }
+
+#if DEBUG
+#Preview {
+    PreviewHost { model in
+        GlobalSearchView(model: model, dismiss: {})
+    }
+    .frame(width: 700, height: 550)
+}
+#endif

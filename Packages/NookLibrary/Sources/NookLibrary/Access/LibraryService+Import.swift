@@ -47,6 +47,8 @@ public extension LibraryService {
         object.linkDescription = metadata?.summary
         object.linkPreviewImageURLString = metadata?.previewImageURL?.absoluteString
         object.linkFaviconURLString = metadata?.faviconURL?.absoluteString
+        object.pixelWidth = metadata?.previewPixelWidth
+        object.pixelHeight = metadata?.previewPixelHeight
         object.contentTypeIdentifier = UTType.url.identifier
         object.folder = resolveDestination(destination)
 
@@ -77,6 +79,21 @@ public extension LibraryService {
             .map(\.id)
     }
 
+    /// Links whose saved metadata says the page offers a representative
+    /// picture. The picture itself is derived, device-local data, so every
+    /// device uses this list to rebuild any preview absent from its cache.
+    func linksAdvertisingPreviewImage() -> [ObjectID] {
+        let linkKind = ObjectKind.link.rawValue
+        let descriptor = FetchDescriptor<LibraryObject>(
+            predicate: #Predicate { $0.kindRaw == linkKind && $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.dateAdded, order: .reverse)]
+        )
+
+        return ((try? context.fetch(descriptor)) ?? [])
+            .filter { $0.linkPreviewImageURLString != nil && $0.sourceURLString != nil }
+            .map(\.id)
+    }
+
     /// Applies fetched page metadata. The title is only replaced while it is
     /// still the placeholder taken from the URL, so a title the user has
     /// edited is never overwritten by a later fetch.
@@ -90,10 +107,28 @@ public extension LibraryService {
         object.linkDescription = metadata.summary
         object.linkPreviewImageURLString = metadata.previewImageURL?.absoluteString
         object.linkFaviconURLString = metadata.faviconURL?.absoluteString
+        if let width = metadata.previewPixelWidth,
+           let height = metadata.previewPixelHeight,
+           width > 0, height > 0 {
+            object.pixelWidth = width
+            object.pixelHeight = height
+        }
 
         if let title = metadata.title, !title.isEmpty, object.title == placeholder {
             object.title = title
         }
+        try didMutate()
+    }
+
+    /// Records the display dimensions of a link's disposable preview without
+    /// replacing any page metadata that may already have synced successfully.
+    func applyLinkPreviewDimensions(width: Int, height: Int, to id: ObjectID) throws {
+        guard width > 0, height > 0 else { return }
+        guard let object = object(withIdentifier: id.uuid) else {
+            throw LibraryError.objectNotFound(id)
+        }
+        object.pixelWidth = width
+        object.pixelHeight = height
         try didMutate()
     }
 }
@@ -215,14 +250,20 @@ public struct LinkMetadata: Sendable, Hashable {
     public var summary: String?
     public var previewImageURL: URL?
     public var faviconURL: URL?
+    public var previewPixelWidth: Int?
+    public var previewPixelHeight: Int?
 
     public init(title: String? = nil,
                 summary: String? = nil,
                 previewImageURL: URL? = nil,
-                faviconURL: URL? = nil) {
+                faviconURL: URL? = nil,
+                previewPixelWidth: Int? = nil,
+                previewPixelHeight: Int? = nil) {
         self.title = title
         self.summary = summary
         self.previewImageURL = previewImageURL
         self.faviconURL = faviconURL
+        self.previewPixelWidth = previewPixelWidth
+        self.previewPixelHeight = previewPixelHeight
     }
 }

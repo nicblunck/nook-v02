@@ -1,31 +1,26 @@
 import Foundation
 
 /// The on-disk layout of a managed library.
-///
-/// Durable state and disposable state are kept in separate trees: the store and
-/// blobs are the library, while thumbnails and search indexes underneath
-/// `Derived` can be deleted at any time and rebuilt.
 public struct LibraryLocations: Sendable {
     public let root: URL
+    public let cloudRoot: URL?
 
-    public init(root: URL) {
+    public init(root: URL, cloudRoot: URL? = nil) {
         self.root = root
+        self.cloudRoot = cloudRoot
     }
 
-    /// The app group the app and its extensions share, so a share extension
-    /// writes into the same library the app reads.
-    public static let defaultAppGroupIdentifier = "group.com.nicolasblunck.nook"
+    /// The app group the app and its extensions share for metadata and coordination.
+    public static let defaultAppGroupIdentifier = "group.com.nicolasblunck.nook.app"
+    /// The ubiquitous container used for original file bytes.
+    public static let defaultUbiquityContainerIdentifier = "iCloud.com.nicolasblunck.nook.app"
 
     /// The library both the app and its extensions should open.
-    ///
-    /// Falls back to this process's own Application Support directory when the
-    /// group container is unavailable — an unsigned development build, or a
-    /// group that is not provisioned yet — so the app still runs rather than
-    /// failing to launch over an entitlement.
     public static func shared(
-        appGroupIdentifier: String? = defaultAppGroupIdentifier
+        appGroupIdentifier: String? = defaultAppGroupIdentifier,
+        ubiquityContainerIdentifier: String? = defaultUbiquityContainerIdentifier
     ) throws -> LibraryLocations {
-        try resolveShared(
+        let shared = try resolveShared(
             appGroupIdentifier: appGroupIdentifier,
             groupContainer: {
                 FileManager.default.containerURL(
@@ -34,11 +29,21 @@ public struct LibraryLocations: Sendable {
             },
             fallback: { try applicationDefault() }
         )
+
+        guard FileManager.default.ubiquityIdentityToken != nil,
+              let ubiquityContainerIdentifier,
+              let cloudRoot = FileManager.default.url(
+                forUbiquityContainerIdentifier: ubiquityContainerIdentifier
+              ) else {
+            return shared
+        }
+
+        return LibraryLocations(root: shared.root, cloudRoot: cloudRoot)
     }
 
-    /// `containerURL` may return a plausible URL to an unsigned or unentitled
-    /// process even though that process cannot write there. Prove the group is
-    /// usable before choosing it so development builds genuinely fall back.
+    /// containerURL may return a plausible URL to an unsigned or unentitled
+    /// process even though that process cannot write there. Prove the group is usable
+    /// before choosing it so development builds genuinely fall back.
     static func resolveShared(
         appGroupIdentifier: String?,
         groupContainer: (String) -> URL?,
@@ -61,9 +66,9 @@ public struct LibraryLocations: Sendable {
         return try fallback()
     }
 
-    /// The per-process location: `Application Support/<bundle id>/Library`.
+    /// The per-process location: Application Support/<bundle id>/Library.
     public static func applicationDefault(
-        bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.nicolasblunck.nook"
+        bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.nicolasblunck.nook.app"
     ) throws -> LibraryLocations {
         let support = try FileManager.default.url(
             for: .applicationSupportDirectory,
@@ -80,14 +85,21 @@ public struct LibraryLocations: Sendable {
     }
 
     public var storeURL: URL { root.appending(path: "Store/Library.store") }
-    public var blobsURL: URL { root.appending(path: "Blobs") }
+    public var blobsURL: URL {
+        (cloudRoot ?? root).appending(path: "Blobs")
+    }
     public var derivedURL: URL { root.appending(path: "Derived") }
     public var thumbnailsURL: URL { derivedURL.appending(path: "Thumbnails") }
     public var searchIndexURL: URL { derivedURL.appending(path: "Search/index.sqlite") }
 
     public func createDirectories() throws {
         let manager = FileManager.default
-        for url in [storeURL.deletingLastPathComponent(), blobsURL, thumbnailsURL, searchIndexURL.deletingLastPathComponent()] {
+        for url in [
+            storeURL.deletingLastPathComponent(),
+            blobsURL,
+            thumbnailsURL,
+            searchIndexURL.deletingLastPathComponent()
+        ] {
             try manager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }

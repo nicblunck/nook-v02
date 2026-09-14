@@ -235,6 +235,23 @@ struct DragAndDropTests {
         #expect(reparented.parentID == work.id)
     }
 
+    @Test("A folder dropped on the sidebar root becomes a root folder")
+    func folderDropMovesToRoot() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Work", in: nil)
+        let work = try #require(model.folderTree.first?.folder)
+        await model.createFolder(named: "Archive", in: work.id)
+        let archive = try #require(model.allFolders.first { $0.folder.name == "Archive" }?.folder)
+
+        await model.accept([.folder(FolderTransfer(id: archive.id))], at: .folder(nil))
+
+        let moved = try #require(model.folderTree.first { $0.folder.id == archive.id }?.folder)
+        #expect(moved.parentID == nil)
+    }
+
     /// The store refuses this too. Refusing it here is what keeps the sidebar
     /// from offering a drop whose only outcome is an alert.
     @Test("A folder cannot be dropped inside its own subtree")

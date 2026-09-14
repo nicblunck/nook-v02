@@ -78,7 +78,7 @@ extension LibraryModel {
         case .trash:
             await delete(ids)
         case .hidden:
-            await setHidden(true, for: snapshots(of: ids))
+            await setHidden(true, for: ids)
         case .currentLocation:
             break
         }
@@ -111,11 +111,11 @@ extension LibraryModel {
     /// What the gallery in front of the user counts as a place to drop into.
     ///
     /// Recent, All Objects and the media types are queries over the library
-    /// rather than places in it, and Home is a way back into recent work: a
-    /// drop has nowhere to land in any of them, so it does not land.
+    /// rather than places in it. Home is the root folder, so a drop there lands
+    /// beside the other loose objects in the library root.
     private func resolvedTarget(_ target: DropTarget) -> DropTarget? {
         guard case .currentLocation = target else { return target }
-        guard !isShowingHome else { return nil }
+        if isShowingHome { return .folder(nil) }
         switch scope {
         case .folder(let id), .folderTree(let id): return .folder(id)
         case .inbox: return .folder(nil)
@@ -123,7 +123,6 @@ extension LibraryModel {
         case .tag(let id): return .tag(id)
         case .favorites: return .favorites
         case .recentlyDeleted: return .trash
-        case .hidden: return .hidden
         case .allObjects, .recent, .kind: return nil
         }
     }
@@ -171,9 +170,5 @@ extension LibraryModel {
 
     private func snapshot(of id: ObjectID) -> ObjectSnapshot? {
         visibleObjects.first { $0.id == id }
-    }
-
-    private func snapshots(of ids: [ObjectID]) -> [ObjectSnapshot] {
-        ids.compactMap { snapshot(of: $0) }
     }
 }

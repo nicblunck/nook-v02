@@ -100,6 +100,22 @@ struct NavigationHistoryTests {
         #expect(model.destination == .home)
     }
 
+    @Test("Reopening the current destination leaves preview")
+    func reopeningCurrentDestinationLeavesPreview() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        let object = try #require(try await harness.importFile(named: "note.txt"))
+        model.previewedObjectID = object.id
+
+        model.navigate(to: .home)
+
+        #expect(model.previewedObjectID == nil)
+        #expect(model.destination == .home)
+        #expect(!model.canGoBack)
+    }
+
     @Test("A deleted folder is taken out of the history")
     func deletedFoldersAreForgotten() async throws {
         let harness = try await TestModel()

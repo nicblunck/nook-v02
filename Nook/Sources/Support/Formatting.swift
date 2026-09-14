@@ -40,6 +40,7 @@ enum Format {
     /// locked object sounding identical to an unprotected one.
     static func spokenCaption(for object: ObjectSnapshot) -> String {
         var parts = captionParts(for: object)
+        if object.isHidden { parts.append("Hidden") }
         if object.isFavorite { parts.append("Favorite") }
         if object.isLocked { parts.append("Locked") }
         return parts.joined(separator: ", ")
@@ -62,6 +63,26 @@ enum Format {
 
     static func folderCount(_ count: Int) -> String {
         count == 1 ? "1 folder" : "\(count) folders"
+    }
+
+    /// The one-line secondary caption under a folder card.
+    static func caption(for folder: FolderSnapshot) -> String {
+        folderCaptionParts(for: folder).joined(separator: " · ")
+    }
+
+    /// The same caption, phrased for speech.
+    static func spokenCaption(for folder: FolderSnapshot) -> String {
+        var parts = folderCaptionParts(for: folder)
+        if folder.isHidden { parts.append("Hidden") }
+        if folder.isLocked { parts.append("Locked") }
+        return parts.joined(separator: ", ")
+    }
+
+    private static func folderCaptionParts(for folder: FolderSnapshot) -> [String] {
+        var parts: [String] = []
+        if folder.subfolderCount > 0 { parts.append(folderCount(folder.subfolderCount)) }
+        parts.append(itemCount(folder.objectCount))
+        return parts
     }
 }
 

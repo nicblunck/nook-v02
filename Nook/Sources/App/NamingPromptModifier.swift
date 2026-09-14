@@ -1,7 +1,8 @@
 import SwiftUI
 import NookLibrary
 
-/// Presents the create and rename prompts.
+/// Presents the lightweight rename prompts. Creation uses the shared
+/// appearance editor so a new place is named and styled in one pass.
 ///
 /// Attached once at the window rather than in the sidebar, because the same
 /// prompts are raised from the menu bar and from iPhone, where there is no
@@ -39,8 +40,6 @@ struct NamingPromptModifier: ViewModifier {
             model.collections.first { $0.id == id }?.name ?? ""
         case .renameTag(let id):
             model.tags.first { $0.id == id }?.name ?? ""
-        case .newFolder, .newCollection:
-            ""
         }
     }
 
@@ -49,10 +48,7 @@ struct NamingPromptModifier: ViewModifier {
         let name = draftName
         Task {
             switch prompt {
-            case .newFolder(let parent): await model.createFolder(named: name, in: parent)
             case .renameFolder(let id): await model.rename(folder: id, to: name)
-            case .newCollection(let adding):
-                await model.createCollection(named: name, adding: adding)
             case .renameCollection(let id): await model.renameCollection(id, to: name)
             case .renameTag(let id): await model.renameTag(id, to: name)
             }

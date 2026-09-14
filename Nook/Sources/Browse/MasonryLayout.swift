@@ -8,17 +8,21 @@ import SwiftUI
 struct MasonryLayout: Layout {
     var minimumColumnWidth: CGFloat = 160
     var spacing: CGFloat = 16
+    /// Invalidates cached item heights when a presentation preference changes
+    /// whether captions participate in the masonry layout.
+    var contentRevision: Int = 0
 
     /// The arrangement last worked out, and the width it was worked out for.
     ///
     /// Measuring the wall and placing it are two passes over the same numbers,
     /// and every pass measures every tile — so without this, opening the
     /// inspector measures the whole wall twice for each frame of the animation.
-    /// SwiftUI rebuilds the cache whenever the subviews change, and a tile's
-    /// height here follows from the column width and the object's proportions
-    /// alone, so what is kept can only describe the wall as it stands.
+    /// SwiftUI rebuilds the cache whenever subviews change. The explicit
+    /// content revision below also invalidates it when a caption setting adds
+    /// or removes measured height without changing the item count.
     struct Cache {
         var width: CGFloat?
+        var contentRevision: Int?
         var resolved: Resolved?
     }
 
@@ -26,7 +30,18 @@ struct MasonryLayout: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let width = layoutWidth(for: proposal)
+        #if os(iOS)
+        // A loaded thumbnail can correct stale or absent stored dimensions.
+        // Remeasure on iOS so that local card state can reflow the wall; there
+        // is no animated inspector resize here, which is what the macOS cache
+        // primarily protects.
+        let layout = arrange(width: width, subviews: subviews)
+        cache.width = width
+        cache.contentRevision = contentRevision
+        cache.resolved = layout
+        #else
         let layout = resolve(width: width, subviews: subviews, cache: &cache)
+        #endif
         return CGSize(width: width, height: layout.columnHeights.max() ?? 0)
     }
 
@@ -65,11 +80,13 @@ struct MasonryLayout: Layout {
         // to a placement rather than an assumption.
         if let resolved = cache.resolved,
            cache.width == width,
+           cache.contentRevision == contentRevision,
            resolved.placements.count == subviews.count {
             return resolved
         }
         let resolved = arrange(width: width, subviews: subviews)
         cache.width = width
+        cache.contentRevision = contentRevision
         cache.resolved = resolved
         return resolved
     }

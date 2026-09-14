@@ -44,14 +44,34 @@ enum MediaMetadataReader {
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
         else { return }
 
-        metadata.pixelWidth = properties[kCGImagePropertyPixelWidth] as? Int
-        metadata.pixelHeight = properties[kCGImagePropertyPixelHeight] as? Int
+        if let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+           let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue {
+            let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue
+            let dimensions = orientedPixelDimensions(width: width, height: height,
+                                                     orientation: orientation)
+            metadata.pixelWidth = dimensions.width
+            metadata.pixelHeight = dimensions.height
+        }
 
         if let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any],
            let original = exif[kCGImagePropertyExifDateTimeOriginal] as? String,
            let parsed = exifDateFormatter.date(from: original) {
             metadata.creationDate = parsed
         }
+    }
+
+    /// ImageIO reports encoded pixel dimensions before EXIF orientation is
+    /// applied. Orientations 5 through 8 rotate the displayed image by a
+    /// quarter turn, so its layout width and height must trade places.
+    static func orientedPixelDimensions(
+        width: Int,
+        height: Int,
+        orientation: Int?
+    ) -> (width: Int, height: Int) {
+        guard let orientation, (5...8).contains(orientation) else {
+            return (width, height)
+        }
+        return (height, width)
     }
 
     private static func readAVAsset(at url: URL, into metadata: inout MediaMetadata) async {

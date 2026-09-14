@@ -4,6 +4,31 @@ import Testing
 
 @Suite("Library locations")
 struct LibraryLocationsTests {
+    @Test("A blob in the pre-iCloud location migrates when first opened")
+    func legacyBlobMigratesOnDemand() async throws {
+        let scratch = URL.temporaryDirectory
+            .appending(path: "NookBlobMigrationTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let preferred = scratch.appending(path: "Preferred")
+        let fallback = scratch.appending(path: "Fallback")
+        let oldStore = try LocalBlobStore(directory: fallback)
+        let data = Data("existing import".utf8)
+        let descriptor = try await oldStore.ingest(data: data, contentType: .plainText)
+        let store = try LocalBlobStore(
+            directory: preferred,
+            fallbackDirectory: fallback
+        )
+
+        let migrated = try await store.materialize(descriptor)
+
+        #expect(migrated.path.hasPrefix(preferred.path))
+        #expect(try Data(contentsOf: migrated) == data)
+        #expect(FileManager.default.fileExists(
+            atPath: try #require(oldStore.localURL(for: descriptor)).path
+        ))
+    }
+
     @Test("An unwritable app-group URL falls back to application storage")
     func unwritableGroupFallsBack() throws {
         let scratch = URL.temporaryDirectory

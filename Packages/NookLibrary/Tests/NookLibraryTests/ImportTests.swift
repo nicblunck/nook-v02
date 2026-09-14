@@ -69,6 +69,19 @@ struct ImportTests {
         #expect(!ImportClassifier.isScreenshotName("sunset-over-kyoto.jpg"))
     }
 
+    @Test("Image dimensions follow their display orientation")
+    func imageDimensionsApplyOrientation() {
+        #expect(MediaMetadataReader.orientedPixelDimensions(
+            width: 4_032, height: 3_024, orientation: 1
+        ) == (4_032, 3_024))
+        #expect(MediaMetadataReader.orientedPixelDimensions(
+            width: 4_032, height: 3_024, orientation: 6
+        ) == (3_024, 4_032))
+        #expect(MediaMetadataReader.orientedPixelDimensions(
+            width: 4_032, height: 3_024, orientation: 8
+        ) == (3_024, 4_032))
+    }
+
     @Test("A link is saved as an object with its domain")
     func linkImport() async throws {
         let harness = try await TestLibrary()

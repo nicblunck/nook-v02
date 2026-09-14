@@ -68,6 +68,13 @@ struct FolderScene<Content: View, Stamp: View>: View {
             frontPanel
         }
         .frame(width: width, height: height, alignment: .bottom)
+        // The bottom edge is pinned, so the sheets rising higher as the
+        // folder opens only ever grows the drawing upward — left alone, an
+        // open folder reads as sitting higher than a shut one. Sinking the
+        // whole scene by half of that rise keeps the composition's centre
+        // where it was when shut, instead of climbing toward the top of the
+        // icon's box.
+        .offset(y: (lerp(0.20, 0.62) - 0.20) / 2 * height)
     }
 
     private var frontPanel: some View {

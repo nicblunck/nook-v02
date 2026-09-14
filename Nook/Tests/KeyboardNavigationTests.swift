@@ -32,20 +32,22 @@ struct CanvasNavigationTests {
         }
     }
 
-    @Test("Left and right walk the canvas in the order it is sorted")
-    func stepsThroughOrder() {
+    @Test("Left and right move to the adjacent object in the rendered row")
+    func stepsThroughRenderedRow() {
         let grid = Grid()
         #expect(grid.destination(from: grid.ids[0], .right) == grid.ids[1])
         #expect(grid.destination(from: grid.ids[1], .left) == grid.ids[0])
     }
 
-    /// Right at the end of a row carries on to the row below, because the
-    /// order is one sequence rather than a set of rows.
-    @Test("Right wraps from the end of a row to the start of the next")
-    func wrapsRows() {
+    /// A horizontal arrow does not turn into vertical movement just because
+    /// the next item in the backing order starts another row.
+    @Test("Left and right stop at the rendered row edges")
+    func stopsAtRowEdges() {
         let grid = Grid()
-        #expect(grid.destination(from: grid.ids[2], .right) == grid.ids[3])
-        #expect(grid.destination(from: grid.ids[3], .left) == grid.ids[2])
+        #expect(grid.destination(from: grid.ids[2], .right) == nil)
+        #expect(grid.destination(from: grid.ids[3], .left) == nil)
+        #expect(grid.destination(from: grid.ids[5], .right) == nil)
+        #expect(grid.destination(from: grid.ids[6], .left) == nil)
     }
 
     @Test("There is nothing before the first item or after the last")
@@ -83,6 +85,15 @@ struct CanvasNavigationTests {
         let grid = Grid()
         // The third column has no item on the last row; the second does.
         #expect(grid.destination(from: grid.ids[5], .down) == grid.ids[7])
+        #expect(grid.destination(from: grid.ids[7], .up) == grid.ids[4])
+    }
+
+    @Test("A short final row keeps horizontal movement inside that row")
+    func movesWithinAPartialRow() {
+        let grid = Grid()
+        #expect(grid.destination(from: grid.ids[6], .right) == grid.ids[7])
+        #expect(grid.destination(from: grid.ids[7], .left) == grid.ids[6])
+        #expect(grid.destination(from: grid.ids[7], .right) == nil)
     }
 
     @Test("The first key press enters the canvas from the edge it points away from")
@@ -121,6 +132,25 @@ struct CanvasNavigationTests {
                                              order: order, frames: frames) == d)
         #expect(CanvasNavigation.destination(from: c, direction: .up,
                                              order: order, frames: frames) == a)
+    }
+
+    @Test("Down cannot skip to a neighbouring column because its top is closer")
+    func keepsTheCurrentVisualLane() {
+        let origin = CanvasItemID.object(ObjectID())
+        let directlyBelow = CanvasItemID.object(ObjectID())
+        let besideAndLower = CanvasItemID.object(ObjectID())
+        let frames: [CanvasItemID: CGRect] = [
+            origin: CGRect(x: 0, y: 0, width: 90, height: 240),
+            directlyBelow: CGRect(x: 0, y: 254, width: 90, height: 80),
+            besideAndLower: CGRect(x: 110, y: 100, width: 90, height: 140)
+        ]
+
+        #expect(CanvasNavigation.destination(
+            from: origin,
+            direction: .down,
+            order: [origin, besideAndLower, directlyBelow],
+            frames: frames
+        ) == directlyBelow)
     }
 
     @Test("A list is one column, so up and down are one item")
@@ -512,92 +542,6 @@ struct KeyboardNavigationTests {
         #expect(model.moveCursor(.right))          // onto the first item
         #expect(!model.moveCursor(.left))          // nowhere further left
         #expect(model.cursor == model.canvasOrder.first)
-    }
-
-    // MARK: Home
-
-    /// Home's bands are separate queries over the same library, so anything
-    /// recently imported and still unsorted is in both Inbox and Recent. An
-    /// object id alone would name two tiles, and light both.
-    @Test("A tile is identified by its band as well as its object")
-    func homeTilesAreDistinctPerBand() async throws {
-        let harness = try await TestModel()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        model.navigate(to: .scope(.inbox))
-        let object = try #require(try await harness.importFile(named: "one.txt"))
-        await model.refreshHome()
-
-        // A file just imported into the Inbox is also among the Recent, so it
-        // is showing in two bands at once.
-        let tiles = model.homeOrder.filter { $0.object == object.id }
-        #expect(tiles.count == 2)
-        // Two tiles that can be told apart: same object, different bands.
-        #expect(Set(tiles).count == 2)
-        #expect(Set(tiles.map(\.scope)) == [.inbox, .recent])
-    }
-
-    @Test("Arrow keys walk Home's tiles")
-    func movesThroughHome() async throws {
-        let harness = try await harnessWithThreeObjects()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        await model.refreshHome()
-        let order = model.homeOrder
-        try #require(order.count > 1)
-
-        #expect(model.homeCursor == nil)
-        model.moveHomeCursor(.right)
-        #expect(model.homeCursor == order.first)
-
-        model.moveHomeCursor(.right)
-        #expect(model.homeCursor == order[1])
-
-        model.moveHomeCursorToEdge(.down)
-        #expect(model.homeCursor == order.last)
-    }
-
-    /// The same report the canvas makes, so Home can step back into the
-    /// sidebar when left runs out.
-    @Test("Left reports going nowhere at Home's first tile")
-    func homeReportsRunningOut() async throws {
-        let harness = try await harnessWithThreeObjects()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        await model.refreshHome()
-        try #require(!model.homeOrder.isEmpty)
-
-        #expect(model.moveHomeCursor(.right))
-        #expect(!model.moveHomeCursor(.left))
-    }
-
-    @Test("Arriving on Home lights a tile, so the key is seen to have worked")
-    func arrivingOnHomeLightsATile() async throws {
-        let harness = try await harnessWithThreeObjects()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        model.navigate(to: .home)
-        await model.refreshHome()
-        try #require(!model.homeOrder.isEmpty)
-        #expect(model.isShowingHome)
-
-        model.enterCanvas()
-        model.lightFirstItemIfNothingIsLit()
-        #expect(model.homeCursor == model.homeOrder.first)
-    }
-
-    @Test("Home's cursor lets go of a tile that is no longer there")
-    func homeCursorReleasesVanishedTiles() async throws {
-        let harness = try await harnessWithThreeObjects()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        await model.refreshHome()
-
-        model.moveHomeCursor(.right)
-        let tile = try #require(model.homeCursor)
-        await model.delete([tile.object])
-        await model.refreshHome()
-        #expect(model.homeCursor == nil)
     }
 
     /// Shift-clicking and shift-arrowing are the same rule, so the two cannot

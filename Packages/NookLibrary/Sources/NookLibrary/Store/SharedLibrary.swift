@@ -18,7 +18,9 @@ public actor SharedLibrary {
     /// await the same bootstrap rather than racing to open the store twice.
     public func current(
         locations: LibraryLocations? = nil,
-        syncMode: LibrarySyncMode = .local
+        syncMode: LibrarySyncMode = .cloudKit(
+            containerIdentifier: Library.defaultCloudKitContainerIdentifier
+        )
     ) async throws -> Library {
         if let library { return library }
         if let bootstrapTask { return try await bootstrapTask.value }

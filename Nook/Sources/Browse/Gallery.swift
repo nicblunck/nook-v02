@@ -42,11 +42,15 @@ extension LibraryViewMode {
         case .list: 6
         }
     }
+}
 
-    /// A folder is an icon rather than a photograph, so on the masonry wall it
-    /// takes the grid's corner rather than the tile's.
-    var folderCornerRadius: CGFloat {
-        self == .masonry ? 10 : itemCornerRadius
+private extension MasonryCaptionDisplay {
+    var layoutRevision: Int {
+        switch self {
+        case .automatic: 0
+        case .always: 1
+        case .hidden: 2
+        }
     }
 }
 
@@ -62,27 +66,34 @@ struct GalleryLayout<Content: View>: View {
     /// How large the user has asked for things to be drawn, as a multiple of
     /// each layout's natural size.
     var scale: Double = 1
+    var masonryCaptionDisplay: MasonryCaptionDisplay = .automatic
     @ViewBuilder let content: Content
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        switch mode {
-        case .grid:
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: cellWidth.lowerBound,
-                                                   maximum: cellWidth.upperBound),
-                                         spacing: 8)],
-                      spacing: 14 * min(scale, 1.6)) {
-                content
-            }
-        case .masonry:
-            MasonryLayout(minimumColumnWidth: max(130, 168 * scale),
-                          spacing: 20 * min(max(scale, 0.75), 1.5)) {
-                content
-            }
-        case .list:
-            LazyVStack(spacing: 1) {
-                content
+        Group {
+            switch mode {
+            case .grid:
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: cellWidth.lowerBound,
+                                                       maximum: cellWidth.upperBound),
+                                             spacing: 8)],
+                          spacing: 14 * min(scale, 1.6)) {
+                    content
+                }
+            case .masonry:
+                MasonryLayout(minimumColumnWidth: max(130, 168 * scale),
+                              spacing: 20 * min(max(scale, 0.75), 1.5),
+                              contentRevision: masonryCaptionDisplay.layoutRevision) {
+                    content
+                }
+            case .list:
+                LazyVStack(spacing: 1) {
+                    content
+                }
             }
         }
+        .animation(reduceMotion ? nil : NookMotion.reflow, value: mode)
     }
 
     /// The cell holds the icon and two lines of name, and keeps room for the
@@ -102,6 +113,8 @@ struct ObjectItemView: View {
     /// in their own way, and the list leaves it to the ring.
     let isCursor: Bool
     var scale: Double = 1
+    var masonryCaptionDisplay: MasonryCaptionDisplay = .automatic
+    var showsMasonryTypeLabels = true
 
     var body: some View {
         switch mode {
@@ -110,37 +123,60 @@ struct ObjectItemView: View {
                        isCursor: isCursor, scale: scale)
         case .masonry:
             ObjectMasonryCard(object: object, isSelected: isSelected,
-                              isCursor: isCursor, scale: scale)
+                              isCursor: isCursor,
+                              captionDisplay: masonryCaptionDisplay,
+                              showsTypeLabel: showsMasonryTypeLabels,
+                              scale: scale)
         case .list:
             ObjectListRow(object: object, isSelected: isSelected)
         }
     }
 }
 
-/// One folder, drawn the way the current arrangement draws it. Masonry has no
-/// folder of its own: a folder has no proportions to keep, so it takes the
-/// same card the grid gives it.
+/// One folder, drawn the way the current arrangement draws it.
 struct FolderItemView: View {
     let folder: FolderSnapshot
     let mode: LibraryViewMode
     /// The first few things inside, which the icon leafs through when the
     /// pointer rests on it.
     var peeks: [ObjectSnapshot] = []
+    let isSelected: Bool
     let isCursor: Bool
     var scale: Double = 1
+    var masonryCaptionDisplay: MasonryCaptionDisplay = .automatic
+    /// A single click is another way of saying the keyboard belongs to the
+    /// canvas and should rest here, the same thing clicking an object says.
+    var select: (EventModifiers) -> Void = { _ in }
     let onOpen: () -> Void
 
     var body: some View {
-        switch mode {
-        case .grid:
-            // The grid draws no ring, so the card itself has to show that the
-            // keyboard is on it.
-            FolderCard(folder: folder, peeks: peeks, isHighlighted: isCursor,
-                       scale: scale, onOpen: onOpen)
-        case .masonry:
-            FolderCard(folder: folder, peeks: peeks, scale: scale, onOpen: onOpen)
-        case .list:
-            FolderListRow(folder: folder).itemClick { onOpen() }
+        Group {
+            switch mode {
+            case .grid:
+                // The grid draws no ring, so the card itself shows selection and
+                // the keyboard cursor directly.
+                FolderCard(folder: folder, peeks: peeks, isSelected: isSelected,
+                           isCursor: isCursor, scale: scale, select: select, onOpen: onOpen)
+            case .masonry:
+                FolderMasonryCard(folder: folder, peeks: peeks, isSelected: isSelected,
+                                  isCursor: isCursor,
+                                  captionDisplay: masonryCaptionDisplay,
+                                  scale: scale, select: select, onOpen: onOpen)
+            case .list:
+                FolderListRow(folder: folder, isSelected: isSelected)
+                    .itemClick(select: select, open: onOpen)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if folder.isHidden {
+                Image(systemName: "eye.slash")
+                    .font(.caption2.weight(.semibold))
+                    .padding(5)
+                    .background(.regularMaterial, in: .circle)
+                    .padding(6)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 }
@@ -200,7 +236,6 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
             .overlay {
                 // Selection is a fill in the list and a mat on the masonry
                 // wall; the cursor is this ring, and an item can carry both.
-                // A folder, which never joins a selection, has only the ring.
                 // The icon grid asks for none: it lights the item instead.
                 RoundedRectangle(cornerRadius: radius + outset)
                     .strokeBorder(Color.accentColor, lineWidth: 2.5)
@@ -208,6 +243,7 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
                     .opacity(isCursor && showsRing ? 1 : 0)
                     .allowsHitTesting(false)
             }
+            .motionAware(NookMotion.interaction, value: isCursor)
             .onGeometryChange(for: CGRect.self) {
                 $0.frame(in: .named(coordinateSpace))
             } action: { frames.record($0, for: id) }
@@ -255,7 +291,6 @@ struct ObjectItemBehavior: ViewModifier {
                 ObjectMenu(model: model, objects: targets) { select([]) }
             }
             .draggable(transfer)
-            .modifier(ManualReorderTarget(model: model, object: object))
     }
 
     private var transfer: ObjectTransfer {
@@ -274,32 +309,6 @@ struct ObjectItemBehavior: ViewModifier {
     }
 }
 
-/// In a manually ordered collection, dropping one item onto another moves it
-/// ahead of that item. Elsewhere — Home included — there is no manual order
-/// to rearrange.
-private struct ManualReorderTarget: ViewModifier {
-    let model: LibraryModel
-    let object: ObjectSnapshot
-
-    private var isActive: Bool {
-        guard !model.isShowingHome, case .collection = model.scope else { return false }
-        return model.sort.field == .manual
-    }
-
-    func body(content: Content) -> some View {
-        if isActive {
-            content.dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                let ids = transfers.flatMap(\.ids)
-                guard !ids.isEmpty else { return false }
-                Task { await model.reorder(ids, before: object.id) }
-                return true
-            }
-        } else {
-            content
-        }
-    }
-}
-
 /// Dropping on a folder relocates: this is the true hierarchy. Objects move
 /// into it, subfolders become its children, and files from outside are
 /// imported straight into it rather than landing in the Inbox first.
@@ -308,10 +317,14 @@ struct FolderDropTarget: ViewModifier {
     let folder: FolderSnapshot
 
     func body(content: Content) -> some View {
-        content.dropDestination(for: LibraryDropItem.self) { items, _ in
-            Task { await model.accept(items, at: .folder(folder.id)) }
-            return true
-        }
+        content
+            .dropDestination(for: LibraryDropItem.self) { items, _ in
+                Task { await model.accept(items, at: .folder(folder.id)) }
+                return true
+            }
+            .externalURLDrop(isTargeted: .constant(false)) { urls in
+                Task { await model.importFiles(at: urls, into: .folder(folder.id)) }
+            }
     }
 }
 
@@ -324,6 +337,7 @@ struct FolderDropTarget: ViewModifier {
 /// what the drop will do — which is nothing.
 struct GalleryDropTarget: ViewModifier {
     let model: LibraryModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isTargeted = false
     @State private var isArrivingFromOutside = true
 
@@ -333,8 +347,21 @@ struct GalleryDropTarget: ViewModifier {
                 Task { await model.accept(items, at: .currentLocation) }
                 return true
             } isTargeted: { isTargeted = $0 }
+            .externalURLDrop(isTargeted: $isTargeted) { urls in
+                Task { await model.importFiles(at: urls) }
+            }
             .modifier(DragOrigin(isArrivingFromOutside: $isArrivingFromOutside))
-            .overlay { if isTargeted, isArrivingFromOutside { GalleryDropIndicator() } }
+            .overlay {
+                if isTargeted, isArrivingFromOutside {
+                    GalleryDropIndicator()
+                        .transition(.motionAware(
+                            .scale(scale: 0.985).combined(with: .opacity),
+                            reduceMotion: reduceMotion
+                        ))
+                }
+            }
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
+                       value: isTargeted && isArrivingFromOutside)
     }
 }
 
@@ -361,6 +388,10 @@ private struct DragOrigin: ViewModifier {
 ///
 /// A gallery rather than a canvas thing: making the pictures bigger is the
 /// same act on Home as it is in a folder.
+///
+/// iOS has no manual size at all — items are sized automatically — so the
+/// gesture stands down there rather than fighting the pinch-to-zoom photos
+/// and folders already use for other things.
 struct GalleryResizeGesture: ViewModifier {
     let model: LibraryModel
     /// The size the pinch started from, so the gesture's magnification is
@@ -368,6 +399,9 @@ struct GalleryResizeGesture: ViewModifier {
     @State private var scaleAtPinchStart: Double?
 
     func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+        #else
         content.gesture(
             MagnifyGesture()
                 .onChanged { value in
@@ -381,16 +415,152 @@ struct GalleryResizeGesture: ViewModifier {
                     Task { await model.commitItemScale() }
                 }
         )
+        #endif
     }
 }
 
-/// The dashed border shown while files are held over a gallery.
+/// The neutral wash shown while files are held over a gallery.
 struct GalleryDropIndicator: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
+            .fill(Color.gray.opacity(0.14))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.gray.opacity(0.28), lineWidth: 1)
+            }
             .padding(8)
             .allowsHitTesting(false)
+    }
+}
+
+/// The library's primary add action. On macOS this is a split button sized to
+/// match the window's other toolbar-style controls: the plus opens the system
+/// importer directly, while the attached chevron reveals the rest. Elsewhere
+/// a regular click opens the importer and a context menu keeps the rest
+/// nearby instead.
+struct LibraryFloatingActionButton: View {
+    let model: LibraryModel
+    var fillsAccessory = false
+
+    var body: some View {
+        #if os(macOS)
+        // `Menu(label:primaryAction:)` renders on macOS as a native
+        // NSComboButton-style split control whose height AppKit fixes
+        // internally — no SwiftUI frame on the label reaches it. So this is
+        // built from two plain, independently-sized glass buttons instead:
+        // a real Button for the plus, and a custom-drawn chevron visual
+        // layered over an invisible Menu that supplies the actual dropdown.
+        // One `.glassEffect()` wraps both segments so they share a single
+        // pill sized to hug their combined content, instead of each segment
+        // drawing its own separate shape. The glyphs are white, matching the
+        // system convention for icons on a colored Liquid Glass fill (e.g.
+        // the checkmark on the blue "Done" button).
+        HStack(spacing: 0) {
+            Button {
+                model.isImporterPresented = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: 1, height: 18)
+
+            ZStack {
+                Menu {
+                    Button("Add File…", systemImage: "folder") {
+                        model.isImporterPresented = true
+                    }
+                    Button("Add from Photos…", systemImage: "photo.on.rectangle") {
+                        model.isPhotosPickerPresented = true
+                    }
+                    Button("Add URL…", systemImage: "link.badge.plus") {
+                        model.isAddURLPresented = true
+                    }
+                    Divider()
+                    Button("New Folder…", systemImage: "folder.badge.plus") {
+                        model.editingAppearance = .newFolder(parent: model.currentFolderID)
+                    }
+                    Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
+                        model.editingAppearance = .newCollection(adding: [])
+                    }
+                    Button("New Tag…", systemImage: "tag") {
+                        model.editingAppearance = .newTag()
+                    }
+                } label: {
+                    Color.clear
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+
+                // Drawn on top so the Menu above stays purely functional —
+                // its own native size is irrelevant since it never paints.
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .allowsHitTesting(false)
+            }
+            .frame(width: 36, height: 36)
+        }
+        .glassEffect(.regular.tint(.accentColor).interactive())
+        .help("Add content")
+        .accessibilityLabel("Add content")
+        .accessibilityHint("Opens the Finder to import files. Use the arrow for more options.")
+        #else
+        Button {
+            model.isImporterPresented = true
+        } label: {
+            if fillsAccessory {
+                // The frame belongs on the label, not the button: sizing the
+                // button itself only widens its tappable area, leaving the
+                // glass style to draw its pill at the label's natural size —
+                // centered in that larger area rather than filling it. The
+                // label has to be the one asking for all the space so the
+                // glass chrome it sits behind grows to match.
+                Label("Add Content", systemImage: "plus")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Image(systemName: "plus")
+            }
+        }
+        .font(.title2.weight(.semibold))
+        .frame(width: fillsAccessory ? nil : 52,
+               height: fillsAccessory ? nil : 52)
+        .buttonStyle(.glass(.regular.tint(.accentColor).interactive()))
+        .tint(.accentColor)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button("Take Photo", systemImage: "camera") {
+                model.isCameraPresented = true
+            }
+            Button("Scan Document", systemImage: "doc.viewfinder") {
+                model.isDocumentScannerPresented = true
+            }
+            Button("Photo Library", systemImage: "photo.on.rectangle") {
+                model.isPhotosPickerPresented = true
+            }
+            Button("Add URL…", systemImage: "link.badge.plus") {
+                model.isAddURLPresented = true
+            }
+            Divider()
+            Button("New Folder…", systemImage: "folder.badge.plus") {
+                model.editingAppearance = .newFolder(parent: model.currentFolderID)
+            }
+            Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
+                model.editingAppearance = .newCollection(adding: [])
+            }
+            Button("New Tag…", systemImage: "tag") {
+                model.editingAppearance = .newTag()
+            }
+        }
+        .help("Add content")
+        .accessibilityLabel("Add content")
+        .accessibilityHint("Opens the Finder to import files. Control-click for more options.")
+        #endif
     }
 }
 
@@ -404,24 +574,38 @@ struct GalleryDropIndicator: View {
 /// same thing on both.
 struct GalleryToolbar: ToolbarContent {
     let model: LibraryModel
-
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #endif
+    let showsHistoryControls: Bool
 
     @ToolbarContentBuilder
     var body: some ToolbarContent {
         // Preview sits in front of the gallery rather than beside it, so the
         // gallery's own controls stand down while it is open.
         if model.previewedObjectID == nil {
-            ToolbarItemGroup(placement: .navigation) {
-                Button("Back", systemImage: "chevron.backward") { model.goBack() }
-                    .disabled(!model.canGoBack)
-                Button("Forward", systemImage: "chevron.forward") { model.goForward() }
-                    .disabled(!model.canGoForward)
+            if showsHistoryControls {
+                ToolbarItemGroup(placement: .navigation) {
+                    Button("Back", systemImage: "chevron.backward") { model.goBack() }
+                        .disabled(!model.canGoBack)
+                    Button("Forward", systemImage: "chevron.forward") { model.goForward() }
+                        .disabled(!model.canGoForward)
+                }
             }
 
             ToolbarItem {
+                #if os(iOS)
+                // A segmented control reads as three buttons; on iPhone's
+                // narrower bar that is one button too many, so the choice
+                // moves behind a single one that shows the current mode.
+                Menu {
+                    Picker("View", selection: viewModeBinding) {
+                        ForEach(LibraryViewMode.allCases) { mode in
+                            Label(mode.displayName, systemImage: mode.symbolName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label("View", systemImage: model.viewMode.symbolName)
+                }
+                #else
                 Picker("View", selection: viewModeBinding) {
                     ForEach(LibraryViewMode.allCases) { mode in
                         Label(mode.displayName, systemImage: mode.symbolName).tag(mode)
@@ -429,52 +613,53 @@ struct GalleryToolbar: ToolbarContent {
                 }
                 .pickerStyle(.segmented)
                 .labelStyle(.iconOnly)
+                #endif
             }
 
             ToolbarItem {
                 GalleryViewOptionsButton(model: model)
             }
 
+            #if os(macOS)
+            // On iOS Get Info lives in each item's long-press menu. The
+            // preview keeps its own button once an item is open.
             ToolbarItem {
-                Menu {
-                    Button("Files…", systemImage: "folder") { model.isImporterPresented = true }
-                    #if os(iOS)
-                    Button("Photos…", systemImage: "photo.on.rectangle") {
-                        model.isPhotosPickerPresented = true
-                    }
-                    #endif
-                    Button("Paste", systemImage: "doc.on.clipboard") {
-                        Task { await model.importPasteboard() }
-                    }
-                } label: {
-                    Label("Import", systemImage: "plus")
-                }
+                InfoToolbarButton(model: model)
             }
-        }
-
-        ToolbarItem {
-            infoItem
+            #endif
         }
     }
 
-    /// Info is a popover hung on its own button, rather than a panel beside the
-    /// canvas.
-    ///
-    /// A panel that occupies width has to take that width from something. On
-    /// macOS that means the window grows to make room, and the split view is
-    /// re-solved while the window is still growing — which is what threw the
-    /// sidebar off the leading edge and sent the icons and the masonry wall
-    /// reflowing. A popover floats above the canvas instead: no column changes
-    /// width, so nothing is re-measured and nothing reflows. It is also the one
-    /// presentation that is genuinely the same API on both platforms.
-    ///
-    /// The cost is that it is transient — clicking the canvas dismisses it — so
-    /// it answers "what is this?" rather than staying open while the selection
-    /// is walked. Everything that asks for Get Info lands here: the menu bar,
-    /// the context menu and the preview toolbar all set the same flag, and this
-    /// button is the anchor for all of them.
-    @ViewBuilder
-    private var infoItem: some View {
+    private var viewModeBinding: Binding<LibraryViewMode> {
+        Binding(get: { model.viewMode },
+                set: { mode in Task { await model.setViewMode(mode) } })
+    }
+}
+
+/// Info is a popover hung on its own button, rather than a panel beside the
+/// canvas.
+///
+/// A panel that occupies width has to take that width from something. On
+/// macOS that means the window grows to make room, and the split view is
+/// re-solved while the window is still growing — which is what threw the
+/// sidebar off the leading edge and sent the icons and the masonry wall
+/// reflowing. A popover floats above the canvas instead: no column changes
+/// width, so nothing is re-measured and nothing reflows. It is also the one
+/// presentation that is genuinely the same API on both platforms.
+///
+/// The cost is that it is transient — clicking the canvas dismisses it — so
+/// it answers "what is this?" rather than staying open while the selection
+/// is walked. Everything that asks for Get Info lands here: the menu bar,
+/// the context menu, the gallery toolbar and the preview toolbar all set the
+/// same flag, and whichever of them is on screen is the anchor.
+struct InfoToolbarButton: View {
+    let model: LibraryModel
+
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+
+    var body: some View {
         let button = Button("Info", systemImage: "info.circle") {
             // While previewing, the gallery underneath has not been told what
             // is being looked at, and the panel reads the selection. Naming it
@@ -506,11 +691,6 @@ struct GalleryToolbar: ToolbarContent {
     private var infoBinding: Binding<Bool> {
         Binding(get: { model.isInspectorPresented },
                 set: { model.setInspector($0) })
-    }
-
-    private var viewModeBinding: Binding<LibraryViewMode> {
-        Binding(get: { model.viewMode },
-                set: { mode in Task { await model.setViewMode(mode) } })
     }
 }
 
@@ -556,25 +736,54 @@ private struct GalleryViewOptionsButton: View {
                 Divider()
             }
 
-            Picker("Sort By", selection: sortFieldBinding) {
-                ForEach(model.availableSortFields, id: \.self) { field in
-                    Text(field.displayName).tag(field)
+            if model.viewMode == .masonry {
+                MasonryCaptionOption(display: masonryCaptionDisplayBinding)
+                Toggle("Type Labels", isOn: showsMasonryTypeLabelsBinding)
+                Divider()
+            }
+
+            HStack {
+                Text("Sort By")
+                Spacer()
+                Picker("Sort By", selection: sortFieldBinding) {
+                    ForEach(model.availableSortFields, id: \.self) { field in
+                        Text(field.displayName).tag(field)
+                    }
                 }
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
-            Picker("Order", selection: sortAscendingBinding) {
-                Text("Ascending").tag(true)
-                Text("Descending").tag(false)
+            HStack {
+                Text("Order")
+                Spacer()
+                Picker("Order", selection: sortAscendingBinding) {
+                    Text("Ascending").tag(true)
+                    Text("Descending").tag(false)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
-            Toggle("Folders First", isOn: foldersFirstBinding)
+            HStack {
+                Text("Folders First")
+                    .accessibilityHidden(true)
+                Spacer()
+                Toggle("Folders First", isOn: foldersFirstBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
 
             Divider()
             // A change stays temporary unless the user says otherwise, so no
             // location quietly acquires a permanent exception.
             if model.canRememberLocation {
-                Toggle("Remember for This Location", isOn: rememberBinding)
-            }
-            Button("Use as Default Everywhere") {
-                model.useCurrentPreferencesAsDefault()
+                HStack {
+                    Text("Remember for This Location")
+                        .accessibilityHidden(true)
+                    Spacer()
+                    Toggle("Remember for This Location", isOn: rememberBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
         }
         .padding(14)
@@ -607,8 +816,49 @@ private struct GalleryViewOptionsButton: View {
                 set: { value in Task { await model.setFoldersFirst(value) } })
     }
 
+    private var masonryCaptionDisplayBinding: Binding<MasonryCaptionDisplay> {
+        Binding(get: { model.masonryCaptionDisplay },
+                set: { display in Task { await model.setMasonryCaptionDisplay(display) } })
+    }
+
+    private var showsMasonryTypeLabelsBinding: Binding<Bool> {
+        Binding(get: { model.showsMasonryTypeLabels },
+                set: { shows in Task { await model.setShowsMasonryTypeLabels(shows) } })
+    }
+
     private var rememberBinding: Binding<Bool> {
         Binding(get: { model.isRememberingLocation },
                 set: { value in Task { await model.setRememberingLocation(value) } })
     }
+}
+
+private struct MasonryCaptionOption: View {
+    @Binding var display: MasonryCaptionDisplay
+
+    var body: some View {
+        #if os(iOS)
+        Toggle("Labels", isOn: mobileDisplayBinding)
+        #else
+        HStack {
+            Text("Labels")
+            Spacer()
+            Picker("Labels", selection: $display) {
+                Text("On Hover").tag(MasonryCaptionDisplay.automatic)
+                Text("Always On").tag(MasonryCaptionDisplay.always)
+                Text("Always Off").tag(MasonryCaptionDisplay.hidden)
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    private var mobileDisplayBinding: Binding<Bool> {
+        Binding(
+            get: { display != .hidden },
+            set: { display = $0 ? .automatic : .hidden }
+        )
+    }
+    #endif
 }

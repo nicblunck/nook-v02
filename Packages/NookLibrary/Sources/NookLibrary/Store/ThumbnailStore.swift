@@ -57,6 +57,24 @@ public actor ThumbnailStore {
         cachedData(forKey: previewKey(for: id)) != nil
     }
 
+    /// The displayed dimensions of a cached link preview. Older link records
+    /// predate persisted dimensions, so this lets the app repair their
+    /// masonry proportions without downloading the same image again.
+    public func cachedPreviewImageDimensions(for id: ObjectID) -> (width: Int, height: Int)? {
+        guard let data = cachedData(forKey: previewKey(for: id)),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue
+        else { return nil }
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue
+        return MediaMetadataReader.orientedPixelDimensions(
+            width: width,
+            height: height,
+            orientation: orientation
+        )
+    }
+
     private func previewKey(for id: ObjectID) -> String {
         "link-\(id.uuid.uuidString)"
     }

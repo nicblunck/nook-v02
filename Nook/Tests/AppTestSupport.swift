@@ -11,7 +11,9 @@ struct TestModel {
     let scratch: URL
     private let suiteName: String
 
-    init() async throws {
+    init(hiddenRevealSleep: @escaping @Sendable (Duration) async throws -> Void = {
+        try await Task.sleep(for: $0)
+    }) async throws {
         let suiteName = "nook.tests.\(UUID().uuidString)"
         self.suiteName = suiteName
         let library = try await Library.inMemory()
@@ -20,7 +22,8 @@ struct TestModel {
         model = LibraryModel(
             library: library,
             settings: AppSettings(defaults: UserDefaults(suiteName: suiteName)!),
-            authenticator: authenticator
+            authenticator: authenticator,
+            hiddenRevealSleep: hiddenRevealSleep
         )
         scratch = URL.temporaryDirectory.appending(path: "NookAppTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

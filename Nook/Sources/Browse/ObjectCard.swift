@@ -41,6 +41,7 @@ struct ObjectCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
         .contentShape(.rect(cornerRadius: 8))
+        .motionAware(NookMotion.interaction, value: isHighlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         // The badges below are drawn without labels, so the spoken caption is
@@ -54,9 +55,8 @@ struct ObjectCard: View {
     /// and a landscape wide while both fill the space they are given.
     private var icon: some View {
         ThumbnailView(object: object, maximumSize: thumbnailResolution)
-            .aspectRatio(object.aspectRatio ?? 1, contentMode: .fit)
+            .frame(width: iconImageSize.width, height: iconImageSize.height)
             .clipShape(.rect(cornerRadius: 4 * min(scale, 2)))
-            .overlay(alignment: .topTrailing) { badges }
             .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
             .frame(width: iconSize, height: iconSize)
             .padding(5)
@@ -70,7 +70,7 @@ struct ObjectCard: View {
 
     private var label: some View {
         VStack(spacing: 0) {
-            Text(object.title)
+            titleText
                 .font(.callout)
                 .lineLimit(2)
                 .truncationMode(.middle)
@@ -91,21 +91,27 @@ struct ObjectCard: View {
         .padding(.horizontal, 4)
     }
 
-    /// Privacy and state indicators sit on the icon without revealing anything
-    /// the object is protecting.
-    private var badges: some View {
-        HStack(spacing: 4) {
-            if object.isLocked { badge("lock.fill") }
-            if object.isFavorite { badge("star.fill") }
+    /// Privacy and Favorite ride along with the name rather than the picture,
+    /// so the icon itself never carries a mark of what the object is doing.
+    private var titleText: Text {
+        switch (object.isHidden, object.isLocked, object.isFavorite) {
+        case (true, true, true):
+            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "lock.fill")) \(Image(systemName: "star.fill"))")
+        case (true, true, false):
+            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "lock.fill"))")
+        case (true, false, true):
+            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "star.fill"))")
+        case (true, false, false):
+            Text("\(object.title) \(Image(systemName: "eye.slash"))")
+        case (false, true, true):
+            Text("\(object.title) \(Image(systemName: "lock.fill")) \(Image(systemName: "star.fill"))")
+        case (false, true, false):
+            Text("\(object.title) \(Image(systemName: "lock.fill"))")
+        case (false, false, true):
+            Text("\(object.title) \(Image(systemName: "star.fill"))")
+        case (false, false, false):
+            Text(object.title)
         }
-        .padding(3)
-    }
-
-    private func badge(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 8, weight: .semibold))
-            .padding(3)
-            .background(.regularMaterial, in: .circle)
     }
 
     /// A window that is not the key one dims its selection to grey, the way
@@ -125,6 +131,21 @@ struct ObjectCard: View {
 
     private var iconSize: CGFloat { baseIconSize * scale }
 
+    /// Fits the object's native proportions into the icon square with exactly
+    /// one constrained edge. This avoids relying on nested aspect-ratio
+    /// modifiers, whose proposals can compound when a Quick Look thumbnail
+    /// already contains its own fitted canvas.
+    private var iconImageSize: CGSize {
+        let ratio = CGFloat(object.aspectRatio ?? 1)
+        guard ratio.isFinite, ratio > 0 else {
+            return CGSize(width: iconSize, height: iconSize)
+        }
+        if ratio >= 1 {
+            return CGSize(width: iconSize, height: iconSize / ratio)
+        }
+        return CGSize(width: iconSize * ratio, height: iconSize)
+    }
+
     /// Enough pixels for the size actually being drawn, so growing the icons
     /// sharpens them rather than magnifying what was fetched for a small one.
     private var thumbnailResolution: CGFloat { min(1024, max(256, iconSize * 3)) }
@@ -139,9 +160,12 @@ struct FolderCard: View {
     let folder: FolderSnapshot
     var peeks: [ObjectSnapshot] = []
     @State private var isHovered = false
-    /// Drawn lit in the layouts that have no cursor ring of their own.
-    var isHighlighted: Bool = false
+    let isSelected: Bool
+    let isCursor: Bool
     var scale: Double = 1
+    /// A single click is another way of saying the keyboard belongs to the
+    /// canvas and should rest here, the same thing clicking an object says.
+    var select: (EventModifiers) -> Void = { _ in }
     let onOpen: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var baseIconSize: CGFloat = 64
@@ -149,9 +173,22 @@ struct FolderCard: View {
     @Environment(\.controlActiveState) private var controlActiveState
     #endif
 
+    /// A selected folder remains open after the pointer leaves. Keyboard
+    /// navigation opens the folder under the cursor as well. There is no
+    /// pointer on iOS, so there a folder stays open whenever it has contents.
+    private var isOpen: Bool {
+        #if os(iOS)
+        hasContent
+        #else
+        isHovered || isSelected || isCursor
+        #endif
+    }
+
+    private var hasContent: Bool { folder.objectCount > 0 || folder.subfolderCount > 0 }
+
     var body: some View {
         VStack(spacing: 3) {
-            FolderPeekIcon(folder: folder, objects: peeks, isOpen: isHovered, width: iconSize)
+            FolderPeekIcon(folder: folder, objects: peeks, isOpen: isOpen, width: iconSize)
                 .frame(width: iconSize, height: iconSize)
                 .padding(5)
                 .background {
@@ -167,7 +204,7 @@ struct FolderCard: View {
                     .lineLimit(2)
                     .truncationMode(.middle)
                     .foregroundStyle(isLabelInverted ? Color.white : Color.primary)
-                Text(itemCountDescription)
+                Text(Format.caption(for: folder))
                     .font(.caption)
                     .foregroundStyle(isLabelInverted ? Color.white.opacity(0.85) : Color.secondary)
                     .lineLimit(1)
@@ -186,31 +223,16 @@ struct FolderCard: View {
         .padding(.vertical, 2)
         .contentShape(.rect(cornerRadius: 8))
         .onHover { isHovered = $0 }
-        .itemClick { onOpen() }
+        .itemClick(select: select, open: onOpen)
+        .motionAware(NookMotion.interaction, value: isOpen)
+        .motionAware(NookMotion.interaction, value: isHighlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
         // An explicit label replaces the combined children, so what the card
         // shows about its contents has to be restated as a value.
-        .accessibilityValue(spokenItemCount)
+        .accessibilityValue(Format.spokenCaption(for: folder))
         .accessibilityHint("Opens the folder")
-        .accessibilityAddTraits(.isButton)
-    }
-
-    private var countParts: [String] {
-        var parts: [String] = []
-        if folder.subfolderCount > 0 { parts.append(Format.folderCount(folder.subfolderCount)) }
-        parts.append(Format.itemCount(folder.objectCount))
-        return parts
-    }
-
-    private var itemCountDescription: String {
-        countParts.joined(separator: " · ")
-    }
-
-    private var spokenItemCount: String {
-        var parts = countParts
-        if folder.isLocked { parts.append("Locked") }
-        return parts.joined(separator: ", ")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     private var iconSize: CGFloat { baseIconSize * scale }
@@ -226,6 +248,8 @@ struct FolderCard: View {
     private var highlight: Color {
         isWindowActive ? .accentColor : Color.secondary.opacity(0.32)
     }
+
+    private var isHighlighted: Bool { isSelected || isCursor }
 
     private var isLabelInverted: Bool { isHighlighted && isWindowActive }
 }

@@ -1,7 +1,11 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
-#if os(iOS)
+import CoreData
+#if os(macOS)
+import AppKit
+#endif
+#if os(iOS) || os(macOS)
 import PhotosUI
 #endif
 
@@ -10,18 +14,24 @@ import PhotosUI
 struct LibraryWindow: View {
     @Bindable var model: LibraryModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var isExternalDropTargeted = false
     private var navigator: AppNavigator { .shared }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+    #if os(iOS) || os(macOS)
     @State private var photoSelections: [PhotosPickerItem] = []
     #endif
 
     var body: some View {
         shell
             .environment(\.thumbnailLoader, model.library.thumbnails)
+            .externalURLDrop(isTargeted: $isExternalDropTargeted) { urls in
+                Task { await model.importFiles(at: urls) }
+            }
             // Importing and exporting are the window's, not the canvas's:
             // Home offers them too, and on iPhone the same prompts are reached
             // from a tab that is not the canvas at all.
@@ -47,7 +57,25 @@ struct LibraryWindow: View {
                 }
                 Task { await model.completeExport(to: directory) }
             }
-            #if os(iOS)
+            #if os(macOS)
+            // Pairs with `ImportFromDevicesCommands` in `NookCommands`: that
+            // puts "Take Photo"/"Scan Document" in the File menu, backed by
+            // Continuity Camera, and this is where the captured item lands.
+            // A right-click menu can't rely on the same mechanism — SwiftUI's
+            // `.contextMenu` doesn't hook into AppKit's menu-item insertion
+            // the way an `NSMenu` shown with `popUpContextMenu` does.
+            .importsItemProviders([.image, .pdf]) { providers in
+                guard let provider = providers.first,
+                      let typeIdentifier = provider.registeredTypeIdentifiers().first
+                else { return false }
+                provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, _ in
+                    guard let data else { return }
+                    Task { @MainActor in await model.importContinuityCameraCapture(data) }
+                }
+                return true
+            }
+            #endif
+            #if os(iOS) || os(macOS)
             .photosPicker(
                 isPresented: $model.isPhotosPickerPresented,
                 selection: $photoSelections,
@@ -57,6 +85,27 @@ struct LibraryWindow: View {
                 guard !selections.isEmpty else { return }
                 photoSelections = []
                 Task { await importPhotos(selections) }
+            }
+            #endif
+            #if os(iOS)
+            // "Take Photo" and "Scan Document" used to just reopen the file
+            // importer; these raise the real system camera and VisionKit's
+            // document scanner instead.
+            .fullScreenCover(isPresented: $model.isCameraPresented) {
+                CameraCaptureView { data in
+                    model.isCameraPresented = false
+                    guard let data else { return }
+                    Task { await model.importCapturedPhoto(data) }
+                }
+                .ignoresSafeArea()
+            }
+            .fullScreenCover(isPresented: $model.isDocumentScannerPresented) {
+                DocumentScannerView { data in
+                    model.isDocumentScannerPresented = false
+                    guard let data else { return }
+                    Task { await model.importScannedDocument(data) }
+                }
+                .ignoresSafeArea()
             }
             #endif
             .alert(item: $model.alert) { alert in
@@ -98,12 +147,39 @@ struct LibraryWindow: View {
                         }
                         .padding(40)
                     }
-                    .transition(.opacity)
+                    .transition(.motionAware(
+                        .scale(scale: 0.96).combined(with: .opacity),
+                        reduceMotion: reduceMotion
+                    ))
                 }
             }
-            .motionAware(.smooth(duration: 0.18), value: model.isGlobalSearchPresented)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
+                       value: model.isGlobalSearchPresented)
+            .sheet(isPresented: $model.isAddURLPresented) {
+                AddURLView { url in
+                    Task { await model.importItems([.link(url)]) }
+                }
+            }
             .sheet(isPresented: $model.isSettingsPresented) {
+                #if os(macOS)
+                SettingsView(settings: model.settings)
+                #else
                 NavigationStack { SettingsView(settings: model.settings) }
+                #endif
+            }
+            .sheet(item: $model.editingAppearance) { target in
+                AppearanceEditor(target: target) { name, appearance in
+                    switch target.action {
+                    case .edit(let reference):
+                        await model.updateEntity(reference, name: name, appearance: appearance)
+                    case .newFolder(let parent):
+                        await model.createFolder(named: name, in: parent, appearance: appearance)
+                    case .newCollection(let ids):
+                        await model.createCollection(named: name, adding: ids, appearance: appearance)
+                    case .newTag(let ids):
+                        await model.createTag(named: name, adding: ids, appearance: appearance)
+                    }
+                }
             }
             .modifier(NamingPromptModifier(model: model))
             .focusedSceneValue(\.libraryModel, model)
@@ -122,6 +198,41 @@ struct LibraryWindow: View {
             .task(id: navigator.pending) {
                 guard let request = navigator.take() else { return }
                 await model.handle(request)
+            }
+            .task {
+                for await _ in NotificationCenter.default.notifications(
+                    named: LibraryModel.libraryDidChange
+                ) {
+                    guard !Task.isCancelled else { break }
+                    await model.refreshAll()
+                }
+            }
+            .onAppFocusLoss {
+                await model.appDidLoseFocus()
+            }
+            .onAppActivity {
+                model.appDidReceiveUserActivity()
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: NSPersistentCloudKitContainer.eventChangedNotification
+            )) { notification in
+                guard let event = notification.userInfo?[
+                    NSPersistentCloudKitContainer.eventNotificationUserInfoKey
+                ] as? NSPersistentCloudKitContainer.Event else { return }
+
+                if event.endDate == nil {
+                    model.cloudSyncStarted(id: event.identifier)
+                } else {
+                    Task {
+                        await model.cloudSyncFinished(
+                            id: event.identifier,
+                            succeeded: event.succeeded,
+                            error: event.error?.localizedDescription,
+                            importedChanges: event.type == .import,
+                            at: event.endDate ?? .now
+                        )
+                    }
+                }
             }
             .environment(model)
     }
@@ -146,15 +257,11 @@ struct LibraryWindow: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
             #endif
         } detail: {
-            if model.isShowingHome {
-                HomeView(model: model)
-            } else {
-                BrowseView(model: model)
-            }
+            BrowseView(model: model)
         }
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     /// Photos hands over bytes rather than a file on disk, so each selection
     /// arrives as data with whatever content type the library holds it in.
     private func importPhotos(_ selections: [PhotosPickerItem]) async {
@@ -170,6 +277,138 @@ struct LibraryWindow: View {
     #endif
 }
 
+private struct AddURLView: View {
+    let add: (URL) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var address = ""
+    @FocusState private var isAddressFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("URL", text: $address, prompt: Text("https://example.com"))
+                        .focused($isAddressFocused)
+                        .textContentType(.URL)
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        #endif
+                        .onSubmit(submit)
+                } footer: {
+                    if !address.isEmpty && parsedURL == nil {
+                        Text("Enter a valid web address.")
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Add URL")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: submit)
+                        .disabled(parsedURL == nil)
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(width: 440, height: 180)
+        #endif
+        .task { isAddressFocused = true }
+    }
+
+    private var parsedURL: URL? {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
+        guard let url = URL(string: candidate),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host() != nil
+        else { return nil }
+        return url
+    }
+
+    private func submit() {
+        guard let url = parsedURL else { return }
+        add(url)
+        dismiss()
+    }
+}
+
+private struct LastSyncedText: View {
+    let date: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            if context.date.timeIntervalSince(date) < 60 {
+                Text("Last synced a moment ago")
+            } else {
+                Text("Last synced \(date, style: .relative)")
+            }
+        }
+    }
+}
+
+struct CloudSyncStatusView: View {
+    @Bindable var model: LibraryModel
+
+    var body: some View {
+        Menu {
+            if let error = model.cloudSyncError {
+                Label(error, systemImage: "exclamationmark.icloud")
+            } else if model.isCloudSyncing {
+                Label(
+                    "Uploading and downloading changes",
+                    systemImage: "arrow.triangle.2.circlepath.icloud"
+                )
+            } else if let date = model.lastCloudSyncDate {
+                LastSyncedText(date: date)
+            } else {
+                Text("Waiting for the first iCloud sync")
+            }
+        } label: {
+            HStack(spacing: 5) {
+                if model.isCloudSyncing {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Syncing")
+                } else if model.cloudSyncError != nil {
+                    Label("Sync issue", systemImage: "exclamationmark.icloud")
+                } else {
+                    Image(systemName: "checkmark.icloud")
+                    if let date = model.lastCloudSyncDate {
+                        LastSyncedText(date: date)
+                    } else {
+                        Text("iCloud")
+                    }
+                }
+            }
+            .font(.caption)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .help(helpText)
+        .accessibilityLabel(helpText)
+    }
+
+    private var helpText: String {
+        if model.isCloudSyncing { return "Syncing with iCloud" }
+        if let error = model.cloudSyncError { return "iCloud sync issue: \(error)" }
+        if let date = model.lastCloudSyncDate {
+            return "Last synced with iCloud \(date.formatted(.relative(presentation: .named)))"
+        }
+        return "iCloud is waiting to sync"
+    }
+}
+
 /// Non-blocking progress for a large import; the rest of the app stays usable.
 struct ImportProgressBar: View {
     let progress: ImportProgress
@@ -179,6 +418,8 @@ struct ImportProgressBar: View {
             HStack {
                 Text("Importing \(progress.completed + 1) of \(progress.total)")
                     .font(.callout.weight(.medium))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(progress.completed)))
                 Spacer()
             }
             if let name = progress.currentItemName {
@@ -205,19 +446,50 @@ extension FocusedValues {
 
 struct NookCommands: Commands {
     @FocusedValue(\.libraryModel) private var model
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
 
     var body: some Commands {
+        #if os(macOS)
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings…") {
+                openWindow(id: "settings")
+            }
+            .keyboardShortcut(",")
+        }
+        #endif
+
         CommandGroup(replacing: .newItem) {
+            #if os(macOS)
+            Button("New Window") {
+                openWindow(id: "library")
+            }
+            .keyboardShortcut("n")
+
+            Button("New Tab") {
+                NSApp.sendAction(#selector(NSWindow.newWindowForTab(_:)), to: nil, from: nil)
+            }
+            .keyboardShortcut("t")
+
+            Divider()
+            #endif
+
             Button("New Folder…") {
-                model?.namingPrompt = .newFolder(parent: model?.currentFolderID)
+                model?.editingAppearance = .newFolder(parent: model?.currentFolderID)
             }
             .keyboardShortcut("n")
             .disabled(model == nil)
 
             Button("New Collection…") {
-                model?.namingPrompt = .newCollection(adding: [])
+                model?.editingAppearance = .newCollection(adding: [])
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
+            .disabled(model == nil)
+
+            Button("New Tag…") {
+                model?.editingAppearance = .newTag()
+            }
             .disabled(model == nil)
 
             Divider()
@@ -339,9 +611,9 @@ struct NookCommands: Commands {
 
             Divider()
 
-            Button("Hidden") {
+            Button("Show Hidden Items") {
                 guard let model else { return }
-                Task { await model.openHidden() }
+                Task { await model.toggleHiddenItems() }
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
             .disabled(model == nil)

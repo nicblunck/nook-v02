@@ -3,11 +3,6 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
-import os
-
-// TEMP: launch-sequence tracing.
-private let trace = Logger(subsystem: "com.nicolasblunck.nook", category: "sidebar-trace")
-private func traceLog(_ message: String) { trace.error("\(message, privacy: .public)") }
 
 // MARK: - The outline
 
@@ -32,6 +27,7 @@ struct MacSidebar: NSViewRepresentable {
     let collections: [CollectionSnapshot]
     let tags: [TagSnapshot]
     let counts: [ScopeCountKey: Int]
+    let presentMediaKinds: Set<ObjectKind>
     let destination: LibraryDestination
     let expandedFolders: Set<FolderID>
     let wantsKeyboard: Bool
@@ -150,6 +146,15 @@ enum SidebarSection: Hashable, CaseIterable {
         case .tags: "Tags"
         }
     }
+
+    var addAction: (title: String, symbol: String)? {
+        switch self {
+        case .folders: ("New Folder…", "folder.badge.plus")
+        case .collections: ("New Collection…", "rectangle.stack.badge.plus")
+        case .tags: ("New Tag…", "tag")
+        case .library, .mediaTypes: nil
+        }
+    }
 }
 
 /// What a row shows, and what it stands for.
@@ -229,7 +234,6 @@ extension MacSidebar {
 
             syncExpansion(with: sidebar.expandedFolders, outline: outline)
             select(sidebar.destination, outline: outline)
-            traceSelection("apply done", outline: outline)
 
             wantsKeyboard = sidebar.wantsKeyboard
             if sidebar.keyboardFocusRequest != appliedFocusRequest {
@@ -317,12 +321,6 @@ extension MacSidebar {
             outline.selectRowIndexes([row], byExtendingSelection: false)
         }
 
-        func traceSelection(_ tag: String, outline: NSOutlineView) {
-            let rv = outline.selectedRow >= 0 ? outline.rowView(atRow: outline.selectedRow, makeIfNecessary: false) : nil
-            let sel = rv?.subviews.first { $0 is NSVisualEffectView }
-            traceLog("TRACE \(tag): outline=\(outline.frame.debugDescription) scroll=\(outline.enclosingScrollView?.frame.debugDescription ?? "-") clip=\(outline.enclosingScrollView?.contentView.bounds.debugDescription ?? "-") selectedRow=\(outline.selectedRow) row=\(rv?.frame.debugDescription ?? "-") selection=\(sel?.frame.debugDescription ?? "-") window=\(outline.window?.frame.debugDescription ?? "nil")")
-        }
-
         // MARK: The keyboard
 
         /// The keys the sidebar means something particular by, answered by the
@@ -391,19 +389,18 @@ extension MacSidebar {
             var roots: [SidebarItem] = []
 
             roots.append(SidebarItem(id: .section(.library), row: .section(.library), children: [
-                systemRow(.home, title: "Home", symbol: "house"),
+                systemRow(.home, title: "All", symbol: "square.grid.2x2",
+                          count: sidebar.counts[.allObjects]),
                 // Inbox and Favorites are places a drop means something:
                 // dropping on Inbox files something out of every folder,
-                // dropping on Favorites stars it. Recent and All Objects are
-                // queries over the library rather than places in it, so
-                // nothing can be put into them.
+                // dropping on Favorites stars it. Recent and All are queries
+                // over the library rather than places in it, so nothing can
+                // be put into them.
                 systemRow(.scope(.inbox), title: "Inbox", symbol: "tray",
                           count: sidebar.counts[.inbox], dropTarget: .folder(nil)),
                 systemRow(.scope(.recent), title: "Recent", symbol: "clock"),
                 systemRow(.scope(.favorites), title: "Favorites", symbol: "star",
                           count: sidebar.counts[.favorites], dropTarget: .favorites),
-                systemRow(.scope(.allObjects), title: "All Objects", symbol: "square.grid.2x2",
-                          count: sidebar.counts[.allObjects]),
             ]))
 
             // The root of the hierarchy. A folder dropped on the header comes
@@ -419,19 +416,22 @@ extension MacSidebar {
                 : sidebar.collections.map(collectionItem)
             roots.append(SidebarItem(id: .section(.collections), row: .section(.collections), children: collections))
 
-            roots.append(SidebarItem(id: .section(.mediaTypes), row: .section(.mediaTypes),
-                                     children: ObjectKind.mediaTypes.map { kind in
-                SidebarItem(id: .destination(.scope(.kind(kind))), row: SidebarRow(
-                    title: kind.pluralDisplayName,
-                    icon: .symbol(kind.symbolName, colorHex: nil),
-                    destination: .scope(.kind(kind))
-                ))
-            }))
-
-            if !sidebar.tags.isEmpty {
-                roots.append(SidebarItem(id: .section(.tags), row: .section(.tags),
-                                         children: sidebar.tags.map(tagItem)))
+            if !sidebar.presentMediaKinds.isEmpty {
+                let kinds = ObjectKind.mediaTypes.filter(sidebar.presentMediaKinds.contains)
+                roots.append(SidebarItem(id: .section(.mediaTypes), row: .section(.mediaTypes),
+                                         children: kinds.map { kind in
+                    SidebarItem(id: .destination(.scope(.kind(kind))), row: SidebarRow(
+                        title: kind.pluralDisplayName,
+                        icon: .symbol(kind.symbolName, colorHex: nil),
+                        destination: .scope(.kind(kind))
+                    ))
+                }))
             }
+
+            let tags = sidebar.tags.isEmpty
+                ? [SidebarItem(id: .placeholder(.tags), row: .placeholder("No tags yet"))]
+                : sidebar.tags.map(tagItem)
+            roots.append(SidebarItem(id: .section(.tags), row: .section(.tags), children: tags))
             return roots
         }
 
@@ -532,11 +532,11 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         guard let item = item as? SidebarItem else { return nil }
-        if item.isSection {
+        if case .section(let section) = item.id {
             let identifier = NSUserInterfaceItemIdentifier("section")
-            let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? NSTableCellView
+            let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? SidebarSectionCell
                 ?? SidebarSectionCell(identifier: identifier)
-            cell.textField?.stringValue = item.row.title
+            cell.show(section) { [weak self] in self?.addItem(to: section) }
             return cell
         }
         let identifier = NSUserInterfaceItemIdentifier("row")
@@ -544,6 +544,19 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
             ?? SidebarRowCell(identifier: identifier)
         cell.show(item.row)
         return cell
+    }
+
+    private func addItem(to section: SidebarSection) {
+        switch section {
+        case .folders:
+            model.editingAppearance = .newFolder(parent: nil)
+        case .collections:
+            model.editingAppearance = .newCollection(adding: [])
+        case .tags:
+            model.editingAppearance = .newTag()
+        case .library, .mediaTypes:
+            break
+        }
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -637,7 +650,9 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
         switch subject {
         case .folder(let folder):
             menu.add("Rename…") { [model] in model.namingPrompt = .renameFolder(folder.id) }
-            menu.add("New Subfolder…") { [model] in model.namingPrompt = .newFolder(parent: folder.id) }
+            menu.add("New Subfolder…") { [model] in
+                model.editingAppearance = .newFolder(parent: folder.id)
+            }
             menu.add("Customize…") { [onEditAppearance] in
                 onEditAppearance(AppearanceTarget(reference: .folder(folder.id), title: folder.name,
                                                   appearance: folder.appearance))
@@ -698,7 +713,6 @@ final class SidebarOutlineView: NSOutlineView {
     var onBecomeFirstResponder: (() -> Void)?
     var onMovedToWindow: (() -> Void)?
     var menuProvider: ((Int) -> NSMenu?)?
-
     override func keyDown(with event: NSEvent) {
         if onKey?(event) == true { return }
         super.keyDown(with: event)
@@ -712,22 +726,7 @@ final class SidebarOutlineView: NSOutlineView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        traceLog("TRACE viewDidMoveToWindow window=\(self.window?.frame.debugDescription ?? "nil") frame=\(self.frame.debugDescription)")
         if window != nil { onMovedToWindow?() }
-    }
-
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        let rv = selectedRow >= 0 ? rowView(atRow: selectedRow, makeIfNecessary: false) : nil
-        let sel = rv?.subviews.first { $0 is NSVisualEffectView }
-        traceLog("TRACE setFrameSize \(newSize.debugDescription) selectedRow=\(self.selectedRow) row=\(rv?.frame.debugDescription ?? "-") selection=\(sel?.frame.debugDescription ?? "-")")
-    }
-
-    override func layout() {
-        super.layout()
-        let rv = selectedRow >= 0 ? rowView(atRow: selectedRow, makeIfNecessary: false) : nil
-        let sel = rv?.subviews.first { $0 is NSVisualEffectView }
-        traceLog("TRACE layout frame=\(self.frame.debugDescription) row=\(rv?.frame.debugDescription ?? "-") selection=\(sel?.frame.debugDescription ?? "-")")
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -738,21 +737,132 @@ final class SidebarOutlineView: NSOutlineView {
 
 // MARK: - Cells
 
-/// A section header. The source list styles it; only the words are ours.
+/// A native source-list section header with one adjacent creation action.
+///
+/// AppKit continues to own and operate the disclosure caret. The add button's
+/// hit is handled by the cell so the button never becomes a separate hover
+/// surface that can make AppKit hide its caret.
 private final class SidebarSectionCell: NSTableCellView {
+    private let name = NSTextField(labelWithString: "")
+    private let addButton = NSButton()
+    private var onAdd: (() -> Void)?
+    private var hasAddAction = false
+    private var isHovered = false
+    private weak var trackedRow: NSView?
+    private var rowTrackingArea: NSTrackingArea?
+
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
         self.identifier = identifier
-        let label = NSTextField(labelWithString: "")
-        label.lineBreakMode = .byTruncatingTail
-        label.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(label)
-        textField = label
+
+        name.lineBreakMode = .byTruncatingTail
+        name.translatesAutoresizingMaskIntoConstraints = false
+        name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        addSubview(name)
+        textField = name
+
+        addButton.bezelStyle = .inline
+        addButton.isBordered = false
+        addButton.imagePosition = .imageOnly
+        addButton.imageScaling = .scaleProportionallyDown
+        addButton.contentTintColor = .secondaryLabelColor
+        addButton.target = self
+        addButton.action = #selector(add)
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(addButton)
+
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -2),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            name.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            name.trailingAnchor.constraint(lessThanOrEqualTo: addButton.leadingAnchor, constant: -6),
+            name.centerYAnchor.constraint(equalTo: centerYAnchor),
+            addButton.trailingAnchor.constraint(equalTo: trailingAnchor),
+            addButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            addButton.widthAnchor.constraint(equalToConstant: 26),
+            addButton.heightAnchor.constraint(equalToConstant: 24),
         ])
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+
+        if let trackedRow, let rowTrackingArea {
+            trackedRow.removeTrackingArea(rowTrackingArea)
+        }
+        trackedRow = nil
+        rowTrackingArea = nil
+        isHovered = false
+
+        guard let row = superview else {
+            updateAddButtonVisibility()
+            return
+        }
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        row.addTrackingArea(trackingArea)
+        trackedRow = row
+        rowTrackingArea = trackingArea
+        updateAddButtonVisibility()
+    }
+
+    func show(_ section: SidebarSection, onAdd: @escaping () -> Void) {
+        name.stringValue = section.title
+        self.onAdd = onAdd
+
+        guard let action = section.addAction else {
+            hasAddAction = false
+            updateAddButtonVisibility()
+            return
+        }
+        hasAddAction = true
+        addButton.image = NSImage(systemSymbolName: action.symbol,
+                                  accessibilityDescription: action.title)?
+            .withSymbolConfiguration(.init(pointSize: 16, weight: .regular))
+        addButton.toolTip = action.title
+        addButton.setAccessibilityLabel(action.title)
+        updateAddButtonVisibility()
+    }
+
+    func performAdd(at point: NSPoint) -> Bool {
+        guard !addButton.isHidden, addButton.frame.contains(point) else { return false }
+        add()
+        return true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Keep the pointer on the source-list row rather than introducing a
+        // second button hover state beside AppKit's disclosure caret.
+        if !addButton.isHidden, addButton.frame.contains(point) { return self }
+        return super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if performAdd(at: point) { return }
+        super.mouseDown(with: event)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        isHovered = true
+        updateAddButtonVisibility()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        isHovered = false
+        updateAddButtonVisibility()
+    }
+
+    private func updateAddButtonVisibility() {
+        addButton.isHidden = !hasAddAction || !isHovered
+    }
+
+    @objc private func add() {
+        onAdd?()
     }
 
     @available(*, unavailable)

@@ -29,15 +29,16 @@ extension CanvasDirection {
 /// arithmetic describes all of them: the grid is uniform, the list is one
 /// column, and masonry drops each item into whichever column is shortest, so
 /// the item after another in sort order is routinely nowhere near it on
-/// screen. Left and right therefore walk the sorted order — which is what
-/// "next" means in a library, and which wraps rows the way Photos does — while
-/// up and down are answered from measured frames, so a row means the row the
-/// user is looking at.
+/// screen. Every arrow is therefore answered from measured frames. Horizontal
+/// movement is confined to the current visual row. For vertical movement,
+/// candidates in the same column win before diagonal candidates, and then the
+/// nearest candidate wins, preserving movement into incomplete rows.
 ///
 /// Frames come from the canvas and cover only what has been laid out. When the
 /// destination has not been measured — the row below is still off screen, or
-/// the layout has not settled — movement falls back to stepping by the number
-/// of columns, which is the right answer for a grid and a fair one elsewhere.
+/// the layout has not settled — movement falls back to the canvas order. The
+/// vertical fallback steps by the measured number of columns, while horizontal
+/// movement steps by one.
 ///
 /// Nothing here knows what it is moving between, so the same rules serve the
 /// library canvas and Home's bands. Each names its own items; only the order
@@ -59,15 +60,26 @@ enum CanvasNavigation {
             return direction == .up || direction == .left ? order.last : order.first
         }
 
+        if let measured = nearest(
+            from: origin,
+            direction: direction,
+            order: order,
+            frames: frames
+        ) {
+            return measured
+        }
+
         switch direction {
         case .left:
+            // A non-scrolling horizontal canvas has no unmeasured neighbour
+            // beyond its visible edge. Once the origin is measured, no spatial
+            // candidate means this really is the edge.
+            guard frames[origin] == nil else { return nil }
             return index > 0 ? order[index - 1] : nil
         case .right:
+            guard frames[origin] == nil else { return nil }
             return index + 1 < order.count ? order[index + 1] : nil
         case .up, .down:
-            if let measured = nearest(from: origin, direction: direction, order: order, frames: frames) {
-                return measured
-            }
             return rowStep(from: index, direction: direction, order: order, frames: frames)
         }
     }
@@ -79,14 +91,15 @@ enum CanvasNavigation {
 
     // MARK: Measured movement
 
-    /// The nearest item that genuinely lies above or below the origin.
+    /// The nearest measured item in the requested visual direction.
     ///
-    /// Candidates are scored on how far they sit vertically plus how far their
-    /// centre sits horizontally, the horizontal term weighted the heavier of
-    /// the two. In a grid that picks the item directly below rather than the
-    /// one below and across; in masonry, where a column is a run of items that
-    /// share an x, it keeps movement inside the column the cursor is already
-    /// in instead of drifting sideways down the canvas.
+    /// A candidate whose perpendicular span overlaps the origin is in the same
+    /// visual lane. Horizontal movement requires that overlap, so reaching a row
+    /// edge cannot jump diagonally into another row. For vertical movement,
+    /// lanes are considered before distance, so a close item in a neighbouring
+    /// masonry column cannot steal Down from the next item in the current column.
+    /// When a partial row leaves no item in that column, the smallest
+    /// perpendicular gap supplies the natural diagonal neighbour.
     private static func nearest<ID: Hashable>(
         from origin: ID,
         direction: CanvasDirection,
@@ -95,24 +108,110 @@ enum CanvasNavigation {
     ) -> ID? {
         guard let start = frames[origin] else { return nil }
 
-        // A row's items rarely share an exact top to the point, so a candidate
-        // has to clear the origin by more than rounding before it counts as
-        // being on another row at all.
         let tolerance: CGFloat = 1
+        var best: (id: ID, lane: Int, travel: CGFloat, crossGap: CGFloat, crossOffset: CGFloat, order: Int)?
 
-        var best: (id: ID, score: CGFloat)?
-        for id in order where id != origin {
-            guard let frame = frames[id] else { continue }
-            let travel = frame.minY - start.minY
-            let liesThatWay = direction == .down ? travel > tolerance : travel < -tolerance
-            guard liesThatWay else { continue }
+        for (orderIndex, id) in order.enumerated() where id != origin {
+            guard let frame = frames[id],
+                  let metrics = metrics(
+                    from: start,
+                    to: frame,
+                    direction: direction,
+                    tolerance: tolerance
+                  ),
+                  direction.isVertical || metrics.isInLane
+            else { continue }
 
-            let score = abs(travel) + abs(frame.midX - start.midX) * 2
-            if best == nil || score < best!.score {
-                best = (id, score)
+            let candidate = (
+                id: id,
+                lane: metrics.isInLane ? 0 : 1,
+                travel: metrics.travel,
+                crossGap: metrics.crossGap,
+                crossOffset: metrics.crossOffset,
+                order: orderIndex
+            )
+
+            if best == nil || isBefore(candidate, best!) {
+                best = candidate
             }
         }
         return best?.id
+    }
+
+    private static func metrics(
+        from start: CGRect,
+        to candidate: CGRect,
+        direction: CanvasDirection,
+        tolerance: CGFloat
+    ) -> (isInLane: Bool, travel: CGFloat, crossGap: CGFloat, crossOffset: CGFloat)? {
+        switch direction {
+        case .up:
+            let travel = start.minY - candidate.maxY
+            guard travel >= -tolerance else { return nil }
+            return (
+                overlaps(start.minX...start.maxX, candidate.minX...candidate.maxX, tolerance: tolerance),
+                max(0, travel),
+                gap(start.minX...start.maxX, candidate.minX...candidate.maxX),
+                abs(candidate.midX - start.midX)
+            )
+        case .down:
+            let travel = candidate.minY - start.maxY
+            guard travel >= -tolerance else { return nil }
+            return (
+                overlaps(start.minX...start.maxX, candidate.minX...candidate.maxX, tolerance: tolerance),
+                max(0, travel),
+                gap(start.minX...start.maxX, candidate.minX...candidate.maxX),
+                abs(candidate.midX - start.midX)
+            )
+        case .left:
+            let travel = start.minX - candidate.maxX
+            guard travel >= -tolerance else { return nil }
+            return (
+                overlaps(start.minY...start.maxY, candidate.minY...candidate.maxY, tolerance: tolerance),
+                max(0, travel),
+                gap(start.minY...start.maxY, candidate.minY...candidate.maxY),
+                abs(candidate.midY - start.midY)
+            )
+        case .right:
+            let travel = candidate.minX - start.maxX
+            guard travel >= -tolerance else { return nil }
+            return (
+                overlaps(start.minY...start.maxY, candidate.minY...candidate.maxY, tolerance: tolerance),
+                max(0, travel),
+                gap(start.minY...start.maxY, candidate.minY...candidate.maxY),
+                abs(candidate.midY - start.midY)
+            )
+        }
+    }
+
+    private static func overlaps(
+        _ first: ClosedRange<CGFloat>,
+        _ second: ClosedRange<CGFloat>,
+        tolerance: CGFloat
+    ) -> Bool {
+        first.lowerBound <= second.upperBound + tolerance
+            && second.lowerBound <= first.upperBound + tolerance
+    }
+
+    private static func gap(
+        _ first: ClosedRange<CGFloat>,
+        _ second: ClosedRange<CGFloat>
+    ) -> CGFloat {
+        if first.overlaps(second) { return 0 }
+        return first.upperBound < second.lowerBound
+            ? second.lowerBound - first.upperBound
+            : first.lowerBound - second.upperBound
+    }
+
+    private static func isBefore<ID>(
+        _ lhs: (id: ID, lane: Int, travel: CGFloat, crossGap: CGFloat, crossOffset: CGFloat, order: Int),
+        _ rhs: (id: ID, lane: Int, travel: CGFloat, crossGap: CGFloat, crossOffset: CGFloat, order: Int)
+    ) -> Bool {
+        if lhs.lane != rhs.lane { return lhs.lane < rhs.lane }
+        if lhs.travel != rhs.travel { return lhs.travel < rhs.travel }
+        if lhs.crossGap != rhs.crossGap { return lhs.crossGap < rhs.crossGap }
+        if lhs.crossOffset != rhs.crossOffset { return lhs.crossOffset < rhs.crossOffset }
+        return lhs.order < rhs.order
     }
 
     /// Movement by whole rows, for when the destination has not been measured.

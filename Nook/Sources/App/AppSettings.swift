@@ -25,6 +25,39 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     }
 }
 
+/// How long hidden items stay revealed while the app receives no user input.
+enum HiddenRevealTimeout: String, CaseIterable, Identifiable {
+    case never
+    case after30Seconds
+    case after1Minute
+    case after5Minutes
+    case after15Minutes
+
+    var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .never: "Never"
+        case .after30Seconds: "After 30 Seconds"
+        case .after1Minute: "After 1 Minute"
+        case .after5Minutes: "After 5 Minutes"
+        case .after15Minutes: "After 15 Minutes"
+        }
+    }
+
+    /// How much inactivity to allow before hiding items again, or nil to keep
+    /// them revealed until the user turns the toggle off or the process ends.
+    var duration: Duration? {
+        switch self {
+        case .never: nil
+        case .after30Seconds: .seconds(30)
+        case .after1Minute: .seconds(60)
+        case .after5Minutes: .seconds(300)
+        case .after15Minutes: .seconds(900)
+        }
+    }
+}
+
 /// The global defaults every location follows until one is explicitly told to
 /// remember something else.
 ///
@@ -40,6 +73,8 @@ final class AppSettings {
         static let homePreferences = "nook.homeViewPreferences"
         static let accentColorHex = "nook.accentColorHex"
         static let appearance = "nook.appearance"
+        static let hiddenRevealTimeout = "nook.hiddenRevealTimeout"
+        static let rehidesOnFocusLoss = "nook.rehidesOnFocusLoss"
     }
 
     private let defaults: UserDefaults
@@ -75,6 +110,14 @@ final class AppSettings {
         didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
     }
 
+    var hiddenRevealTimeout: HiddenRevealTimeout {
+        didSet { defaults.set(hiddenRevealTimeout.rawValue, forKey: Key.hiddenRevealTimeout) }
+    }
+
+    var rehidesWhenAppLosesFocus: Bool {
+        didSet { defaults.set(rehidesWhenAppLosesFocus, forKey: Key.rehidesOnFocusLoss) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.defaultPreferences = Self.load(from: defaults, key: Key.defaultPreferences)
@@ -83,6 +126,11 @@ final class AppSettings {
         self.accentColorHex = defaults.string(forKey: Key.accentColorHex)
         self.appearance = defaults.string(forKey: Key.appearance)
             .flatMap(AppAppearance.init(rawValue:)) ?? .system
+        self.hiddenRevealTimeout = defaults.string(forKey: Key.hiddenRevealTimeout)
+            .flatMap(HiddenRevealTimeout.init(rawValue:)) ?? .after5Minutes
+        self.rehidesWhenAppLosesFocus = defaults.object(forKey: Key.rehidesOnFocusLoss) == nil
+            ? true
+            : defaults.bool(forKey: Key.rehidesOnFocusLoss)
     }
 
     var accentColor: Color? { Color(hex: accentColorHex) }

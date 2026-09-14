@@ -14,13 +14,13 @@ import NookLibrary
 struct SidebarView: View {
     @Bindable var model: LibraryModel
 
-    @State private var editingAppearance: AppearanceTarget?
     #if !os(macOS)
     /// The list itself holds the keyboard, rather than an invisible layer
     /// beside it: a list that the system knows is focused paints its own
     /// selection, and recolours the labels and symbols on it for contrast.
     @FocusState private var isListFocused: Bool
     #endif
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         #if os(macOS)
@@ -31,11 +31,12 @@ struct SidebarView: View {
                 collections: model.collections,
                 tags: model.tags,
                 counts: model.counts,
+                presentMediaKinds: model.presentMediaKinds,
                 destination: model.destination,
                 expandedFolders: model.expandedFolders,
                 wantsKeyboard: model.keyboardPane == .sidebar,
                 keyboardFocusRequest: model.keyboardFocusRequest,
-                onEditAppearance: { editingAppearance = $0 }
+                onEditAppearance: { model.editingAppearance = $0 }
             )
             // The outline runs the full height of the column and keeps its
             // own content clear of the toolbar, as a Mac sidebar does.
@@ -66,29 +67,30 @@ struct SidebarView: View {
                 ToolbarItem {
                     Menu {
                         Button("New Folder…", systemImage: "folder.badge.plus") {
-                            prompt(.newFolder(parent: model.currentFolderID), initial: "")
+                            model.editingAppearance = .newFolder(parent: model.currentFolderID)
                         }
                         Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                            prompt(.newCollection(adding: []), initial: "")
+                            model.editingAppearance = .newCollection(adding: [])
+                        }
+                        Button("New Tag…", systemImage: "tag") {
+                            model.editingAppearance = .newTag()
                         }
                     } label: {
                         Label("New", systemImage: "plus")
                     }
                 }
             }
-            .sheet(item: $editingAppearance) { target in
-                AppearanceEditor(title: target.title, appearance: target.appearance) { appearance in
-                    Task { await model.setAppearance(appearance, for: target.reference) }
-                }
-            }
+            .animation(reduceMotion ? nil : NookMotion.reflow,
+                       value: model.sidebarReflowRevision)
     }
 
     #if !os(macOS)
     private var list: some View {
         List(selection: selectionBinding) {
             Section("Library") {
-                Label("Home", systemImage: "house")
-                    .tag(LibraryDestination.home)
+                systemRow(.allObjects, destination: .home,
+                          title: "All", symbol: "square.grid.2x2",
+                          count: model.counts[.allObjects])
                 // Inbox and Favorites are places a drop means something:
                 // dropping on Inbox files something out of every folder,
                 // dropping on Favorites stars it. Recent and All Objects are
@@ -99,7 +101,6 @@ struct SidebarView: View {
                 systemRow(.recent, title: "Recent", symbol: "clock")
                 systemRow(.favorites, title: "Favorites", symbol: "star", count: model.counts[.favorites],
                           dropTarget: .favorites)
-                systemRow(.allObjects, title: "All Objects", symbol: "square.grid.2x2", count: model.counts[.allObjects])
             }
 
             Section {
@@ -107,7 +108,7 @@ struct SidebarView: View {
                     Text("No folders yet").font(.callout).foregroundStyle(.tertiary)
                 } else {
                     FolderRows(nodes: model.folderTree, model: model) { folder in
-                        AnyView(folderRow(folder))
+                        folderRow(folder)
                     }
                 }
             } header: {
@@ -128,10 +129,13 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Media Types") {
-                ForEach(ObjectKind.mediaTypes) { kind in
-                    Label(kind.pluralDisplayName, systemImage: kind.symbolName)
-                        .tag(LibraryDestination.scope(.kind(kind)))
+            if !model.presentMediaKinds.isEmpty {
+                Section("Media Types") {
+                    ForEach(ObjectKind.mediaTypes.filter(model.presentMediaKinds.contains)) { kind in
+                        destinationRow(.scope(.kind(kind))) {
+                            Label(kind.pluralDisplayName, systemImage: kind.symbolName)
+                        }
+                    }
                 }
             }
 
@@ -148,18 +152,14 @@ struct SidebarView: View {
                     .listRowSeparator(.hidden)
                 }
             }
-
         }
     }
     #endif
 
     // MARK: Footer
 
-    /// The two places the library's structure does not lead to: what has been
-    /// put out of sight, and what is on its way out. Neither is a folder, a
-    /// collection or a tag, so neither belongs in the list above — they sit in
-    /// a row of their own at the foot of the sidebar, the way Photos keeps its
-    /// album list and its Hidden and Recently Deleted apart.
+    /// Destructive storage and hidden-item visibility live at the foot of the
+    /// sidebar, separate from the library's destinations.
     private var footer: some View {
         HStack(spacing: 2) {
             footerButton(title: "Recently Deleted",
@@ -171,11 +171,11 @@ struct SidebarView: View {
             }
             // No count on this one. How much someone is keeping out of sight
             // is itself something they are keeping out of sight.
-            footerButton(title: "Hidden",
-                         symbol: "eye.slash",
-                         isCurrent: model.scope == .hidden,
+            footerButton(title: "Show Hidden Items",
+                         symbol: model.isShowingHiddenContent ? "eye" : "eye.slash",
+                         isCurrent: model.isShowingHiddenContent,
                          dropTarget: .hidden) {
-                Task { await model.openHidden() }
+                Task { await model.toggleHiddenItems() }
             }
             Spacer(minLength: 0)
         }
@@ -215,90 +215,121 @@ struct SidebarView: View {
     // MARK: Rows
 
     #if !os(macOS)
+    /// The list owns row activation and selection. Keeping the row free of
+    /// its own pointer gesture lets the entire label remain a drag destination.
+    private func destinationRow<Content: View>(
+        _ destination: LibraryDestination,
+        @ViewBuilder label: () -> Content
+    ) -> some View {
+        label()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .tag(destination)
+    }
+
     @ViewBuilder
     private func systemRow(_ scope: LibraryScope,
+                           destination: LibraryDestination? = nil,
                            title: String,
                            symbol: String,
                            count: Int? = nil,
                            dropTarget: DropTarget? = nil) -> some View {
-        Label {
-            HStack {
-                Text(title)
-                if let count, count > 0 {
-                    Spacer()
-                    Text("\(count)").foregroundStyle(.tertiary).monospacedDigit()
+        destinationRow(destination ?? .scope(scope)) {
+            Label {
+                HStack {
+                    Text(title)
+                    if let count, count > 0 {
+                        Spacer()
+                        Text("\(count)")
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: Double(count)))
+                            .motionAware(NookMotion.interaction, value: count)
+                    }
                 }
+            } icon: {
+                Image(systemName: symbol)
             }
-        } icon: {
-            Image(systemName: symbol)
+            // Spoken, the trailing number is just a number: "Inbox, 12" could as
+            // easily be a name as a tally. The count becomes the row's value.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(title)
+            .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
         }
-        // Spoken, the trailing number is just a number: "Inbox, 12" could as
-        // easily be a name as a tally. The count becomes the row's value.
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(title)
-        .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
-        .tag(LibraryDestination.scope(scope))
         .modifier(OptionalDropTarget(target: dropTarget, model: model))
     }
 
     private func folderRow(_ folder: FolderSnapshot) -> some View {
-        Label {
-            HStack {
-                Text(folder.name)
-                privacyBadges(isHidden: folder.isHidden, isLocked: folder.isLocked)
+        destinationRow(.scope(.folder(folder.id))) {
+            Label {
+                HStack {
+                    Text(folder.name)
+                    privacyBadges(isHidden: folder.isHidden, isLocked: folder.isLocked)
+                }
+            } icon: {
+                EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
             }
-        } icon: {
-            EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(folder.name)
+            .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.isLocked)
+                .joined(separator: ", "))
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(folder.name)
-        .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.isLocked)
-            .joined(separator: ", "))
-        .tag(LibraryDestination.scope(.folder(folder.id)))
-        .draggable(FolderTransfer(id: folder.id))
+        .modifier(SidebarFolderDragSource(folderID: folder.id))
+        .plopIn(trigger: sidebarArrivalTrigger(for: folder.id),
+                order: sidebarArrivalOrder(for: folder.id))
+        .transition(sidebarItemTransition)
         .contextMenu {
             Button("Rename…") { prompt(.renameFolder(folder.id), initial: folder.name) }
-            Button("New Subfolder…") { prompt(.newFolder(parent: folder.id), initial: "") }
+            Button("New Subfolder…") { model.editingAppearance = .newFolder(parent: folder.id) }
             Button("Customize…") {
-                editingAppearance = AppearanceTarget(
+                model.editingAppearance = AppearanceTarget(
                     reference: .folder(folder.id), title: folder.name, appearance: folder.appearance
                 )
             }
             Divider()
-            privacyItems(for: folder,
-                         hide: { await model.setHidden($0, forFolder: folder) },
-                         lock: { await model.setLocked($0, forFolder: folder) })
+            privacyMenuItems(for: folder,
+                             hide: { await model.setHidden($0, forFolder: folder) },
+                             lock: { await model.setLocked($0, forFolder: folder) })
             Divider()
             Button("Delete Folder", role: .destructive) {
                 Task { await model.deleteFolder(folder.id) }
             }
         }
-        // Dropping onto a folder moves: this is the true hierarchy, so the
-        // drop is a real relocation. Files from outside are imported into it.
-        .libraryDropTarget(.folder(folder.id), model: model)
+        // The dedicated modifier establishes a concrete full-row surface.
+        // Without it, SwiftUI can register only the label's residual layout as
+        // the destination inside a DisclosureGroup.
+        .modifier(SidebarFolderDropTarget(folderID: folder.id, model: model))
     }
 
     private func collectionRow(_ collection: CollectionSnapshot) -> some View {
-        Label {
-            HStack {
-                Text(collection.name)
-                privacyBadges(isHidden: collection.isHidden, isLocked: collection.isLocked)
-                if collection.memberCount > 0 {
-                    Spacer()
-                    Text("\(collection.memberCount)").foregroundStyle(.tertiary).monospacedDigit()
+        destinationRow(.scope(.collection(collection.id))) {
+            Label {
+                HStack {
+                    Text(collection.name)
+                    privacyBadges(isHidden: collection.isHidden, isLocked: collection.isLocked)
+                    if collection.memberCount > 0 {
+                        Spacer()
+                        Text("\(collection.memberCount)")
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: Double(collection.memberCount)))
+                            .motionAware(NookMotion.interaction, value: collection.memberCount)
+                    }
                 }
+            } icon: {
+                EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
             }
-        } icon: {
-            EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(collection.name)
+            .accessibilityValue(spokenCollectionState(collection))
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(collection.name)
-        .accessibilityValue(spokenCollectionState(collection))
-        .tag(LibraryDestination.scope(.collection(collection.id)))
+        .plopIn(trigger: sidebarArrivalTrigger(for: collection.id),
+                order: sidebarArrivalOrder(for: collection.id))
+        .transition(sidebarItemTransition)
         .contextMenu {
             Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
             Button("Customize…") {
-                editingAppearance = AppearanceTarget(
+                model.editingAppearance = AppearanceTarget(
                     reference: .collection(collection.id),
                     title: collection.name,
                     appearance: collection.appearance
@@ -308,9 +339,9 @@ struct SidebarView: View {
             // A hidden or locked collection conceals the collection itself.
             // What it gathers stays exactly as reachable as it was: the true
             // folder hierarchy is where storage privacy lives.
-            privacyItems(for: collection,
-                         hide: { await model.setHidden($0, forCollection: collection) },
-                         lock: { await model.setLocked($0, forCollection: collection) })
+            privacyMenuItems(for: collection,
+                             hide: { await model.setHidden($0, forCollection: collection) },
+                             lock: { await model.setLocked($0, forCollection: collection) })
             Divider()
             Button("Delete Collection", role: .destructive) {
                 Task { await model.deleteCollection(collection.id) }
@@ -333,7 +364,7 @@ struct SidebarView: View {
         .contextMenu {
             Button("Rename…") { prompt(.renameTag(tag.id), initial: tag.name) }
             Button("Customize…") {
-                editingAppearance = AppearanceTarget(
+                model.editingAppearance = AppearanceTarget(
                     reference: .tag(tag.id), title: tag.name, appearance: tag.appearance
                 )
             }
@@ -343,6 +374,7 @@ struct SidebarView: View {
             }
         }
         .libraryDropTarget(.tag(tag.id), model: model)
+        .transition(sidebarItemTransition)
     }
     #endif
 
@@ -362,23 +394,6 @@ struct SidebarView: View {
         }
     }
 
-    /// Hide and Lock as a pair of menu items, offered on what the place is in
-    /// its own right — a subfolder of a hidden folder is hidden without being
-    /// hidden itself, and only the ancestor can lift that.
-    @ViewBuilder
-    private func privacyItems(for item: some PrivacyBearing,
-                              hide: @escaping (Bool) async -> Void,
-                              lock: @escaping (Bool) async -> Void) -> some View {
-        Button(item.isExplicitlyHidden ? "Unhide" : "Hide",
-               systemImage: item.isExplicitlyHidden ? "eye" : "eye.slash") {
-            Task { await hide(!item.isExplicitlyHidden) }
-        }
-        Button(item.isExplicitlyLocked ? "Unlock" : "Lock",
-               systemImage: item.isExplicitlyLocked ? "lock.open" : "lock") {
-            Task { await lock(!item.isExplicitlyLocked) }
-        }
-    }
-
     private func spokenPrivacy(isHidden: Bool, isLocked: Bool) -> [String] {
         var parts: [String] = []
         if isHidden { parts.append("Hidden") }
@@ -394,6 +409,32 @@ struct SidebarView: View {
     #endif
 
     // MARK: Naming
+
+    #if !os(macOS)
+    private var sidebarItemTransition: AnyTransition {
+        let movement = AnyTransition.scale(scale: 0.94).combined(with: .opacity)
+        return .motionAware(movement, reduceMotion: reduceMotion)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+    }
+
+    private func sidebarArrivalTrigger(for id: FolderID) -> Int? {
+        guard let arrival = model.arrival, arrival.folderOrder(id) != nil else { return nil }
+        return arrival.revision
+    }
+
+    private func sidebarArrivalOrder(for id: FolderID) -> Int {
+        model.arrival?.folderOrder(id) ?? 0
+    }
+
+    private func sidebarArrivalTrigger(for id: CollectionID) -> Int? {
+        guard let arrival = model.arrival, arrival.collectionOrder(id) != nil else { return nil }
+        return arrival.revision
+    }
+
+    private func sidebarArrivalOrder(for id: CollectionID) -> Int {
+        model.arrival?.collectionOrder(id) ?? 0
+    }
+    #endif
 
     private func prompt(_ kind: NamingPrompt, initial: String) {
         model.namingPrompt = kind
@@ -425,10 +466,10 @@ struct SidebarView: View {
 ///
 /// `OutlineGroup` keeps its own expansion privately, which leaves nothing for
 /// left and right to open and close.
-private struct FolderRows: View {
+private struct FolderRows<Row: View>: View {
     let nodes: [FolderNode]
     let model: LibraryModel
-    let row: (FolderSnapshot) -> AnyView
+    @ViewBuilder let row: (FolderSnapshot) -> Row
 
     var body: some View {
         ForEach(nodes) { node in
@@ -442,6 +483,7 @@ private struct FolderRows: View {
                 row(node.folder)
             }
         }
+        .motionAware(NookMotion.reflow, value: model.expandedFolders)
     }
 
     private func expansion(of id: FolderID) -> Binding<Bool> {
@@ -455,6 +497,32 @@ private struct FolderRows: View {
                 }
             }
         )
+    }
+}
+#endif
+
+#if !os(macOS)
+/// Makes a folder row a native drag source without involving List selection.
+private struct SidebarFolderDragSource: ViewModifier {
+    let folderID: FolderID
+
+    func body(content: Content) -> some View {
+        content.draggable(FolderTransfer(id: folderID))
+    }
+}
+
+/// Makes the complete folder row the native combined drop destination.
+///
+/// The enabled overload lets SwiftUI own hit testing and target visualization
+/// while the row keeps its independent List selection identity.
+private struct SidebarFolderDropTarget: ViewModifier {
+    let folderID: FolderID
+    let model: LibraryModel
+
+    func body(content: Content) -> some View {
+        content.dropDestination(for: LibraryDropItem.self, isEnabled: true) { items, _ in
+            Task { await model.accept(items, at: .folder(folderID)) }
+        }
     }
 }
 #endif
@@ -484,11 +552,15 @@ private struct OptionalDropTarget: ViewModifier {
     }
 }
 
-/// The entity whose appearance is being edited.
-struct AppearanceTarget: Identifiable {
-    let reference: LibraryReference
-    let title: String
-    let appearance: EntityAppearance
-
-    var id: UUID { reference.uuid }
+#if DEBUG
+#Preview {
+    NavigationSplitView {
+        PreviewHost { model in
+            SidebarView(model: model)
+        }
+    } detail: {
+        Text("Detail")
+    }
+    .frame(minWidth: 700, minHeight: 500)
 }
+#endif

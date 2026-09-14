@@ -155,3 +155,12 @@ struct InfoPanel: View {
         Task { await model.update(object.id, title: title, notes: notes) }
     }
 }
+
+#if DEBUG
+#Preview {
+    PreviewHost { model in
+        InfoPanel(model: model)
+    }
+    .frame(width: 320, height: 500)
+}
+#endif

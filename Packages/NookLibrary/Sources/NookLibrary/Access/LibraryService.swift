@@ -47,6 +47,20 @@ public actor LibraryService {
         revision &+= 1
     }
 
+    /// Promotes originals left in the pre-iCloud device-local blob directory.
+    /// Materializing performs the migration when a fallback file exists and is
+    /// otherwise a no-op for an already-current ubiquitous item.
+    public func migrateLocallyAvailableBlobsToCloud() async {
+        let descriptors = ((try? context.fetch(FetchDescriptor<Blob>())) ?? [])
+            .compactMap(\.descriptor)
+            .filter { blobStore.isAvailableLocally($0) }
+
+        for descriptor in descriptors {
+            guard !Task.isCancelled else { break }
+            _ = try? await blobStore.materialize(descriptor)
+        }
+    }
+
     // MARK: Model lookup
 
     func object(withIdentifier identifier: UUID) -> LibraryObject? {

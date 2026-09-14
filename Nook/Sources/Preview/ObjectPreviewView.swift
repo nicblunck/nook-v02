@@ -11,12 +11,23 @@ struct ObjectPreviewView: View {
 
     @State private var resolvedURL: URL?
     @State private var loadFailure: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         content
+            .transition(.opacity)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
+                       value: object.id)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
+                       value: resolvedURL)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background.secondary)
-            .overlay(alignment: .bottom) { navigationControls }
+            #if os(macOS)
+            .background(HorizontalScrollPaging(isActive: true) { step($0) })
+            #endif
+            #if os(iOS)
+            .gesture(swipeGesture)
+            #endif
             .toolbar { toolbarContent }
             .task(id: object.id) { await resolve() }
             .onKeyPress(.escape) { close(); return .handled }
@@ -24,6 +35,22 @@ struct ObjectPreviewView: View {
             .onKeyPress(.rightArrow) { step(1); return .handled }
             .onKeyPress(.space) { close(); return .handled }
     }
+
+    #if os(iOS)
+    /// A flick left brings in what comes next, the same direction Photos
+    /// treats it as; only a swipe that reads as clearly horizontal and
+    /// deliberate is allowed to compete with a pinch-zoomed image's own pan.
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                let translation = value.translation
+                guard abs(translation.width) > abs(translation.height) * 1.5,
+                      abs(translation.width) > 60
+                else { return }
+                step(translation.width < 0 ? 1 : -1)
+            }
+    }
+    #endif
 
     // MARK: Content
 
@@ -34,7 +61,6 @@ struct ObjectPreviewView: View {
                                    description: Text(loadFailure))
         } else if let resolvedURL {
             FilePreview(object: object, url: resolvedURL)
-                .id(resolvedURL)
         } else {
             ProgressView().controlSize(.large)
         }
@@ -42,41 +68,39 @@ struct ObjectPreviewView: View {
 
     // MARK: Chrome
 
-    private var navigationControls: some View {
-        HStack(spacing: 18) {
-            Button("Previous", systemImage: "chevron.left") { step(-1) }
-                .disabled(model.adjacentObject(to: object.id, offset: -1) == nil)
-            Text(object.title)
-                .font(.callout)
-                .lineLimit(1)
-                .frame(maxWidth: 320)
-            Button("Next", systemImage: "chevron.right") { step(1) }
-                .disabled(model.adjacentObject(to: object.id, offset: 1) == nil)
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: .capsule)
-        .padding(.bottom, 20)
-    }
-
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
             Button("Back", systemImage: "chevron.backward") { close() }
         }
-        ToolbarItem {
-            Button(object.isFavorite ? "Remove Favorite" : "Favorite",
-                   systemImage: object.isFavorite ? "star.fill" : "star") {
-                Task { await model.setFavorite(!object.isFavorite, for: [object.id]) }
-            }
+        #if os(iOS)
+        // Info and Favorite are the two things worth a thumb's reach on a
+        // phone, so they ride along the bottom rather than the top bar.
+        ToolbarItemGroup(placement: .bottomBar) {
+            favoriteButton
+            Spacer()
+            InfoToolbarButton(model: model)
         }
+        #else
+        ToolbarItem { favoriteButton }
+        ToolbarItem { InfoToolbarButton(model: model) }
+        #endif
         ToolbarItem {
             Menu("More", systemImage: "ellipsis.circle") {
                 ObjectMenu(model: model, objects: [object])
             }
         }
+    }
+
+    private var favoriteButton: some View {
+        Button {
+            Task { await model.setFavorite(!object.isFavorite, for: [object.id]) }
+        } label: {
+            Label(object.isFavorite ? "Remove Favorite" : "Favorite",
+                  systemImage: object.isFavorite ? "star.fill" : "star")
+        }
+        .contentTransition(.symbolEffect)
+        .motionAware(NookMotion.interaction, value: object.isFavorite)
     }
 
     // MARK: Actions
@@ -89,18 +113,27 @@ struct ObjectPreviewView: View {
         model.stepPreview(offset)
     }
 
+    /// Resolves in place rather than clearing `resolvedURL` first.
+    ///
+    /// Nulling it before every lookup was what sent `FilePreview` briefly
+    /// out of the tree and back in on every step — tearing down and rebuilding
+    /// the `QLPreviewView` underneath it fast enough to catch AppKit between
+    /// closing one and finishing activating the next, which crashes. Handing
+    /// the new URL straight to the existing view leaves it in place; only its
+    /// `previewItem` changes.
     private func resolve() async {
-        resolvedURL = nil
         loadFailure = nil
         do {
             guard let url = try await model.library.service.originalURL(for: object.id,
                                                                         in: model.accessContext) else {
                 loadFailure = "This item has no stored file."
+                resolvedURL = nil
                 return
             }
             resolvedURL = url
         } catch {
             loadFailure = error.localizedDescription
+            resolvedURL = nil
         }
     }
 }

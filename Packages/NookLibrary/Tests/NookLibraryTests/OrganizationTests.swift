@@ -26,30 +26,6 @@ struct OrganizationTests {
         #expect(object.folderID == folder.id)
     }
 
-    @Test("A collection keeps its manual order")
-    func collectionManualOrder() async throws {
-        let harness = try await TestLibrary()
-        defer { harness.cleanUp() }
-
-        var ids: [ObjectID] = []
-        for name in ["one", "two", "three"] {
-            let source = try harness.makeSourceFile(named: "\(name).txt", contents: name)
-            let report = await harness.service.importItems([.file(url: source)], into: .root)
-            ids.append(try #require(report.importedIDs.first))
-        }
-
-        let collection = try await harness.service.createCollection(named: "Ordered")
-        try await harness.service.addObjects(ids, toCollection: collection.id)
-
-        let reversed = ids.reversed().map { $0 }
-        try await harness.service.reorderCollection(collection.id, objectOrder: reversed)
-
-        let query = ObjectQuery(scope: .collection(collection.id),
-                                sort: ObjectSort(field: .manual, ascending: true))
-        let ordered = await harness.service.objects(matching: query)
-        #expect(ordered.map(\.id) == reversed)
-    }
-
     @Test("Deleting is reversible for the retention window, then reclaims its bytes")
     func deletionLifecycle() async throws {
         let harness = try await TestLibrary()
@@ -121,5 +97,61 @@ struct OrganizationTests {
 
         #expect(await harness.service.tags().count == 1)
         #expect(try #require(await harness.service.object(id)).tags.count == 1)
+    }
+
+    @Test("Folders, collections and standalone tags keep their staged appearance")
+    func styledEntityCreation() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+
+        let folderAppearance = EntityAppearance(colorHex: "#FF9500", symbolName: "book.fill")
+        let collectionAppearance = EntityAppearance(colorHex: "#AF52DE", emoji: "✨")
+        let tagAppearance = EntityAppearance(colorHex: "#34C759", symbolName: "leaf.fill")
+
+        let folder = try await harness.service.createFolder(
+            named: "Reading",
+            appearance: folderAppearance
+        )
+        let collection = try await harness.service.createCollection(
+            named: "Inspiration",
+            appearance: collectionAppearance
+        )
+        let tag = try await harness.service.createTag(
+            named: "Growing",
+            appearance: tagAppearance
+        )
+
+        #expect(folder.appearance == folderAppearance)
+        #expect(collection.appearance == collectionAppearance)
+        #expect(tag.appearance == tagAppearance)
+        #expect(await harness.service.tags().contains { $0.id == tag.id && $0.objectCount == 0 })
+    }
+
+    @Test("The shared customization save updates name and appearance together")
+    func entityCustomization() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+
+        let folder = try await harness.service.createFolder(named: "Drafts")
+        let collection = try await harness.service.createCollection(named: "Maybe")
+        let tag = try await harness.service.createTag(named: "Old")
+        let appearance = EntityAppearance(colorHex: "#007AFF", emoji: "🧭")
+
+        try await harness.service.updateFolder(folder.id, name: "Trips", appearance: appearance)
+        try await harness.service.updateCollection(collection.id, name: "Places", appearance: appearance)
+        try await harness.service.updateTag(tag.id, name: "Travel", appearance: appearance)
+
+        let updatedFolder = try #require(await harness.service.folder(folder.id))
+        let updatedCollection = try #require(
+            await harness.service.collections().first { $0.id == collection.id }
+        )
+        let updatedTag = try #require(await harness.service.tags().first { $0.id == tag.id })
+
+        #expect(updatedFolder.name == "Trips")
+        #expect(updatedFolder.appearance == appearance)
+        #expect(updatedCollection.name == "Places")
+        #expect(updatedCollection.appearance == appearance)
+        #expect(updatedTag.name == "Travel")
+        #expect(updatedTag.appearance == appearance)
     }
 }

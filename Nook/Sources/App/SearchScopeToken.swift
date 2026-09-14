@@ -41,8 +41,6 @@ struct SearchScopeToken: Identifiable, Hashable {
             self.init(scope: scope, name: "Recent", symbolName: "clock")
         case .recentlyDeleted:
             self.init(scope: scope, name: "Recently Deleted", symbolName: "trash")
-        case .hidden:
-            self.init(scope: scope, name: "Hidden", symbolName: "eye.slash")
         }
     }
 
@@ -53,24 +51,16 @@ struct SearchScopeToken: Identifiable, Hashable {
     }
 }
 
-/// The rename and create prompts the app can raise, from the sidebar or the
-/// menu bar.
+/// The lightweight rename prompts the app can raise. New folders, collections
+/// and tags use `AppearanceTarget` so naming and styling happen together.
 enum NamingPrompt: Identifiable {
-    case newFolder(parent: FolderID?)
     case renameFolder(FolderID)
-    /// The objects the new collection should gather, which is empty when the
-    /// prompt was raised from the menu bar or the sidebar rather than from a
-    /// selection.
-    case newCollection(adding: [ObjectID])
     case renameCollection(CollectionID)
     case renameTag(TagID)
 
     var id: String {
         switch self {
-        case .newFolder(let parent): "newFolder-\(parent?.description ?? "root")"
         case .renameFolder(let id): "renameFolder-\(id)"
-        case .newCollection(let adding):
-            "newCollection-" + adding.map { $0.uuid.uuidString }.joined(separator: ",")
         case .renameCollection(let id): "renameCollection-\(id)"
         case .renameTag(let id): "renameTag-\(id)"
         }
@@ -78,29 +68,17 @@ enum NamingPrompt: Identifiable {
 
     var title: String {
         switch self {
-        case .newFolder: "New Folder"
         case .renameFolder: "Rename Folder"
-        case .newCollection: "New Collection"
         case .renameCollection: "Rename Collection"
         case .renameTag: "Rename Tag"
         }
     }
 
     var confirmTitle: String {
-        switch self {
-        case .newFolder, .newCollection: "Create"
-        default: "Rename"
-        }
+        "Rename"
     }
 
     var message: String? {
-        switch self {
-        case .newFolder(let parent):
-            parent == nil ? "At the top level of your library." : "Inside the selected folder."
-        case .newCollection:
-            "Collections gather items from anywhere without moving them."
-        default:
-            nil
-        }
+        nil
     }
 }

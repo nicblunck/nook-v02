@@ -32,6 +32,18 @@ public enum LibraryViewMode: String, Codable, Sendable, CaseIterable, Identifiab
     }
 }
 
+/// When masonry items show the caption that identifies them.
+///
+/// Automatic follows the platform's input model: it appears as a hover
+/// overlay on macOS and as an attached section on touch devices.
+public enum MasonryCaptionDisplay: String, Codable, Sendable, CaseIterable, Identifiable {
+    case automatic
+    case always
+    case hidden
+
+    public var id: Self { self }
+}
+
 /// The presentation settings for one location.
 ///
 /// Held together in one value because "remember this location" has to capture
@@ -40,6 +52,8 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
     public var viewMode: LibraryViewMode
     public var sort: ObjectSort
     public var foldersFirst: Bool
+    public var masonryCaptionDisplay: MasonryCaptionDisplay
+    public var showsMasonryTypeLabels: Bool
     /// How large the items are drawn, as a multiple of each layout's own
     /// natural size. One number rather than one per layout, so making things
     /// bigger in the icon grid leaves them bigger on the masonry wall: the
@@ -55,16 +69,25 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
     }
 
     public static let systemDefault = LocationViewPreferences(
-        viewMode: .grid, sort: .default, foldersFirst: true, itemScale: 1
+        viewMode: .grid,
+        sort: .default,
+        foldersFirst: true,
+        masonryCaptionDisplay: .automatic,
+        showsMasonryTypeLabels: true,
+        itemScale: 1
     )
 
     public init(viewMode: LibraryViewMode = .grid,
                 sort: ObjectSort = .default,
                 foldersFirst: Bool = true,
+                masonryCaptionDisplay: MasonryCaptionDisplay = .automatic,
+                showsMasonryTypeLabels: Bool = true,
                 itemScale: Double = 1) {
         self.viewMode = viewMode
         self.sort = sort
         self.foldersFirst = foldersFirst
+        self.masonryCaptionDisplay = masonryCaptionDisplay
+        self.showsMasonryTypeLabels = showsMasonryTypeLabels
         self.itemScale = Self.clamped(scale: itemScale)
     }
 
@@ -78,6 +101,14 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
             viewMode: try container.decodeIfPresent(LibraryViewMode.self, forKey: .viewMode) ?? fallback.viewMode,
             sort: try container.decodeIfPresent(ObjectSort.self, forKey: .sort) ?? fallback.sort,
             foldersFirst: try container.decodeIfPresent(Bool.self, forKey: .foldersFirst) ?? fallback.foldersFirst,
+            masonryCaptionDisplay: try container.decodeIfPresent(
+                MasonryCaptionDisplay.self,
+                forKey: .masonryCaptionDisplay
+            ) ?? fallback.masonryCaptionDisplay,
+            showsMasonryTypeLabels: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .showsMasonryTypeLabels
+            ) ?? fallback.showsMasonryTypeLabels,
             itemScale: try container.decodeIfPresent(Double.self, forKey: .itemScale) ?? fallback.itemScale
         )
     }

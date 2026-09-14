@@ -102,6 +102,18 @@ extension LibraryModel {
         }
     }
 
+    /// Clicking a folder is another way of saying the keyboard belongs to
+    /// the canvas — the same thing clicking an object says. A folder never
+    /// joins a selection of objects, the rule an arrow key that lands on one
+    /// already follows, so this always clears whatever was selected and
+    /// rests the cursor here rather than trying to make sense of a modifier.
+    func selectFolder(_ id: FolderID, modifiers: EventModifiers = []) {
+        focus(.canvas)
+        cursor = .folder(id)
+        selection = []
+        selectionAnchor = nil
+    }
+
     /// Every object between two others, in the order the destination on
     /// screen reads.
     func objectRange(from anchor: ObjectID, to target: ObjectID) -> Set<ObjectID> {
@@ -202,149 +214,19 @@ extension LibraryModel {
     // have to agree.
 
     var canOpenCurrentItem: Bool {
-        isShowingHome ? (homeCursor != nil && previewedObjectID == nil) : canOpenCursorItem
+        canOpenCursorItem
     }
 
     func openCurrentItem() {
-        if isShowingHome { openHomeCursorItem() } else { openCursorItem() }
+        openCursorItem()
     }
 
     var canQuickLookCurrentItem: Bool {
-        isShowingHome ? canQuickLookHomeCursorItem : canQuickLookCursorItem
+        canQuickLookCursorItem
     }
 
     func previewCurrentItem() {
-        if isShowingHome { previewHomeCursorItem() } else { previewCursorItem() }
-    }
-
-    // MARK: Home
-    //
-    // Home is a different shape — sections stacked in one scroll view rather
-    // than one sequence — but not a different rulebook. It moves, selects and
-    // opens by the same rules, on its own order and its own measured frames.
-
-    /// Home's tiles, section by section, in the order they read.
-    var homeOrder: [HomeTileID] {
-        homeSections.flatMap { section in
-            section.objects.map { HomeTileID(scope: section.scope, object: $0.id) }
-        }
-    }
-
-    func homeObject(_ tile: HomeTileID) -> ObjectSnapshot? {
-        homeSections.first { $0.scope == tile.scope }?
-            .objects.first { $0.id == tile.object }
-    }
-
-    var homeCursorObject: ObjectSnapshot? {
-        homeCursor.flatMap(homeObject)
-    }
-
-    /// Returns whether the cursor actually went anywhere, so a key that has
-    /// run out of Home can do something else with itself.
-    @discardableResult
-    func moveHomeCursor(
-        _ direction: CanvasDirection,
-        extendingSelection: Bool = false,
-        frames: [HomeTileID: CGRect] = [:]
-    ) -> Bool {
-        guard let target = CanvasNavigation.destination(
-            from: homeCursor, direction: direction, order: homeOrder, frames: frames
-        ) else { return false }
-        placeHome(target, extendingSelection: extendingSelection)
-        return true
-    }
-
-    func moveHomeCursorToEdge(_ direction: CanvasDirection, extendingSelection: Bool = false) {
-        guard let target = CanvasNavigation.edge(direction, in: homeOrder) else { return }
-        placeHome(target, extendingSelection: extendingSelection)
-    }
-
-    /// The same landing the canvas does, on a tile rather than a canvas item.
-    private func placeHome(_ target: HomeTileID, extendingSelection: Bool) {
-        homeCursor = target
-        if extendingSelection {
-            let anchor = homeSelectionAnchor ?? target
-            homeSelectionAnchor = anchor
-            homeSelection = homeTileRange(from: anchor, to: target)
-        } else {
-            homeSelectionAnchor = target
-            homeSelection = [target]
-        }
-    }
-
-    /// Every tile between two others, in the order Home reads.
-    ///
-    /// A range crosses a section boundary the way it crosses a row: the order
-    /// is one sequence, even though the places it runs through are not. What
-    /// it never does is reach sideways into the same object's other tile.
-    func homeTileRange(from anchor: HomeTileID, to target: HomeTileID) -> Set<HomeTileID> {
-        let tiles = homeOrder
-        guard let start = tiles.firstIndex(of: anchor),
-              let end = tiles.firstIndex(of: target)
-        else { return [target] }
-        return Set(tiles[min(start, end)...max(start, end)])
-    }
-
-    /// One selection policy, whichever input asked for it — the tile version
-    /// of `select(_:modifiers:)`.
-    func selectHomeTile(_ tile: HomeTileID, modifiers: EventModifiers) {
-        focus(.canvas)
-        homeCursor = tile
-
-        if modifiers.contains(.command) {
-            if homeSelection.contains(tile) {
-                homeSelection.remove(tile)
-            } else {
-                homeSelection.insert(tile)
-            }
-            homeSelectionAnchor = tile
-        } else if modifiers.contains(.shift),
-                  let anchor = homeSelectionAnchor ?? homeSelection.first {
-            homeSelectionAnchor = anchor
-            homeSelection.formUnion(homeTileRange(from: anchor, to: tile))
-        } else {
-            homeSelection = [tile]
-            homeSelectionAnchor = tile
-        }
-    }
-
-    /// Opening from Home opens the thing, in place.
-    ///
-    /// Preview replaces Home the way it replaces the canvas, and Home's own
-    /// objects are what next and previous walk, so there is nothing left for a
-    /// detour through the section's scope to buy. The heading is how the place
-    /// itself is reached.
-    func openHomeTile(_ tile: HomeTileID) {
-        guard let object = homeObject(tile) else { return }
-        homeCursor = tile
-        open(object) { [self] _ in
-            homeSelection = [tile]
-            homeSelectionAnchor = tile
-        }
-    }
-
-    func openHomeCursorItem() {
-        guard let tile = homeCursor else { return }
-        openHomeTile(tile)
-    }
-
-    /// Space on Home means what it means on the canvas, and a link has no
-    /// stored content to show.
-    func previewHomeCursorItem() {
-        guard let tile = homeCursor, let object = homeObject(tile), object.kind != .link
-        else { return }
-        guard !object.isLocked else {
-            openHomeTile(tile)
-            return
-        }
-        homeSelection = [tile]
-        homeSelectionAnchor = tile
-        previewedObjectID = object.id
-    }
-
-    var canQuickLookHomeCursorItem: Bool {
-        guard previewedObjectID == nil, let object = homeCursorObject else { return false }
-        return object.kind != .link
+        previewCursorItem()
     }
 
     // MARK: The sidebar
@@ -388,33 +270,30 @@ extension LibraryModel {
     /// into an empty canvas, or one with nothing lit, looks exactly like the
     /// key having done nothing.
     func lightFirstItemIfNothingIsLit() {
-        if isShowingHome {
-            guard homeCursor == nil else { return }
-            moveHomeCursor(.down)
-        } else {
-            guard cursor == nil else { return }
-            moveCursor(.down)
-        }
+        guard cursor == nil else { return }
+        moveCursor(.down)
     }
 
     // MARK: Going up
 
     /// The folder containing this one, which is not the same as going back:
     /// Back retraces where the user has been, this climbs the tree.
-    var enclosingScope: LibraryScope? {
+    var enclosingDestination: LibraryDestination? {
         guard !isShowingHome, case .folder = scope, !breadcrumbs.isEmpty else { return nil }
         // `folderPath` ends with the folder itself, so its parent is the one
         // before it — and a root folder's parent is the library.
-        if breadcrumbs.count >= 2 { return .folder(breadcrumbs[breadcrumbs.count - 2].id) }
-        return .allObjects
+        if breadcrumbs.count >= 2 {
+            return .scope(.folder(breadcrumbs[breadcrumbs.count - 2].id))
+        }
+        return .home
     }
 
-    var canGoToEnclosingScope: Bool { enclosingScope != nil && !isTypingText }
+    var canGoToEnclosingScope: Bool { enclosingDestination != nil && !isTypingText }
 
     func goToEnclosingScope() {
-        guard let target = enclosingScope else { return }
+        guard let target = enclosingDestination else { return }
         let leaving = currentFolderID
-        navigate(to: .scope(target))
+        navigate(to: target)
         // Arriving from below, the cursor rests on the folder just left, so
         // the way back down is one key press.
         if let leaving { cursor = .folder(leaving) }

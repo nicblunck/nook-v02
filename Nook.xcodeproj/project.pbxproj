@@ -1,0 +1,1388 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01B7CC45ACB52C30E0584719 /* LocationMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AECA0A6669F9633F77963BBA /* LocationMenu.swift */; };
+		02C68817C51BB66995D6FCC4 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53549678390B5259BB4DF7D4 /* Accessibility.swift */; };
+		02FBDF9621B40E1228A1FDB0 /* MacSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F210F6A8865D75F169D982AD /* MacSidebar.swift */; };
+		035564AA98AB39A521E9D5C5 /* CompactLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */; };
+		04D31608028346359E62B68B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
+		04FAEEE0EA38D787A9B2BCA7 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 3DA6DCC7DC29525F67279647 /* NookLibrary */; };
+		05EF14FE4062438D78D1E2AD /* FolderScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4813A195EDEB60B4C7E35F /* FolderScene.swift */; };
+		0946D81D8328BF7D49B55F8C /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26467AD6EEFD8E47048A033B /* LibraryWindow.swift */; };
+		0A82B417675233126FF71364 /* LibraryIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */; };
+		0ACCE57D32C0D06245431125 /* LibraryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33ABDD9D4627F2E16A5DA8F2 /* LibraryEntities.swift */; };
+		11EE33D6C63D6C3B6DFE47C3 /* InfoPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC223D7E6161E7D5A60D4CE /* InfoPanel.swift */; };
+		148F029A9660CF00E7F90657 /* EntityIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADD58BC62206678FDC124F /* EntityIcon.swift */; };
+		1C1D98948C251765214E7570 /* AppNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEF3C3995EBCFE55CD09A2C /* AppNavigator.swift */; };
+		1EB9568CC9B0CBE4D9040E75 /* MacSidebarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2F59D6B6D6224D17A4D5EC /* MacSidebarTests.swift */; };
+		2030BACD5B2A9EFF72957C5F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3AB199013B3E104B25F50D /* AppSettings.swift */; };
+		214F8BD4DB9BB05BA8563B98 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D4665C495D3CB70F0276F /* LibraryModel.swift */; };
+		21DD26B8B3A2C44CB54703FA /* ObjectMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B01DB011F59C0A76481411 /* ObjectMenu.swift */; };
+		21FB13D21135538F35B57433 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
+		235A80425229674DB7D34F06 /* ObjectCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675725027741609435969340 /* ObjectCard.swift */; };
+		24B17DA30581A2821C3DA06F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29C2DE2B343966407986FF9 /* SettingsView.swift */; };
+		268B5CD0007BB6825E3B99D4 /* MasonryLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642527BF21EB6F32A20694E6 /* MasonryLayout.swift */; };
+		27757C92C06C4A0A92D1BD8C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 859CD1B6A1B80930666ADA7A /* Assets.xcassets */; };
+		27A6B38B403D117359D399F8 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */; };
+		280962FE0CD1D2D9AF00EC7A /* AccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2982A98756C04444501D61 /* AccessibilityTests.swift */; };
+		2890CD4A0D4265FBDEB8E6AC /* TransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D525A7D837A50021BF91CA75 /* TransferTests.swift */; };
+		2B6E0FF4E6F163D8CE074364 /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7217C9F68FF753009C820E37 /* Formatting.swift */; };
+		2BE911F93E0DC1ABE930D09E /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
+		2C9BD2F9817F14DAB3F840C3 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
+		2F2B83794714F6156A87BC3F /* NavigationHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B6899BC834E436F6563B23 /* NavigationHistoryTests.swift */; };
+		30070D55D7139CA15A5C4AE8 /* LinkPresentation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2F1A021571C2D9FBE73E9522 /* LinkPresentation.framework */; };
+		3236BE7423110765ED823E16 /* GlobalSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F72508226D75E781509A208 /* GlobalSearchView.swift */; };
+		344AF4C381B91C1C8275B665 /* ItemClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6631E2E0AA1A1BB26F1F5 /* ItemClick.swift */; };
+		3516783F622735B24EFB9405 /* GlobalSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F72508226D75E781509A208 /* GlobalSearchView.swift */; };
+		37950405A55D692DCB16214E /* MasonryLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642527BF21EB6F32A20694E6 /* MasonryLayout.swift */; };
+		39303540E19AACDA6FD2DBA7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29C2DE2B343966407986FF9 /* SettingsView.swift */; };
+		40BA08E11DFF7AE8292E5FBA /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3AB199013B3E104B25F50D /* AppSettings.swift */; };
+		41A758F57A5DC5029E0E6D4E /* SidebarKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */; };
+		440CD692B2E6C1360DD8DD6C /* AppNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEF3C3995EBCFE55CD09A2C /* AppNavigator.swift */; };
+		46A7C286402E49109434CEB3 /* DragAndDropTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B4D58AD46B1B6BB384DA53 /* DragAndDropTests.swift */; };
+		48FC19ABDEF29FD7F6D4053C /* PhotosUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70CA2795B9C904E3E9B6EAC4 /* PhotosUI.framework */; };
+		4C96EEF90C2B8BAB91344225 /* LibraryIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */; };
+		4D7F32201D801811F6689745 /* AppFocusLoss.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AA740B740B8281F9DA7BA3 /* AppFocusLoss.swift */; };
+		4E39C56EF620D356E9121476 /* LocalAuthentication.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */; };
+		4FB69122E5154A241EBFDB7B /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */; };
+		5235845F8790B1A5FF98C35C /* QuickLook.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */; };
+		527A37FEB245E3488A2A51A7 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */; };
+		533078AE069D8E285FC674C2 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */; };
+		537B879AC92D5200D6C90B51 /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739F53217116EE9DBE7711EF /* ThumbnailView.swift */; };
+		553A25554F6728150CC09384 /* ObjectCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675725027741609435969340 /* ObjectCard.swift */; };
+		56BC3DB2347CA2F1F9C336B9 /* SidebarKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */; };
+		5717E544CA768A3F946F0F3B /* MotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18AC5AC0F91991372FABDFEB /* MotionTests.swift */; };
+		58AAB74877361580BD292F04 /* NamingPromptModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */; };
+		59603E011D81C555FFE5C73A /* ClickTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14F605247A2F4067B7D59A99 /* ClickTests.swift */; };
+		5A7624C5BED582DEF8F19B93 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
+		5EA9104AEA846407A5F915A6 /* PasteImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56996EA6351BD06C5361175 /* PasteImporter.swift */; };
+		5F544EEDA5A3BAC77B46A9B6 /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F9A0304CACC61E8BAC1853B9 /* CoreData.framework */; };
+		5FAC853D1A412AE75605E92E /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
+		652078988265BC4D14E4EC26 /* SearchScopeToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F175F723B10134AB2F47BC9 /* SearchScopeToken.swift */; };
+		652D0A73A997CE615318C9FC /* LocationMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AECA0A6669F9633F77963BBA /* LocationMenu.swift */; };
+		67F8489E58803A2374E5C379 /* LibraryModel+Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */; };
+		6ABFB8ECF307F3C1C4778397 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2BB04523326914EC04916BD /* ShareViewController.swift */; };
+		6BB068FB80D701D70E33C4C2 /* LocalAuthentication.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */; };
+		6BEE273B9248D3238F110C4F /* AppTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF4A2584DCD536E7042B43B /* AppTestSupport.swift */; };
+		6E9B6F89937F77A0954E23C8 /* NamingPromptModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */; };
+		6F737620C6737DC6CDF055A6 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53549678390B5259BB4DF7D4 /* Accessibility.swift */; };
+		6FD79E4456A471C6947DDDE6 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E88D1845A2EC891B1A5FE88 /* CameraCapture.swift */; };
+		706CE73484EDD5FE6C282907 /* HorizontalScrollPaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08B415D6A66E998FDBEC0BD /* HorizontalScrollPaging.swift */; };
+		7187C4986CCB80B1ED8A5A1F /* Gallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EDF13258DDB4655029A5079 /* Gallery.swift */; };
+		7227FF8EF460D820EFDBBBF8 /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 581D5C21260A073EB4F309AE /* icon.icns */; };
+		73B79E1EA703336EFFC374AB /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2D270AB1179B7840326D7F /* SidebarView.swift */; };
+		73D8970DF77FAC569E318A1D /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
+		73EE3A7E0202E0FB09BD1F6D /* PlatformImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E477CB7EDD8F899E348B493 /* PlatformImage.swift */; };
+		76439FA0D10810672A434DC2 /* HorizontalScrollPaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08B415D6A66E998FDBEC0BD /* HorizontalScrollPaging.swift */; };
+		7755E91E4C50225C2052E58B /* ObjectPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0EC2E92B891E22467AE8A3A /* ObjectPreviewView.swift */; };
+		7901ABBE3906B5B81E639F64 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
+		79E3C3C4B94B347855901090 /* FolderPeekIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E635B56CA1EFED55EE9AF84 /* FolderPeekIcon.swift */; };
+		7E01157462720C1AB5DF7874 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 859CD1B6A1B80930666ADA7A /* Assets.xcassets */; };
+		7ED24106077E32B8ADD2D3D3 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */; };
+		8232CAEAAB3255EE9C0F13E6 /* CompactLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */; };
+		82FF466E667040CFC5A8FCC9 /* AppFocusLoss.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AA740B740B8281F9DA7BA3 /* AppFocusLoss.swift */; };
+		84A83438ADE49BE340008E31 /* AppearanceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */; };
+		88D4B0F4595DC31D18B2A753 /* PasteImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56996EA6351BD06C5361175 /* PasteImporter.swift */; };
+		8A9DD63E2A1FBBC4B6388699 /* LibraryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33ABDD9D4627F2E16A5DA8F2 /* LibraryEntities.swift */; };
+		8B0807161B44E6BB38134D92 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0D4665C495D3CB70F0276F /* LibraryModel.swift */; };
+		8E685A2CD25FCA2AAC8F0E14 /* ObjectPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0EC2E92B891E22467AE8A3A /* ObjectPreviewView.swift */; };
+		8ED63639DFADC193C046DA7C /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
+		8FBDB78A0BBE594A6BC27758 /* FolderScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4813A195EDEB60B4C7E35F /* FolderScene.swift */; };
+		9621EE0E8A85417E7B871C11 /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */; };
+		97E69EEF85D5D3CBCD4E6D90 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B7961129E681FCB810B31249 /* VisionKit.framework */; };
+		984E181312BC68F677451252 /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82924B5579C4C3667A253D96 /* Authentication.swift */; };
+		988B5A65C7FAD2DC1CAD38DB /* NookMacShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6182D04BE16360EDA6C22BA3 /* NookMacShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		989A453575B830EF6059F7A3 /* LibraryModel+Privacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF9FBE706068F746509C8D8 /* LibraryModel+Privacy.swift */; };
+		9AC8781D259692C84AC47B25 /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29536F9041A9DB155DE4316 /* NookApp.swift */; };
+		9C1103AF3C441AB33C6FD20F /* HomeGalleryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5077A25D0DDEE3345F9469E8 /* HomeGalleryTests.swift */; };
+		9D2E451C0D69E0EC5A9CC1C8 /* PrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62FD2E70AFD8CD56F67F06 /* PrivacyTests.swift */; };
+		9F33E16E2E1DD3D918DE2304 /* LinkPresentation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2F1A021571C2D9FBE73E9522 /* LinkPresentation.framework */; };
+		A2C5722E058CD7EE618DD406 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26467AD6EEFD8E47048A033B /* LibraryWindow.swift */; };
+		A382FECC12A164B0CA581A9C /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82924B5579C4C3667A253D96 /* Authentication.swift */; };
+		A42E32164EF46664B9514BB5 /* ObjectMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B01DB011F59C0A76481411 /* ObjectMenu.swift */; };
+		A59B397D0B99609CFB5BF71D /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F9A0304CACC61E8BAC1853B9 /* CoreData.framework */; };
+		AA1B326BBDCC55697189A410 /* FolderPeekIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E635B56CA1EFED55EE9AF84 /* FolderPeekIcon.swift */; };
+		AB0D3AF1F58E9CA55613E5C5 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */; };
+		AB1FB5D9B35EB81F1ADC9D4D /* InfoPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC223D7E6161E7D5A60D4CE /* InfoPanel.swift */; };
+		AB401F857436571A4E3D776A /* KeyboardNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84E1980FA826BB83783BEE2 /* KeyboardNavigationTests.swift */; };
+		AC5E51249892BA0431F78988 /* AppearanceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */; };
+		B04A2208880E4EB5666230E4 /* SearchScopeToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F175F723B10134AB2F47BC9 /* SearchScopeToken.swift */; };
+		B0C5D750590BF49474C11C1E /* ObjectListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905A205A714574C119F97337 /* ObjectListRow.swift */; };
+		B17F0315103C019892F39586 /* QuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB7DC894F4C85DDBF2AD223 /* QuickLookPreview.swift */; };
+		B2F26817B72A0A66A967BABF /* QuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB7DC894F4C85DDBF2AD223 /* QuickLookPreview.swift */; };
+		B618EE95DD1C876AB2D2CE19 /* ObjectListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905A205A714574C119F97337 /* ObjectListRow.swift */; };
+		B8C519F5F10EEF0CE9806931 /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7217C9F68FF753009C820E37 /* Formatting.swift */; };
+		BCFC1E910C8A78918DDA808C /* LibraryModel+Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */; };
+		BDEC3E1A1BB4CE922FFE987F /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */; };
+		C02885DC4F4136981A4690EC /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E88D1845A2EC891B1A5FE88 /* CameraCapture.swift */; };
+		C174F87901AFDC07D691F8E2 /* ItemClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6631E2E0AA1A1BB26F1F5 /* ItemClick.swift */; };
+		C1CE4463DB4E656FA60D6784 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 4C32CB5C48B2DC3328925786 /* NookLibrary */; };
+		C3D9512249A14C9BC6813547 /* PlatformImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E477CB7EDD8F899E348B493 /* PlatformImage.swift */; };
+		C438C1CABB7E3E89F9471CF6 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
+		C5D89E0F3DE6C489CB2752D1 /* ExternalURLDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E24F3A0A33FE3489BB2C4A0 /* ExternalURLDrop.swift */; };
+		C5FE4A53ED515C6D652CC73F /* NookShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CAA2B324587E28F60F392A98 /* NookShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C6FB0714F6906BA18793448B /* ObjectTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3461C31462405BB9A76C41A9 /* ObjectTransfer.swift */; };
+		C7C0CCAA1EF1E2310AB5DB90 /* LibraryModel+Privacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF9FBE706068F746509C8D8 /* LibraryModel+Privacy.swift */; };
+		C8C0A91E6667E340418509E2 /* SidebarDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8C86A91E6450157D34B913 /* SidebarDrop.swift */; };
+		CA9BE2F876A08681544A0EBB /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */; };
+		CCFA3AD9EE77A3D62F3805E3 /* CanvasNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */; };
+		CEC23D03C4C8DC833BBC20CF /* Gallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EDF13258DDB4655029A5079 /* Gallery.swift */; };
+		DB9483DB3809CEA40C8B1C70 /* SidebarDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8C86A91E6450157D34B913 /* SidebarDrop.swift */; };
+		DBE86E8E13B92BDB6DD3EE91 /* ObjectTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3461C31462405BB9A76C41A9 /* ObjectTransfer.swift */; };
+		DC146A59632326BDF8C75F7F /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
+		DCCE6DBCB7ED790EF2D1F3B8 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = DDFF79E3969F89745A6DBD2E /* NookLibrary */; };
+		DEA6E3CCE552CD498467F007 /* QuickLookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 617C7B21EE32E8FDB306A9E4 /* QuickLookUI.framework */; };
+		E4C695C92BCA5AD793E6BE7B /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739F53217116EE9DBE7711EF /* ThumbnailView.swift */; };
+		E732AC9B2FD07C40E272BDB0 /* ShareViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5AAC8F9990C6B2804BB7E031 /* ShareViewController.xib */; };
+		E740B79AE8A08B2740FA8C04 /* MacShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F0233E2C4C6097C038AFFE /* MacShareView.swift */; };
+		E967F574A5C9E8C63E13A416 /* QuickLook.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */; };
+		EB1FEA2E4C84868F15F6EF39 /* ExternalURLDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E24F3A0A33FE3489BB2C4A0 /* ExternalURLDrop.swift */; };
+		EBE352B2E8162C17A4F00F2C /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
+		EC7739A56C076B4622ACCB00 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */; };
+		EE5A79A170299CEC67D51427 /* CanvasNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */; };
+		EF61779A09E831C61C401634 /* LibraryModel+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */; };
+		EFD9611BE8C3CAC7AE88B32C /* EntityIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADD58BC62206678FDC124F /* EntityIcon.swift */; };
+		F4168F5D4F45247D4C7CCDA2 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2D270AB1179B7840326D7F /* SidebarView.swift */; };
+		F66965244707226B4A2F95BD /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD7210F1D8D8B75DF824356 /* ShareViewController.swift */; };
+		F68C3D96290E502D4DB43E7A /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5594F92A03F99FEE098D847C /* ShareView.swift */; };
+		F919052B06928625512FB7EF /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29536F9041A9DB155DE4316 /* NookApp.swift */; };
+		F98D7A4C0BEB8624F3F49436 /* MacSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F210F6A8865D75F169D982AD /* MacSidebar.swift */; };
+		FC00C017EA6BA03D85E541C1 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = B8660B8BD41E970209B6C53E /* NookLibrary */; };
+		FC637428D67F28C7986A4845 /* LibraryModel+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */; };
+		FCBDF52CD40921DBD362102C /* SelectionAndExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BC0A11B9B64E24455DA55E /* SelectionAndExportTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		35095C318289A1D04F978827 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B3A7E0DA3D5A620E78B0894C;
+			remoteInfo = "Nook-macOS";
+		};
+		4D2512E10D91691ACFF87352 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 46529983BD2DE74CDE9CD165;
+			remoteInfo = NookMacShare;
+		};
+		95EF742488D085ABE1EEDBBB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8A9311E2FFA013AECE433EC3;
+			remoteInfo = NookShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4F85F5077D50F7ED5E1BA3D8 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				988B5A65C7FAD2DC1CAD38DB /* NookMacShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ACCE147E684BAF29F239848C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C5FE4A53ED515C6D652CC73F /* NookShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarKeyboard.swift; sourceTree = "<group>"; };
+		096B7BC6789F61E6137CB603 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		0A0D4665C495D3CB70F0276F /* LibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryModel.swift; sourceTree = "<group>"; };
+		0A2AC657C1F4690ED004F0CF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		0DF4A2584DCD536E7042B43B /* AppTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTestSupport.swift; sourceTree = "<group>"; };
+		0E477CB7EDD8F899E348B493 /* PlatformImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformImage.swift; sourceTree = "<group>"; };
+		106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryModel+Drop.swift"; sourceTree = "<group>"; };
+		14F605247A2F4067B7D59A99 /* ClickTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickTests.swift; sourceTree = "<group>"; };
+		18AC5AC0F91991372FABDFEB /* MotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionTests.swift; sourceTree = "<group>"; };
+		19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
+		1E24F3A0A33FE3489BB2C4A0 /* ExternalURLDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalURLDrop.swift; sourceTree = "<group>"; };
+		26467AD6EEFD8E47048A033B /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
+		27E6631E2E0AA1A1BB26F1F5 /* ItemClick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemClick.swift; sourceTree = "<group>"; };
+		2EDF13258DDB4655029A5079 /* Gallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gallery.swift; sourceTree = "<group>"; };
+		2F1A021571C2D9FBE73E9522 /* LinkPresentation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LinkPresentation.framework; path = System/Library/Frameworks/LinkPresentation.framework; sourceTree = SDKROOT; };
+		2F72508226D75E781509A208 /* GlobalSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchView.swift; sourceTree = "<group>"; };
+		33ABDD9D4627F2E16A5DA8F2 /* LibraryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEntities.swift; sourceTree = "<group>"; };
+		3461C31462405BB9A76C41A9 /* ObjectTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectTransfer.swift; sourceTree = "<group>"; };
+		3E635B56CA1EFED55EE9AF84 /* FolderPeekIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPeekIcon.swift; sourceTree = "<group>"; };
+		482B9F9AB8A4291B81AAEC7B /* Nook-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Nook-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5077A25D0DDEE3345F9469E8 /* HomeGalleryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeGalleryTests.swift; sourceTree = "<group>"; };
+		53549678390B5259BB4DF7D4 /* Accessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Accessibility.swift; sourceTree = "<group>"; };
+		5594F92A03F99FEE098D847C /* ShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareView.swift; sourceTree = "<group>"; };
+		55BC0A11B9B64E24455DA55E /* SelectionAndExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionAndExportTests.swift; sourceTree = "<group>"; };
+		56F0233E2C4C6097C038AFFE /* MacShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacShareView.swift; sourceTree = "<group>"; };
+		581D5C21260A073EB4F309AE /* icon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = icon.icns; sourceTree = "<group>"; };
+		5AF9FBE706068F746509C8D8 /* LibraryModel+Privacy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryModel+Privacy.swift"; sourceTree = "<group>"; };
+		5E88D1845A2EC891B1A5FE88 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		5EB7DC894F4C85DDBF2AD223 /* QuickLookPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreview.swift; sourceTree = "<group>"; };
+		5F175F723B10134AB2F47BC9 /* SearchScopeToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScopeToken.swift; sourceTree = "<group>"; };
+		5F3AB199013B3E104B25F50D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		617C7B21EE32E8FDB306A9E4 /* QuickLookUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookUI.framework; path = System/Library/Frameworks/QuickLookUI.framework; sourceTree = SDKROOT; };
+		6182D04BE16360EDA6C22BA3 /* NookMacShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookMacShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		639966FF459FD105D66FB37E /* Nook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nook.entitlements; sourceTree = "<group>"; };
+		642527BF21EB6F32A20694E6 /* MasonryLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasonryLayout.swift; sourceTree = "<group>"; };
+		64FD2F6111DABE27F62CBF4D /* NookMacShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NookMacShare.entitlements; sourceTree = "<group>"; };
+		65AA740B740B8281F9DA7BA3 /* AppFocusLoss.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFocusLoss.swift; sourceTree = "<group>"; };
+		6692A9752BF5E66E33799576 /* PDFKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PDFKit.framework; path = System/Library/Frameworks/PDFKit.framework; sourceTree = SDKROOT; };
+		675725027741609435969340 /* ObjectCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectCard.swift; sourceTree = "<group>"; };
+		67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharePreview.swift; sourceTree = "<group>"; };
+		68DA8798A5D4B9A084003E0F /* Nook-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Nook-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6CC0D09C7EA65A62DEDC4FFD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		70CA2795B9C904E3E9B6EAC4 /* PhotosUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhotosUI.framework; path = System/Library/Frameworks/PhotosUI.framework; sourceTree = SDKROOT; };
+		7217C9F68FF753009C820E37 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
+		739F53217116EE9DBE7711EF /* ThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailView.swift; sourceTree = "<group>"; };
+		7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
+		76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport.swift; sourceTree = "<group>"; };
+		76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLook.framework; path = System/Library/Frameworks/QuickLook.framework; sourceTree = SDKROOT; };
+		7AADD58BC62206678FDC124F /* EntityIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityIcon.swift; sourceTree = "<group>"; };
+		7FD7210F1D8D8B75DF824356 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		82924B5579C4C3667A253D96 /* Authentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authentication.swift; sourceTree = "<group>"; };
+		83B6899BC834E436F6563B23 /* NavigationHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationHistoryTests.swift; sourceTree = "<group>"; };
+		842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
+		859CD1B6A1B80930666ADA7A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		905A205A714574C119F97337 /* ObjectListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectListRow.swift; sourceTree = "<group>"; };
+		9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasNavigation.swift; sourceTree = "<group>"; };
+		9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamingPromptModifier.swift; sourceTree = "<group>"; };
+		A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceEditor.swift; sourceTree = "<group>"; };
+		A7091A482C8DC595EDBE0AFE /* NookLibrary */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NookLibrary; path = Packages/NookLibrary; sourceTree = SOURCE_ROOT; };
+		A84E1980FA826BB83783BEE2 /* KeyboardNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardNavigationTests.swift; sourceTree = "<group>"; };
+		AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharePreview.swift; sourceTree = "<group>"; };
+		ACEF3C3995EBCFE55CD09A2C /* AppNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigator.swift; sourceTree = "<group>"; };
+		AECA0A6669F9633F77963BBA /* LocationMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationMenu.swift; sourceTree = "<group>"; };
+		B5B4D58AD46B1B6BB384DA53 /* DragAndDropTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragAndDropTests.swift; sourceTree = "<group>"; };
+		B7961129E681FCB810B31249 /* VisionKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VisionKit.framework; path = System/Library/Frameworks/VisionKit.framework; sourceTree = SDKROOT; };
+		BC2F59D6B6D6224D17A4D5EC /* MacSidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarTests.swift; sourceTree = "<group>"; };
+		BC62FD2E70AFD8CD56F67F06 /* PrivacyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyTests.swift; sourceTree = "<group>"; };
+		BEC223D7E6161E7D5A60D4CE /* InfoPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPanel.swift; sourceTree = "<group>"; };
+		BF8C86A91E6450157D34B913 /* SidebarDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarDrop.swift; sourceTree = "<group>"; };
+		C29536F9041A9DB155DE4316 /* NookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NookApp.swift; sourceTree = "<group>"; };
+		C29C2DE2B343966407986FF9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C56996EA6351BD06C5361175 /* PasteImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteImporter.swift; sourceTree = "<group>"; };
+		C860ADBFC79BE3F5BE842F92 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/ShareViewController.xib; sourceTree = "<group>"; };
+		CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalAuthentication.framework; path = System/Library/Frameworks/LocalAuthentication.framework; sourceTree = SDKROOT; };
+		CAA2B324587E28F60F392A98 /* NookShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NookShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD921CC11A139E1721BD0361 /* NookTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NookTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE2982A98756C04444501D61 /* AccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityTests.swift; sourceTree = "<group>"; };
+		CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryModel+Keyboard.swift"; sourceTree = "<group>"; };
+		D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryIntents.swift; sourceTree = "<group>"; };
+		D525A7D837A50021BF91CA75 /* TransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferTests.swift; sourceTree = "<group>"; };
+		D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactLibraryView.swift; sourceTree = "<group>"; };
+		DC4813A195EDEB60B4C7E35F /* FolderScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderScene.swift; sourceTree = "<group>"; };
+		DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		E0EC2E92B891E22467AE8A3A /* ObjectPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectPreviewView.swift; sourceTree = "<group>"; };
+		E1B01DB011F59C0A76481411 /* ObjectMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectMenu.swift; sourceTree = "<group>"; };
+		E2BB04523326914EC04916BD /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		E822F1C4D900A0E77E46E716 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkMetadataFetcher.swift; sourceTree = "<group>"; };
+		E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		EC2D270AB1179B7840326D7F /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		F08B415D6A66E998FDBEC0BD /* HorizontalScrollPaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorizontalScrollPaging.swift; sourceTree = "<group>"; };
+		F210F6A8865D75F169D982AD /* MacSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebar.swift; sourceTree = "<group>"; };
+		F9A0304CACC61E8BAC1853B9 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7CF2F88284AB89351D206CC4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DCCE6DBCB7ED790EF2D1F3B8 /* NookLibrary in Frameworks */,
+				EC7739A56C076B4622ACCB00 /* AppIntents.framework in Frameworks */,
+				5F544EEDA5A3BAC77B46A9B6 /* CoreData.framework in Frameworks */,
+				9F33E16E2E1DD3D918DE2304 /* LinkPresentation.framework in Frameworks */,
+				4E39C56EF620D356E9121476 /* LocalAuthentication.framework in Frameworks */,
+				48FC19ABDEF29FD7F6D4053C /* PhotosUI.framework in Frameworks */,
+				5235845F8790B1A5FF98C35C /* QuickLook.framework in Frameworks */,
+				2BE911F93E0DC1ABE930D09E /* UniformTypeIdentifiers.framework in Frameworks */,
+				97E69EEF85D5D3CBCD4E6D90 /* VisionKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C9E7068B100FECF13A089CFD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC00C017EA6BA03D85E541C1 /* NookLibrary in Frameworks */,
+				21FB13D21135538F35B57433 /* AVFoundation.framework in Frameworks */,
+				DC146A59632326BDF8C75F7F /* ImageIO.framework in Frameworks */,
+				73D8970DF77FAC569E318A1D /* PDFKit.framework in Frameworks */,
+				8ED63639DFADC193C046DA7C /* UniformTypeIdentifiers.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CEA4CBC901D5AB5D38FDA7A1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04FAEEE0EA38D787A9B2BCA7 /* NookLibrary in Frameworks */,
+				04D31608028346359E62B68B /* AVFoundation.framework in Frameworks */,
+				EBE352B2E8162C17A4F00F2C /* ImageIO.framework in Frameworks */,
+				2C9BD2F9817F14DAB3F840C3 /* PDFKit.framework in Frameworks */,
+				7901ABBE3906B5B81E639F64 /* UniformTypeIdentifiers.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2C382145CE928FB55C6C019 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1CE4463DB4E656FA60D6784 /* NookLibrary in Frameworks */,
+				533078AE069D8E285FC674C2 /* AppIntents.framework in Frameworks */,
+				A59B397D0B99609CFB5BF71D /* CoreData.framework in Frameworks */,
+				30070D55D7139CA15A5C4AE8 /* LinkPresentation.framework in Frameworks */,
+				6BB068FB80D701D70E33C4C2 /* LocalAuthentication.framework in Frameworks */,
+				E967F574A5C9E8C63E13A416 /* QuickLook.framework in Frameworks */,
+				DEA6E3CCE552CD498467F007 /* QuickLookUI.framework in Frameworks */,
+				5FAC853D1A412AE75605E92E /* UniformTypeIdentifiers.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03DDF51328C1112093E2B7E7 /* Inspector */ = {
+			isa = PBXGroup;
+			children = (
+				BEC223D7E6161E7D5A60D4CE /* InfoPanel.swift */,
+			);
+			path = Inspector;
+			sourceTree = "<group>";
+		};
+		42862BC523550C291A833AF4 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				A7091A482C8DC595EDBE0AFE /* NookLibrary */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		468190D6757694EFD2349A07 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				6CC0D09C7EA65A62DEDC4FFD /* Info.plist */,
+				096B7BC6789F61E6137CB603 /* ShareExtension.entitlements */,
+				67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */,
+				5594F92A03F99FEE098D847C /* ShareView.swift */,
+				7FD7210F1D8D8B75DF824356 /* ShareViewController.swift */,
+			);
+			name = ShareExtension;
+			path = Nook/ShareExtension;
+			sourceTree = "<group>";
+		};
+		48690952F80262128A3422A1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */,
+				E822F1C4D900A0E77E46E716 /* AVFoundation.framework */,
+				F9A0304CACC61E8BAC1853B9 /* CoreData.framework */,
+				E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */,
+				2F1A021571C2D9FBE73E9522 /* LinkPresentation.framework */,
+				CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */,
+				6692A9752BF5E66E33799576 /* PDFKit.framework */,
+				70CA2795B9C904E3E9B6EAC4 /* PhotosUI.framework */,
+				76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */,
+				617C7B21EE32E8FDB306A9E4 /* QuickLookUI.framework */,
+				842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */,
+				B7961129E681FCB810B31249 /* VisionKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5AF073A5E56DE2F2B76AE1B4 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				E0EC2E92B891E22467AE8A3A /* ObjectPreviewView.swift */,
+				5EB7DC894F4C85DDBF2AD223 /* QuickLookPreview.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
+		94F47AC7C738C82103796CA8 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				ACEF3C3995EBCFE55CD09A2C /* AppNavigator.swift */,
+				33ABDD9D4627F2E16A5DA8F2 /* LibraryEntities.swift */,
+				D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		97EE0DB9CA824457DABFD70C /* Navigation */ = {
+			isa = PBXGroup;
+			children = (
+				A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */,
+				2F72508226D75E781509A208 /* GlobalSearchView.swift */,
+				F210F6A8865D75F169D982AD /* MacSidebar.swift */,
+				BF8C86A91E6450157D34B913 /* SidebarDrop.swift */,
+				EC2D270AB1179B7840326D7F /* SidebarView.swift */,
+			);
+			path = Navigation;
+			sourceTree = "<group>";
+		};
+		A23BE3EDBAB6E6EBD7838C19 /* NookMacShare */ = {
+			isa = PBXGroup;
+			children = (
+				581D5C21260A073EB4F309AE /* icon.icns */,
+				0A2AC657C1F4690ED004F0CF /* Info.plist */,
+				56F0233E2C4C6097C038AFFE /* MacShareView.swift */,
+				64FD2F6111DABE27F62CBF4D /* NookMacShare.entitlements */,
+				AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */,
+				E2BB04523326914EC04916BD /* ShareViewController.swift */,
+				5AAC8F9990C6B2804BB7E031 /* ShareViewController.xib */,
+			);
+			path = NookMacShare;
+			sourceTree = "<group>";
+		};
+		AE32377E732F8AB3D49B4E24 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				5F3AB199013B3E104B25F50D /* AppSettings.swift */,
+				82924B5579C4C3667A253D96 /* Authentication.swift */,
+				D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */,
+				0A0D4665C495D3CB70F0276F /* LibraryModel.swift */,
+				106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */,
+				CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */,
+				5AF9FBE706068F746509C8D8 /* LibraryModel+Privacy.swift */,
+				26467AD6EEFD8E47048A033B /* LibraryWindow.swift */,
+				9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */,
+				C29536F9041A9DB155DE4316 /* NookApp.swift */,
+				5F175F723B10134AB2F47BC9 /* SearchScopeToken.swift */,
+				C29C2DE2B343966407986FF9 /* SettingsView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B89FC2A58AC2DC2D947D94F4 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */,
+				859CD1B6A1B80930666ADA7A /* Assets.xcassets */,
+			);
+			name = Resources;
+			path = Nook/Resources;
+			sourceTree = "<group>";
+		};
+		C52FD7ED01B59B39137B866B /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				CE2982A98756C04444501D61 /* AccessibilityTests.swift */,
+				0DF4A2584DCD536E7042B43B /* AppTestSupport.swift */,
+				14F605247A2F4067B7D59A99 /* ClickTests.swift */,
+				B5B4D58AD46B1B6BB384DA53 /* DragAndDropTests.swift */,
+				5077A25D0DDEE3345F9469E8 /* HomeGalleryTests.swift */,
+				A84E1980FA826BB83783BEE2 /* KeyboardNavigationTests.swift */,
+				BC2F59D6B6D6224D17A4D5EC /* MacSidebarTests.swift */,
+				18AC5AC0F91991372FABDFEB /* MotionTests.swift */,
+				83B6899BC834E436F6563B23 /* NavigationHistoryTests.swift */,
+				BC62FD2E70AFD8CD56F67F06 /* PrivacyTests.swift */,
+				55BC0A11B9B64E24455DA55E /* SelectionAndExportTests.swift */,
+				D525A7D837A50021BF91CA75 /* TransferTests.swift */,
+			);
+			name = Tests;
+			path = Nook/Tests;
+			sourceTree = "<group>";
+		};
+		CC3EFE3504B73EAEEDED18F5 = {
+			isa = PBXGroup;
+			children = (
+				A23BE3EDBAB6E6EBD7838C19 /* NookMacShare */,
+				42862BC523550C291A833AF4 /* Packages */,
+				B89FC2A58AC2DC2D947D94F4 /* Resources */,
+				468190D6757694EFD2349A07 /* ShareExtension */,
+				E28CFE06F53BFC39871EF160 /* Sources */,
+				C52FD7ED01B59B39137B866B /* Tests */,
+				48690952F80262128A3422A1 /* Frameworks */,
+				EF799ADDBCF3DE03D240F860 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CFAE1609F78263D415D61BD0 /* Browse */ = {
+			isa = PBXGroup;
+			children = (
+				19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */,
+				3E635B56CA1EFED55EE9AF84 /* FolderPeekIcon.swift */,
+				DC4813A195EDEB60B4C7E35F /* FolderScene.swift */,
+				2EDF13258DDB4655029A5079 /* Gallery.swift */,
+				AECA0A6669F9633F77963BBA /* LocationMenu.swift */,
+				642527BF21EB6F32A20694E6 /* MasonryLayout.swift */,
+				675725027741609435969340 /* ObjectCard.swift */,
+				905A205A714574C119F97337 /* ObjectListRow.swift */,
+				E1B01DB011F59C0A76481411 /* ObjectMenu.swift */,
+				3461C31462405BB9A76C41A9 /* ObjectTransfer.swift */,
+			);
+			path = Browse;
+			sourceTree = "<group>";
+		};
+		E19CB1A31C266F11D2829922 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				53549678390B5259BB4DF7D4 /* Accessibility.swift */,
+				65AA740B740B8281F9DA7BA3 /* AppFocusLoss.swift */,
+				5E88D1845A2EC891B1A5FE88 /* CameraCapture.swift */,
+				9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */,
+				7AADD58BC62206678FDC124F /* EntityIcon.swift */,
+				1E24F3A0A33FE3489BB2C4A0 /* ExternalURLDrop.swift */,
+				7217C9F68FF753009C820E37 /* Formatting.swift */,
+				F08B415D6A66E998FDBEC0BD /* HorizontalScrollPaging.swift */,
+				27E6631E2E0AA1A1BB26F1F5 /* ItemClick.swift */,
+				E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */,
+				C56996EA6351BD06C5361175 /* PasteImporter.swift */,
+				0E477CB7EDD8F899E348B493 /* PlatformImage.swift */,
+				76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */,
+				0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */,
+				739F53217116EE9DBE7711EF /* ThumbnailView.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		E28CFE06F53BFC39871EF160 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				639966FF459FD105D66FB37E /* Nook.entitlements */,
+				AE32377E732F8AB3D49B4E24 /* App */,
+				CFAE1609F78263D415D61BD0 /* Browse */,
+				03DDF51328C1112093E2B7E7 /* Inspector */,
+				94F47AC7C738C82103796CA8 /* Intents */,
+				97EE0DB9CA824457DABFD70C /* Navigation */,
+				5AF073A5E56DE2F2B76AE1B4 /* Preview */,
+				E19CB1A31C266F11D2829922 /* Support */,
+			);
+			name = Sources;
+			path = Nook/Sources;
+			sourceTree = "<group>";
+		};
+		EF799ADDBCF3DE03D240F860 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				482B9F9AB8A4291B81AAEC7B /* Nook-iOS.app */,
+				68DA8798A5D4B9A084003E0F /* Nook-macOS.app */,
+				6182D04BE16360EDA6C22BA3 /* NookMacShare.appex */,
+				CAA2B324587E28F60F392A98 /* NookShareExtension.appex */,
+				CD921CC11A139E1721BD0361 /* NookTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0BA63C55DC81E35B430E55DD /* Nook-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9E5D3695897535D509A18A43 /* Build configuration list for PBXNativeTarget "Nook-iOS" */;
+			buildPhases = (
+				0508472612187DBE44773F3B /* Sources */,
+				04DE874E5E8CAC5D82CE7D27 /* Resources */,
+				7CF2F88284AB89351D206CC4 /* Frameworks */,
+				ACCE147E684BAF29F239848C /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3BDEB0945825537F4732E404 /* PBXTargetDependency */,
+			);
+			name = "Nook-iOS";
+			packageProductDependencies = (
+				DDFF79E3969F89745A6DBD2E /* NookLibrary */,
+			);
+			productName = "Nook-iOS";
+			productReference = 482B9F9AB8A4291B81AAEC7B /* Nook-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		46529983BD2DE74CDE9CD165 /* NookMacShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4731327EAD9309D6B464B1DD /* Build configuration list for PBXNativeTarget "NookMacShare" */;
+			buildPhases = (
+				5358C4AC25C634AD9BD3C2CF /* Sources */,
+				5F02CB760676F8317FFB2B2D /* Resources */,
+				C9E7068B100FECF13A089CFD /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NookMacShare;
+			packageProductDependencies = (
+				B8660B8BD41E970209B6C53E /* NookLibrary */,
+			);
+			productName = NookMacShare;
+			productReference = 6182D04BE16360EDA6C22BA3 /* NookMacShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		8A9311E2FFA013AECE433EC3 /* NookShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A6C1DE5C3CEDEEB1AA2A8C5A /* Build configuration list for PBXNativeTarget "NookShareExtension" */;
+			buildPhases = (
+				9258A03AB640465A8DB60159 /* Sources */,
+				CEA4CBC901D5AB5D38FDA7A1 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NookShareExtension;
+			packageProductDependencies = (
+				3DA6DCC7DC29525F67279647 /* NookLibrary */,
+			);
+			productName = NookShareExtension;
+			productReference = CAA2B324587E28F60F392A98 /* NookShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A2BDB367E2CB3D493D1E5329 /* NookTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F33096E3ABAF131BB4300D63 /* Build configuration list for PBXNativeTarget "NookTests" */;
+			buildPhases = (
+				E871DA630FE41AEA3A975E0A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FBDBF8451468BFCC1B1D0971 /* PBXTargetDependency */,
+			);
+			name = NookTests;
+			packageProductDependencies = (
+			);
+			productName = NookTests;
+			productReference = CD921CC11A139E1721BD0361 /* NookTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B3A7E0DA3D5A620E78B0894C /* Nook-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8649C33C4D059114BB7FAEA7 /* Build configuration list for PBXNativeTarget "Nook-macOS" */;
+			buildPhases = (
+				4E7E50ADF2B683CBD8B6535B /* Sources */,
+				5CC84813A082105642CAF44B /* Resources */,
+				E2C382145CE928FB55C6C019 /* Frameworks */,
+				4F85F5077D50F7ED5E1BA3D8 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A6032CF572C680B93984D40A /* PBXTargetDependency */,
+			);
+			name = "Nook-macOS";
+			packageProductDependencies = (
+				4C32CB5C48B2DC3328925786 /* NookLibrary */,
+			);
+			productName = "Nook-macOS";
+			productReference = 68DA8798A5D4B9A084003E0F /* Nook-macOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7138A22EF1642B27AC8B891C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0BA63C55DC81E35B430E55DD = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+					46529983BD2DE74CDE9CD165 = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+					8A9311E2FFA013AECE433EC3 = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+					A2BDB367E2CB3D493D1E5329 = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+					B3A7E0DA3D5A620E78B0894C = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DAAFB02242CC68B8589BBFFD /* Build configuration list for PBXProject "Nook" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = CC3EFE3504B73EAEEDED18F5;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FFB04BAA10086AE94FB29354 /* XCLocalSwiftPackageReference "Packages/NookLibrary" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = EF799ADDBCF3DE03D240F860 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0BA63C55DC81E35B430E55DD /* Nook-iOS */,
+				8A9311E2FFA013AECE433EC3 /* NookShareExtension */,
+				B3A7E0DA3D5A620E78B0894C /* Nook-macOS */,
+				46529983BD2DE74CDE9CD165 /* NookMacShare */,
+				A2BDB367E2CB3D493D1E5329 /* NookTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		04DE874E5E8CAC5D82CE7D27 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB0D3AF1F58E9CA55613E5C5 /* AppIcon.icon in Resources */,
+				7E01157462720C1AB5DF7874 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5CC84813A082105642CAF44B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7ED24106077E32B8ADD2D3D3 /* AppIcon.icon in Resources */,
+				27757C92C06C4A0A92D1BD8C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F02CB760676F8317FFB2B2D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E732AC9B2FD07C40E272BDB0 /* ShareViewController.xib in Resources */,
+				7227FF8EF460D820EFDBBBF8 /* icon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0508472612187DBE44773F3B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02C68817C51BB66995D6FCC4 /* Accessibility.swift in Sources */,
+				4D7F32201D801811F6689745 /* AppFocusLoss.swift in Sources */,
+				1C1D98948C251765214E7570 /* AppNavigator.swift in Sources */,
+				2030BACD5B2A9EFF72957C5F /* AppSettings.swift in Sources */,
+				84A83438ADE49BE340008E31 /* AppearanceEditor.swift in Sources */,
+				984E181312BC68F677451252 /* Authentication.swift in Sources */,
+				BDEC3E1A1BB4CE922FFE987F /* BrowseView.swift in Sources */,
+				6FD79E4456A471C6947DDDE6 /* CameraCapture.swift in Sources */,
+				CCFA3AD9EE77A3D62F3805E3 /* CanvasNavigation.swift in Sources */,
+				8232CAEAAB3255EE9C0F13E6 /* CompactLibraryView.swift in Sources */,
+				148F029A9660CF00E7F90657 /* EntityIcon.swift in Sources */,
+				EB1FEA2E4C84868F15F6EF39 /* ExternalURLDrop.swift in Sources */,
+				79E3C3C4B94B347855901090 /* FolderPeekIcon.swift in Sources */,
+				8FBDB78A0BBE594A6BC27758 /* FolderScene.swift in Sources */,
+				2B6E0FF4E6F163D8CE074364 /* Formatting.swift in Sources */,
+				CEC23D03C4C8DC833BBC20CF /* Gallery.swift in Sources */,
+				3516783F622735B24EFB9405 /* GlobalSearchView.swift in Sources */,
+				706CE73484EDD5FE6C282907 /* HorizontalScrollPaging.swift in Sources */,
+				AB1FB5D9B35EB81F1ADC9D4D /* InfoPanel.swift in Sources */,
+				C174F87901AFDC07D691F8E2 /* ItemClick.swift in Sources */,
+				0ACCE57D32C0D06245431125 /* LibraryEntities.swift in Sources */,
+				0A82B417675233126FF71364 /* LibraryIntents.swift in Sources */,
+				BCFC1E910C8A78918DDA808C /* LibraryModel+Drop.swift in Sources */,
+				FC637428D67F28C7986A4845 /* LibraryModel+Keyboard.swift in Sources */,
+				C7C0CCAA1EF1E2310AB5DB90 /* LibraryModel+Privacy.swift in Sources */,
+				214F8BD4DB9BB05BA8563B98 /* LibraryModel.swift in Sources */,
+				0946D81D8328BF7D49B55F8C /* LibraryWindow.swift in Sources */,
+				C438C1CABB7E3E89F9471CF6 /* LinkMetadataFetcher.swift in Sources */,
+				652D0A73A997CE615318C9FC /* LocationMenu.swift in Sources */,
+				F98D7A4C0BEB8624F3F49436 /* MacSidebar.swift in Sources */,
+				37950405A55D692DCB16214E /* MasonryLayout.swift in Sources */,
+				6E9B6F89937F77A0954E23C8 /* NamingPromptModifier.swift in Sources */,
+				F919052B06928625512FB7EF /* NookApp.swift in Sources */,
+				553A25554F6728150CC09384 /* ObjectCard.swift in Sources */,
+				B618EE95DD1C876AB2D2CE19 /* ObjectListRow.swift in Sources */,
+				A42E32164EF46664B9514BB5 /* ObjectMenu.swift in Sources */,
+				8E685A2CD25FCA2AAC8F0E14 /* ObjectPreviewView.swift in Sources */,
+				DBE86E8E13B92BDB6DD3EE91 /* ObjectTransfer.swift in Sources */,
+				5EA9104AEA846407A5F915A6 /* PasteImporter.swift in Sources */,
+				73EE3A7E0202E0FB09BD1F6D /* PlatformImage.swift in Sources */,
+				4FB69122E5154A241EBFDB7B /* PreviewSupport.swift in Sources */,
+				B2F26817B72A0A66A967BABF /* QuickLookPreview.swift in Sources */,
+				652078988265BC4D14E4EC26 /* SearchScopeToken.swift in Sources */,
+				24B17DA30581A2821C3DA06F /* SettingsView.swift in Sources */,
+				C8C0A91E6667E340418509E2 /* SidebarDrop.swift in Sources */,
+				56BC3DB2347CA2F1F9C336B9 /* SidebarKeyboard.swift in Sources */,
+				73B79E1EA703336EFFC374AB /* SidebarView.swift in Sources */,
+				E4C695C92BCA5AD793E6BE7B /* ThumbnailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4E7E50ADF2B683CBD8B6535B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6F737620C6737DC6CDF055A6 /* Accessibility.swift in Sources */,
+				82FF466E667040CFC5A8FCC9 /* AppFocusLoss.swift in Sources */,
+				440CD692B2E6C1360DD8DD6C /* AppNavigator.swift in Sources */,
+				40BA08E11DFF7AE8292E5FBA /* AppSettings.swift in Sources */,
+				AC5E51249892BA0431F78988 /* AppearanceEditor.swift in Sources */,
+				A382FECC12A164B0CA581A9C /* Authentication.swift in Sources */,
+				9621EE0E8A85417E7B871C11 /* BrowseView.swift in Sources */,
+				C02885DC4F4136981A4690EC /* CameraCapture.swift in Sources */,
+				EE5A79A170299CEC67D51427 /* CanvasNavigation.swift in Sources */,
+				035564AA98AB39A521E9D5C5 /* CompactLibraryView.swift in Sources */,
+				EFD9611BE8C3CAC7AE88B32C /* EntityIcon.swift in Sources */,
+				C5D89E0F3DE6C489CB2752D1 /* ExternalURLDrop.swift in Sources */,
+				AA1B326BBDCC55697189A410 /* FolderPeekIcon.swift in Sources */,
+				05EF14FE4062438D78D1E2AD /* FolderScene.swift in Sources */,
+				B8C519F5F10EEF0CE9806931 /* Formatting.swift in Sources */,
+				7187C4986CCB80B1ED8A5A1F /* Gallery.swift in Sources */,
+				3236BE7423110765ED823E16 /* GlobalSearchView.swift in Sources */,
+				76439FA0D10810672A434DC2 /* HorizontalScrollPaging.swift in Sources */,
+				11EE33D6C63D6C3B6DFE47C3 /* InfoPanel.swift in Sources */,
+				344AF4C381B91C1C8275B665 /* ItemClick.swift in Sources */,
+				8A9DD63E2A1FBBC4B6388699 /* LibraryEntities.swift in Sources */,
+				4C96EEF90C2B8BAB91344225 /* LibraryIntents.swift in Sources */,
+				67F8489E58803A2374E5C379 /* LibraryModel+Drop.swift in Sources */,
+				EF61779A09E831C61C401634 /* LibraryModel+Keyboard.swift in Sources */,
+				989A453575B830EF6059F7A3 /* LibraryModel+Privacy.swift in Sources */,
+				8B0807161B44E6BB38134D92 /* LibraryModel.swift in Sources */,
+				A2C5722E058CD7EE618DD406 /* LibraryWindow.swift in Sources */,
+				5A7624C5BED582DEF8F19B93 /* LinkMetadataFetcher.swift in Sources */,
+				01B7CC45ACB52C30E0584719 /* LocationMenu.swift in Sources */,
+				02FBDF9621B40E1228A1FDB0 /* MacSidebar.swift in Sources */,
+				268B5CD0007BB6825E3B99D4 /* MasonryLayout.swift in Sources */,
+				58AAB74877361580BD292F04 /* NamingPromptModifier.swift in Sources */,
+				9AC8781D259692C84AC47B25 /* NookApp.swift in Sources */,
+				235A80425229674DB7D34F06 /* ObjectCard.swift in Sources */,
+				B0C5D750590BF49474C11C1E /* ObjectListRow.swift in Sources */,
+				21DD26B8B3A2C44CB54703FA /* ObjectMenu.swift in Sources */,
+				7755E91E4C50225C2052E58B /* ObjectPreviewView.swift in Sources */,
+				C6FB0714F6906BA18793448B /* ObjectTransfer.swift in Sources */,
+				88D4B0F4595DC31D18B2A753 /* PasteImporter.swift in Sources */,
+				C3D9512249A14C9BC6813547 /* PlatformImage.swift in Sources */,
+				27A6B38B403D117359D399F8 /* PreviewSupport.swift in Sources */,
+				B17F0315103C019892F39586 /* QuickLookPreview.swift in Sources */,
+				B04A2208880E4EB5666230E4 /* SearchScopeToken.swift in Sources */,
+				39303540E19AACDA6FD2DBA7 /* SettingsView.swift in Sources */,
+				DB9483DB3809CEA40C8B1C70 /* SidebarDrop.swift in Sources */,
+				41A758F57A5DC5029E0E6D4E /* SidebarKeyboard.swift in Sources */,
+				F4168F5D4F45247D4C7CCDA2 /* SidebarView.swift in Sources */,
+				537B879AC92D5200D6C90B51 /* ThumbnailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5358C4AC25C634AD9BD3C2CF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E740B79AE8A08B2740FA8C04 /* MacShareView.swift in Sources */,
+				527A37FEB245E3488A2A51A7 /* SharePreview.swift in Sources */,
+				6ABFB8ECF307F3C1C4778397 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9258A03AB640465A8DB60159 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA9BE2F876A08681544A0EBB /* SharePreview.swift in Sources */,
+				F68C3D96290E502D4DB43E7A /* ShareView.swift in Sources */,
+				F66965244707226B4A2F95BD /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E871DA630FE41AEA3A975E0A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				280962FE0CD1D2D9AF00EC7A /* AccessibilityTests.swift in Sources */,
+				6BEE273B9248D3238F110C4F /* AppTestSupport.swift in Sources */,
+				59603E011D81C555FFE5C73A /* ClickTests.swift in Sources */,
+				46A7C286402E49109434CEB3 /* DragAndDropTests.swift in Sources */,
+				9C1103AF3C441AB33C6FD20F /* HomeGalleryTests.swift in Sources */,
+				AB401F857436571A4E3D776A /* KeyboardNavigationTests.swift in Sources */,
+				1EB9568CC9B0CBE4D9040E75 /* MacSidebarTests.swift in Sources */,
+				5717E544CA768A3F946F0F3B /* MotionTests.swift in Sources */,
+				2F2B83794714F6156A87BC3F /* NavigationHistoryTests.swift in Sources */,
+				9D2E451C0D69E0EC5A9CC1C8 /* PrivacyTests.swift in Sources */,
+				FCBDF52CD40921DBD362102C /* SelectionAndExportTests.swift in Sources */,
+				2890CD4A0D4265FBDEB8E6AC /* TransferTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3BDEB0945825537F4732E404 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8A9311E2FFA013AECE433EC3 /* NookShareExtension */;
+			targetProxy = 95EF742488D085ABE1EEDBBB /* PBXContainerItemProxy */;
+		};
+		A6032CF572C680B93984D40A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 46529983BD2DE74CDE9CD165 /* NookMacShare */;
+			targetProxy = 4D2512E10D91691ACFF87352 /* PBXContainerItemProxy */;
+		};
+		FBDBF8451468BFCC1B1D0971 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B3A7E0DA3D5A620E78B0894C /* Nook-macOS */;
+			targetProxy = 35095C318289A1D04F978827 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		5AAC8F9990C6B2804BB7E031 /* ShareViewController.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				C860ADBFC79BE3F5BE842F92 /* Base */,
+			);
+			name = ShareViewController.xib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		03DB78561072A2384A6359A2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Nook/ShareExtension/ShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Nook/ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.share;
+				PRODUCT_NAME = "Save to Nook";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		143A1FE540383E7284A94E6F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Nook/ShareExtension/ShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Nook/ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.share;
+				PRODUCT_NAME = "Save to Nook";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		259235495A4ED778BA9C9A78 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Nook.app/Contents/MacOS/Nook";
+			};
+			name = Release;
+		};
+		2D4FF09719BF0F786B70E1F7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Nook-macOS.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "Nook/macOS-Info.plist";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
+				PRODUCT_NAME = Nook;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		3313EE12AC021C4D9AE9FA9D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 84GFPQ65N9;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		563C59FFE999770F17AD7C75 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NookMacShare/NookMacShare.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = NookMacShare/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macshare;
+				PRODUCT_NAME = NookMacShare;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		6969D7DA24B1E558FD6DBB6A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Nook-macOS.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "Nook/macOS-Info.plist";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
+				PRODUCT_NAME = Nook;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		70DDDA4310B7FBBAB63A9CC0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Nook.app/Contents/MacOS/Nook";
+			};
+			name = Debug;
+		};
+		732033DCD00F8BFA1620E95F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Nook/Sources/Nook.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = "Nook/Sources/iOS-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
+				PRODUCT_NAME = Nook;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7A6C850226CBA973FA870E59 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 84GFPQ65N9;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		ED273D3F386542D9F26B41B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Nook/Sources/Nook.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = "Nook/Sources/iOS-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
+				PRODUCT_NAME = Nook;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F92155D304E5D2ABD6F4A226 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NookMacShare/NookMacShare.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = NookMacShare/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macshare;
+				PRODUCT_NAME = NookMacShare;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4731327EAD9309D6B464B1DD /* Build configuration list for PBXNativeTarget "NookMacShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				563C59FFE999770F17AD7C75 /* Debug */,
+				F92155D304E5D2ABD6F4A226 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8649C33C4D059114BB7FAEA7 /* Build configuration list for PBXNativeTarget "Nook-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2D4FF09719BF0F786B70E1F7 /* Debug */,
+				6969D7DA24B1E558FD6DBB6A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9E5D3695897535D509A18A43 /* Build configuration list for PBXNativeTarget "Nook-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ED273D3F386542D9F26B41B6 /* Debug */,
+				732033DCD00F8BFA1620E95F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A6C1DE5C3CEDEEB1AA2A8C5A /* Build configuration list for PBXNativeTarget "NookShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				03DB78561072A2384A6359A2 /* Debug */,
+				143A1FE540383E7284A94E6F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DAAFB02242CC68B8589BBFFD /* Build configuration list for PBXProject "Nook" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7A6C850226CBA973FA870E59 /* Debug */,
+				3313EE12AC021C4D9AE9FA9D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F33096E3ABAF131BB4300D63 /* Build configuration list for PBXNativeTarget "NookTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				70DDDA4310B7FBBAB63A9CC0 /* Debug */,
+				259235495A4ED778BA9C9A78 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FFB04BAA10086AE94FB29354 /* XCLocalSwiftPackageReference "Packages/NookLibrary" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/NookLibrary;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3DA6DCC7DC29525F67279647 /* NookLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookLibrary;
+		};
+		4C32CB5C48B2DC3328925786 /* NookLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookLibrary;
+		};
+		B8660B8BD41E970209B6C53E /* NookLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookLibrary;
+		};
+		DDFF79E3969F89745A6DBD2E /* NookLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookLibrary;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7138A22EF1642B27AC8B891C /* Project object */;
+}

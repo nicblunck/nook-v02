@@ -13,8 +13,8 @@ import NookLibrary
 @Suite("Privacy")
 struct PrivacyTests {
 
-    @Test("Hiding puts an item in Hidden, and it is nowhere else")
-    func hidingMovesItIntoHidden() async throws {
+    @Test("Hiding filters an item out and revealing restores it in place")
+    func hidingFiltersInPlace() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -22,23 +22,21 @@ struct PrivacyTests {
 
         let object = try #require(try await harness.importFile(named: "private.txt"))
         await model.setHidden(true, for: [object])
-        #expect(harness.authenticator.wasAsked)
+        #expect(!harness.authenticator.wasAsked)
         #expect(model.contents.objects.isEmpty)
 
-        await model.openHidden()
-        #expect(model.scope == .hidden)
+        await model.toggleHiddenItems()
+        #expect(model.scope == .inbox)
+        #expect(harness.authenticator.wasAsked)
         #expect(model.contents.objects.map(\.id) == [object.id])
-
-        // Open is one place open, not the library turned transparent: nothing
-        // hidden comes back anywhere else, authenticated or not.
         let everything = await model.library.service.objects(
             matching: ObjectQuery(scope: .allObjects), in: model.accessContext
         )
-        #expect(everything.isEmpty)
+        #expect(everything.map(\.id) == [object.id])
     }
 
-    @Test("Hidden closes behind you")
-    func leavingHiddenClosesIt() async throws {
+    @Test("The toggle re-hides revealed items")
+    func toggleRehidesItems() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -46,13 +44,10 @@ struct PrivacyTests {
 
         let object = try #require(try await harness.importFile(named: "private.txt"))
         await model.setHidden(true, for: [object])
-        await model.openHidden()
+        await model.toggleHiddenItems()
         #expect(model.isShowingHiddenContent)
 
-        // What leaving the scope runs, and what Back would find if it walked
-        // into Hidden again.
-        model.navigate(to: .scope(.inbox))
-        await model.closeHidden()
+        await model.toggleHiddenItems()
         #expect(!model.isShowingHiddenContent)
         #expect(model.contents.objects.isEmpty)
     }
@@ -70,11 +65,12 @@ struct PrivacyTests {
         await model.move([object.id], to: folder.id)
 
         await model.setHidden(true, for: [object])
-        await model.openHidden()
+        model.navigate(to: .scope(.folder(folder.id)))
+        await model.refreshContents()
+        await model.toggleHiddenItems()
         let hidden = try #require(model.contents.objects.first)
         await model.setHidden(false, for: [hidden])
 
-        model.navigate(to: .scope(.folder(folder.id)))
         await model.refreshContents()
         #expect(model.contents.objects.map(\.id) == [object.id])
     }
@@ -97,8 +93,9 @@ struct PrivacyTests {
 
         await model.deleteFolder(folder.id)
 
-        await model.openHidden()
-        let hidden = try #require(model.contents.objects.first)
+        await model.toggleHiddenItems()
+        let revealed = await model.library.service.object(object.id, in: model.accessContext)
+        let hidden = try #require(revealed)
         #expect(hidden.id == object.id)
         await model.setHidden(false, for: [hidden])
 
@@ -107,7 +104,7 @@ struct PrivacyTests {
         #expect(model.contents.objects.map(\.id) == [object.id])
     }
 
-    @Test("A refused authentication hides nothing and opens nothing")
+    @Test("A refused authentication reveals nothing")
     func refusedAuthenticationChangesNothing() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
@@ -118,11 +115,12 @@ struct PrivacyTests {
         harness.authenticator.outcome = .cancelled
 
         await model.setHidden(true, for: [object])
-        #expect(model.contents.objects.map(\.id) == [object.id])
+        #expect(model.contents.objects.isEmpty)
 
-        await model.openHidden()
+        await model.toggleHiddenItems()
         #expect(!model.isShowingHiddenContent)
         #expect(model.scope == .inbox)
+        #expect(model.contents.objects.isEmpty)
     }
 
     /// A locked object stays on the canvas — it is the door the user has to
@@ -166,11 +164,8 @@ struct PrivacyTests {
         #expect(try #require(model.contents.objects.first).visibility.isRedacted)
     }
 
-    /// Hidden follows the true hierarchy: what a hidden folder holds is hidden
-    /// everywhere, and the folder itself moves out of the sidebar's tree and
-    /// into Hidden rather than staying in place with a badge on it.
-    @Test("A hidden folder moves into Hidden, and takes its contents with it")
-    func hiddenFolderMovesIntoHidden() async throws {
+    @Test("A hidden root folder reappears in the sidebar when revealed")
+    func hiddenFolderReappearsInPlace() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -188,16 +183,85 @@ struct PrivacyTests {
         await model.refreshContents()
         #expect(model.contents.objects.isEmpty)
 
-        await model.openHidden()
-        #expect(model.contents.folders.map(\.id) == [folder.id])
-        // Its contents are inside it, where they have always been, rather than
-        // spilled into Hidden alongside the folder.
-        #expect(model.contents.objects.isEmpty)
-        #expect(model.folderTree.isEmpty)
+        await model.toggleHiddenItems()
+        #expect(model.folderTree.map(\.folder.id) == [folder.id])
 
         model.navigate(to: .scope(.folder(folder.id)))
         await model.refreshContents()
         #expect(model.contents.objects.map(\.id) == [object.id])
+
+        await model.toggleHiddenItems()
+        #expect(model.scope == .inbox)
+        #expect(model.folderTree.isEmpty)
+    }
+
+    @Test("Losing focus re-hides items without relocking unlocked content")
+    func focusLossRehidesAndPreservesLocks() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let hiddenObject = try #require(try await harness.importFile(named: "hidden.txt"))
+        let lockedObject = try #require(try await harness.importFile(named: "locked.txt"))
+        await model.setHidden(true, for: [hiddenObject])
+        await model.setLocked(true, for: [lockedObject])
+        let locked = try #require(model.contents.objects.first { $0.id == lockedObject.id })
+        #expect(await model.unlock(locked, named: locked.title))
+
+        await model.toggleHiddenItems()
+        #expect(model.contents.objects.contains { $0.id == hiddenObject.id })
+        await model.appDidLoseFocus()
+
+        #expect(!model.isShowingHiddenContent)
+        #expect(!model.contents.objects.contains { $0.id == hiddenObject.id })
+        #expect(try #require(model.contents.objects.first { $0.id == lockedObject.id }).visibility == .full)
+
+        model.settings.rehidesWhenAppLosesFocus = false
+        await model.toggleHiddenItems()
+        await model.appDidLoseFocus()
+        #expect(model.isShowingHiddenContent)
+        await model.rehideItems()
+    }
+
+    @Test("User activity restarts the hidden reveal timeout")
+    func userActivityRestartsHiddenRevealTimeout() async throws {
+        let sleeper = HiddenRevealSleepController()
+        let harness = try await TestModel { duration in
+            try await sleeper.sleep(for: duration)
+        }
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.toggleHiddenItems()
+        await sleeper.waitUntilStarted(1)
+        #expect(model.isShowingHiddenContent)
+
+        model.appDidReceiveUserActivity()
+        await sleeper.waitUntilStarted(2)
+
+        // Completing the superseded wait must not hide anything. Only the
+        // fresh wait that began at the last interaction owns the deadline.
+        await sleeper.resume(0)
+        await Task.yield()
+        #expect(model.isShowingHiddenContent)
+
+        await sleeper.resume(1)
+        for _ in 0..<100 where model.isShowingHiddenContent {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(!model.isShowingHiddenContent)
+    }
+
+    @Test("Hidden reveal timeout defaults to five minutes")
+    func hiddenRevealTimeoutDefaults() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+
+        #expect(harness.model.settings.hiddenRevealTimeout == .after5Minutes)
+        #expect(harness.model.settings.hiddenRevealTimeout.duration == .seconds(300))
+        #expect(HiddenRevealTimeout.never.duration == nil)
+        #expect(harness.model.settings.rehidesWhenAppLosesFocus)
     }
 
     /// Collection privacy protects the collection surface. Where the objects
@@ -242,5 +306,29 @@ struct PrivacyTests {
         await model.unlockCurrentLocation()
         #expect(model.lockedLocation == nil)
         #expect(try #require(model.contents.objects.first).visibility == .full)
+    }
+}
+
+/// A deterministic stand-in for `Task.sleep` that lets the privacy test fire
+/// each scheduled deadline independently.
+private actor HiddenRevealSleepController {
+    private var nextID = 0
+    private var continuations: [Int: CheckedContinuation<Void, Never>] = [:]
+
+    func sleep(for duration: Duration) async throws {
+        let id = nextID
+        nextID += 1
+
+        await withCheckedContinuation { continuation in
+            continuations[id] = continuation
+        }
+    }
+
+    func waitUntilStarted(_ count: Int) async {
+        while nextID < count { await Task.yield() }
+    }
+
+    func resume(_ id: Int) {
+        continuations.removeValue(forKey: id)?.resume()
     }
 }

@@ -2,6 +2,23 @@ import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
 
+/// One explicit batch of things that have just entered the library.
+///
+/// Refreshes caused by navigation, search, or sync deliberately don't create
+/// one of these. Views can therefore animate real arrivals without replaying
+/// their entrance whenever a query is rebuilt.
+struct LibraryArrival: Equatable {
+    let revision: Int
+    let destination: LibraryDestination
+    var objectIDs: [ObjectID] = []
+    var folderIDs: [FolderID] = []
+    var collectionIDs: [CollectionID] = []
+
+    func objectOrder(_ id: ObjectID) -> Int? { objectIDs.firstIndex(of: id) }
+    func folderOrder(_ id: FolderID) -> Int? { folderIDs.firstIndex(of: id) }
+    func collectionOrder(_ id: CollectionID) -> Int? { collectionIDs.firstIndex(of: id) }
+}
+
 /// The app's view state over a library.
 ///
 /// Every read goes through `LibraryService` and arrives as a `Sendable`
@@ -11,6 +28,8 @@ import NookLibrary
 @MainActor
 @Observable
 final class LibraryModel {
+    static let libraryDidChange = Notification.Name("Nook.libraryDidChange")
+
     let library: Library
     let settings: AppSettings
 
@@ -30,17 +49,6 @@ final class LibraryModel {
     /// anchored to the item the user actually started at rather than to
     /// whichever element an unordered set happens to yield first.
     var selectionAnchor: ObjectID?
-
-    /// What is selected on Home.
-    ///
-    /// Held by tile rather than by object, because Home's sections are
-    /// separate places that happen to hold some of the same things: anything
-    /// recently imported and still unsorted is in both Inbox and Recent, and
-    /// clicking it in one is not clicking it in the other. An object-level
-    /// selection would light both, which is a claim about the library the user
-    /// did not make.
-    var homeSelection: Set<HomeTileID> = []
-    var homeSelectionAnchor: HomeTileID?
 
     var previewedObjectID: ObjectID?
     var isInspectorPresented = false
@@ -84,13 +92,6 @@ final class LibraryModel {
     /// undo that.
     private(set) var canvasEntryRequest = 0
 
-    /// Where the keyboard is on Home.
-    ///
-    /// Home needs a cursor of its own because it is not a scope: its bands are
-    /// separate queries over the library, so the canvas cursor — which walks
-    /// the contents of one place — has nothing to walk here.
-    var homeCursor: HomeTileID?
-
     /// Which folders are open in the sidebar.
     ///
     /// Held here rather than inside an `OutlineGroup` because the left and
@@ -121,10 +122,15 @@ final class LibraryModel {
     // the same prompts the sidebar and canvas do.
 
     var isImporterPresented = false
+    var isAddURLPresented = false
     /// iOS only in practice, but held here for the same reason the file
     /// importer is: the window raises it, so both Home and the canvas can ask
     /// for it without either owning it.
     var isPhotosPickerPresented = false
+    /// iOS only: raises the system camera for "Take Photo".
+    var isCameraPresented = false
+    /// iOS only: raises VisionKit's document camera for "Scan Document".
+    var isDocumentScannerPresented = false
     var isGlobalSearchPresented = false
     var isSettingsPresented = false
     /// Raised while the user picks a folder to export originals into.
@@ -133,7 +139,23 @@ final class LibraryModel {
     /// rather than inside it.
     var isShowingHome = true
     var namingPrompt: NamingPrompt?
+    /// The folder, collection or tag whose appearance is being edited. Held
+    /// here for the same reason `namingPrompt` is: the sidebar and the canvas
+    /// both raise it, and only one of them can own the sheet.
+    var editingAppearance: AppearanceTarget?
     var searchFieldFocusRequests = 0
+
+    /// The most recent explicit creation/import batch. Gallery and sidebar
+    /// views use its stable identifiers to animate only genuinely new items.
+    private(set) var arrival: LibraryArrival?
+    private var arrivalRevision = 0
+    private var clearArrivalTask: Task<Void, Never>?
+
+    /// Changes only for an explicit library mutation or preference-driven
+    /// reorder, never for navigation, search, initial loading, or sync refresh.
+    private(set) var reflowRevision = 0
+    private(set) var sidebarReflowRevision = 0
+    private var isReflowPending = false
 
     /// The scope pill in the search field. Removing it widens the same query
     /// to the whole library; it is not a separate search.
@@ -147,13 +169,25 @@ final class LibraryModel {
     private(set) var collections: [CollectionSnapshot] = []
     private(set) var tags: [TagSnapshot] = []
     private(set) var counts: [ScopeCountKey: Int] = [:]
-    private(set) var homeSections: [HomeSection] = []
+    /// Media types the sidebar shows a row for. A media type earns its row
+    /// by holding something — an empty type would just be a name that leads
+    /// nowhere.
+    private(set) var presentMediaKinds: Set<ObjectKind> = []
 
     // MARK: Transient state
 
     private(set) var importProgress: ImportProgress?
     var alert: LibraryAlert?
     var importFailure: ImportFailure?
+
+    // MARK: iCloud sync
+
+    /// Active CloudKit event identifiers let overlapping import and export work
+    /// present as one uninterrupted sync operation.
+    private var activeCloudSyncEvents: Set<UUID> = []
+    private(set) var isCloudSyncing = false
+    private(set) var lastCloudSyncDate: Date?
+    private(set) var cloudSyncError: String?
 
     /// The authenticated state every read is made under. Hidden and locked
     /// content stays out of reach until the authentication flow raises this,
@@ -168,12 +202,20 @@ final class LibraryModel {
 
     private var searchTask: Task<Void, Never>?
     private var navigationRefreshTask: Task<Void, Never>?
+    /// Scheduled when hidden items are revealed and cancelled when they re-hide.
+    /// Lives here because Swift extensions in another file cannot add storage.
+    var hiddenRevealTask: Task<Void, Never>?
+    /// Kept injectable so the idle-lock behavior can be tested without making
+    /// the privacy suite wait for a real 30-second timeout.
+    @ObservationIgnored
+    let hiddenRevealSleep: @Sendable (Duration) async throws -> Void
 
     // MARK: Presentation
     //
     // The arrangement on screen: a location's remembered settings if it has
-    // any, otherwise the global default. Changes are temporary unless the user
-    // has asked this location to remember them.
+    // any, otherwise the global preferences. View-mode changes made while a
+    // location is following the global preferences become the app-wide mode;
+    // explicitly remembered locations keep their own mode.
 
     private(set) var preferences: LocationViewPreferences = .systemDefault
     private(set) var isRememberingLocation = false
@@ -182,7 +224,16 @@ final class LibraryModel {
     var sort: ObjectSort { preferences.sort }
     var viewMode: LibraryViewMode { preferences.viewMode }
     var foldersFirst: Bool { preferences.foldersFirst }
+    var masonryCaptionDisplay: MasonryCaptionDisplay { preferences.masonryCaptionDisplay }
+    var showsMasonryTypeLabels: Bool { preferences.showsMasonryTypeLabels }
+    // On iOS, item size is decided by the adaptive grid rather than the
+    // user, so this always reads as the neutral size regardless of whatever
+    // scale a synced macOS preference carries.
+    #if os(iOS)
+    var itemScale: Double { 1 }
+    #else
     var itemScale: Double { preferences.itemScale }
+    #endif
 
     /// Who vouches for the device owner before hidden or locked content moves.
     /// Injected so the app's tests can answer without a device.
@@ -190,48 +241,67 @@ final class LibraryModel {
 
     init(library: Library,
          settings: AppSettings,
-         authenticator: any LibraryAuthenticating = DeviceAuthenticator()) {
+         authenticator: any LibraryAuthenticating = DeviceAuthenticator(),
+         hiddenRevealSleep: @escaping @Sendable (Duration) async throws -> Void = {
+             try await Task.sleep(for: $0)
+         }) {
         self.library = library
         self.settings = settings
         self.authenticator = authenticator
+        self.hiddenRevealSleep = hiddenRevealSleep
         self.preferences = settings.defaultPreferences
+        self.lastCloudSyncDate = UserDefaults.standard.object(
+            forKey: Self.lastCloudSyncDefaultsKey
+        ) as? Date
     }
 
     private var service: LibraryService { library.service }
 
     // MARK: Refresh
 
+    private func publishPendingReflow() {
+        guard isReflowPending else { return }
+        isReflowPending = false
+        reflowRevision += 1
+    }
+
     func refreshAll() async {
         await refreshSidebar()
         await loadPreferences()
         await refreshContents()
-        await refreshHome()
     }
 
-    /// Home's sections. Restrained on purpose — a way back into recent work,
-    /// not a dashboard.
-    ///
-    /// Each section is the same query the canvas would run on that scope, in
-    /// the same order, capped so a section stays a window onto a place rather
-    /// than a second copy of it. The heading is how the whole place is reached.
-    func refreshHome() async {
-        let access = accessContext
-        var sections: [HomeSection] = []
-        for definition in HomeSection.defaults {
-            let objects = await service.objects(
-                matching: ObjectQuery(scope: definition.scope,
-                                      sort: sort,
-                                      limit: HomeSection.itemLimit),
-                in: access
-            )
-            guard !objects.isEmpty || definition.showsWhenEmpty else { continue }
-            sections.append(HomeSection(definition: definition, objects: objects))
-        }
-        homeSections = sections
-        let present = Set(homeOrder)
-        if let current = homeCursor, !present.contains(current) { homeCursor = nil }
-        pruneSelection()
+    func cloudSyncStarted(id: UUID) {
+        activeCloudSyncEvents.insert(id)
+        isCloudSyncing = true
+        cloudSyncError = nil
     }
+
+    func cloudSyncFinished(
+        id: UUID,
+        succeeded: Bool,
+        error: String?,
+        importedChanges: Bool,
+        at date: Date
+    ) async {
+        activeCloudSyncEvents.remove(id)
+        isCloudSyncing = !activeCloudSyncEvents.isEmpty
+
+        if succeeded {
+            cloudSyncError = nil
+            lastCloudSyncDate = date
+            UserDefaults.standard.set(date, forKey: Self.lastCloudSyncDefaultsKey)
+            if importedChanges {
+                await refreshAll()
+                extractPendingContent()
+                fetchPendingLinkMetadata()
+            }
+        } else {
+            cloudSyncError = error ?? "iCloud couldn't complete the sync."
+        }
+    }
+
+    private static let lastCloudSyncDefaultsKey = "Nook.lastSuccessfulCloudSync"
 
     // MARK: Presentation
 
@@ -260,10 +330,35 @@ final class LibraryModel {
     func setViewMode(_ mode: LibraryViewMode) async {
         var updated = preferences
         updated.viewMode = mode
+        if !isRememberingLocation {
+            settings.defaultPreferences.viewMode = mode
+        }
+        await apply(updated)
+    }
+
+    func setMasonryCaptionDisplay(_ display: MasonryCaptionDisplay) async {
+        guard display != preferences.masonryCaptionDisplay else { return }
+        isReflowPending = true
+        var updated = preferences
+        updated.masonryCaptionDisplay = display
+        if !isRememberingLocation {
+            settings.defaultPreferences.masonryCaptionDisplay = display
+        }
+        await apply(updated)
+    }
+
+    func setShowsMasonryTypeLabels(_ showsTypeLabels: Bool) async {
+        guard showsTypeLabels != preferences.showsMasonryTypeLabels else { return }
+        var updated = preferences
+        updated.showsMasonryTypeLabels = showsTypeLabels
+        if !isRememberingLocation {
+            settings.defaultPreferences.showsMasonryTypeLabels = showsTypeLabels
+        }
         await apply(updated)
     }
 
     func setSort(_ sort: ObjectSort) async {
+        isReflowPending = true
         var updated = preferences
         updated.sort = sort
         await apply(updated)
@@ -290,6 +385,7 @@ final class LibraryModel {
     }
 
     func setFoldersFirst(_ foldersFirst: Bool) async {
+        isReflowPending = true
         var updated = preferences
         updated.foldersFirst = foldersFirst
         await apply(updated)
@@ -326,9 +422,7 @@ final class LibraryModel {
         preferences = updated
         if isShowingHome {
             if isRememberingLocation { settings.homePreferences = updated }
-            // Sections are queries, so a change of order is a re-query — the
-            // same thing changing sort does to the canvas.
-            await refreshHome()
+            await refreshContents()
             return
         }
         if isRememberingLocation {
@@ -344,6 +438,7 @@ final class LibraryModel {
         self.folderTree = await loadFolderTree(under: nil)
         self.collections = await collections
         self.tags = await tags
+        if isReflowPending { sidebarReflowRevision += 1 }
         pruneHistory()
         await refreshCounts()
     }
@@ -353,7 +448,7 @@ final class LibraryModel {
     /// While searching, the scope pill decides — removing it expands the query
     /// to the whole library without changing what is selected in the sidebar.
     var effectiveScope: LibraryScope {
-        guard !searchText.isEmpty else { return scope }
+        guard !searchText.isEmpty else { return isShowingHome ? .allObjects : scope }
         return searchTokens.first?.scope ?? .allObjects
     }
 
@@ -370,18 +465,18 @@ final class LibraryModel {
         contentsRefreshGeneration += 1
         let generation = contentsRefreshGeneration
         let access = accessContext
-        let query = ObjectQuery(scope: effectiveScope, searchText: searchText, sort: sort)
-
-        let objects = await service.objects(matching: query, in: access)
+        let objects: [ObjectSnapshot]
         let folders: [FolderSnapshot]
-        if case .folder(let id) = effectiveScope {
+
+        let query = ObjectQuery(scope: effectiveScope, searchText: searchText, sort: sort)
+        objects = await service.objects(matching: query, in: access)
+
+        if isShowingHome {
+            folders = await service.rootFolders(in: access)
+            breadcrumbs = []
+        } else if case .folder(let id) = effectiveScope {
             folders = await service.subfolders(of: id, in: access)
             breadcrumbs = await service.folderPath(to: id, in: access)
-        } else if effectiveScope == .hidden {
-            // Hidden holds folders as well as objects, which is what makes it
-            // a place rather than a list of loose things.
-            folders = await service.hiddenFolders(in: access)
-            breadcrumbs = []
         } else {
             folders = []
             breadcrumbs = []
@@ -396,6 +491,7 @@ final class LibraryModel {
         guard generation == contentsRefreshGeneration, !Task.isCancelled else { return }
         folderPeeks = peeks
         contents = LocationContents(folders: folders, objects: objects)
+        publishPendingReflow()
         // A deletion, a move or an arriving import can take whatever the
         // cursor was resting on out from under it.
         let present = Set(canvasItems.map(\.itemID))
@@ -403,21 +499,11 @@ final class LibraryModel {
         pruneSelection()
     }
 
-    /// Drops whatever either selection is still naming that has gone.
-    ///
-    /// Each is measured against its own gallery rather than against whichever
-    /// is on screen, because Home and the canvas are refreshed together and
-    /// either would otherwise clear the other's selection.
+    /// Drops any selection that no longer names a visible object.
     private func pruneSelection() {
         let objects = Set(contents.objects.map(\.id))
         selection = selection.filter { objects.contains($0) }
         if let anchor = selectionAnchor, !selection.contains(anchor) { selectionAnchor = nil }
-
-        let tiles = Set(homeOrder)
-        homeSelection = homeSelection.filter { tiles.contains($0) }
-        if let anchor = homeSelectionAnchor, !homeSelection.contains(anchor) {
-            homeSelectionAnchor = nil
-        }
     }
 
     private func refreshCounts() async {
@@ -427,6 +513,14 @@ final class LibraryModel {
             updated[key] = await service.objectCount(in: key.scope, access: access)
         }
         counts = updated
+
+        var presentKinds: Set<ObjectKind> = []
+        for kind in ObjectKind.mediaTypes {
+            if await service.objectCount(in: .kind(kind), access: access) > 0 {
+                presentKinds.insert(kind)
+            }
+        }
+        presentMediaKinds = presentKinds
     }
 
     private func onScopeChanged(from previous: LibraryScope) {
@@ -442,11 +536,6 @@ final class LibraryModel {
         navigationRefreshTask?.cancel()
         navigationRefreshTask = Task { [weak self] in
             guard let self else { return }
-            // Hidden closes behind you: stepping out of it, or out of a folder
-            // inside it, puts everything back out of reach so coming back asks
-            // again.
-            await closeHidden()
-            guard !Task.isCancelled else { return }
             await loadPreferences()
             guard !Task.isCancelled else { return }
             await refreshContentsFromNavigation()
@@ -463,7 +552,8 @@ final class LibraryModel {
         // pill. Clearing the field puts the pill away again.
         if searchText.isEmpty {
             searchTokens = []
-        } else if searchTokens.isEmpty, let token = SearchScopeToken(scope: scope, model: self) {
+        } else if !isShowingHome, searchTokens.isEmpty,
+                  let token = SearchScopeToken(scope: scope, model: self) {
             searchTokens = [token]
         }
 
@@ -500,7 +590,12 @@ final class LibraryModel {
     /// changes for one step the user took.
     func navigate(to destination: LibraryDestination) {
         let previous = self.destination
-        guard previous != destination else { return }
+        guard previous != destination else {
+            // Re-activating the current place means returning to its canvas,
+            // even when a preview is sitting in front of it.
+            previewedObjectID = nil
+            return
+        }
         pushHistory(previous)
         apply(destination)
     }
@@ -534,15 +629,17 @@ final class LibraryModel {
         case .home:
             isShowingHome = true
             deselectAll()
+            searchText = ""
             // Arriving at a scope loads its arrangement through
             // `onScopeChanged`; arriving at Home changes no scope, so it asks
             // for its own here.
             Task {
                 await loadPreferences()
-                await refreshHome()
+                await refreshContents()
             }
         case .scope(let scope):
             isShowingHome = false
+            searchText = ""
             // Leaving Home for the place the canvas was already pointing at
             // changes no scope, so `onScopeChanged` never fires and nothing
             // else would load that place's arrangement back.
@@ -584,10 +681,6 @@ final class LibraryModel {
             case .folder(let id): return folders.contains(id)
             case .collection(let id): return collectionIDs.contains(id)
             case .tag(let id): return tagIDs.contains(id)
-            // Back never walks into Hidden: it closed when the user left, and
-            // a step through history is not somewhere to be asked for a
-            // fingerprint.
-            case .hidden: return isShowingHiddenContent
             default: return true
             }
         }
@@ -615,22 +708,12 @@ final class LibraryModel {
     /// Selects what is on screen. Folders are places rather than things, so
     /// they are not part of a selection the batch actions can act on.
     func selectAll() {
-        if isShowingHome {
-            homeSelection = Set(homeOrder)
-            homeSelectionAnchor = homeOrder.first
-        } else {
-            selection = Set(contents.objects.map(\.id))
-        }
+        selection = Set(contents.objects.map(\.id))
     }
 
-    /// Clears both, rather than only the one in front. Leaving a selection
-    /// behind in the gallery the user is not looking at is how Delete ends up
-    /// acting on something they cannot see.
     func deselectAll() {
         selection = []
         selectionAnchor = nil
-        homeSelection = []
-        homeSelectionAnchor = nil
     }
 
     // MARK: Import
@@ -651,6 +734,8 @@ final class LibraryModel {
             Task { @MainActor in self?.importProgress = progress.isFinished ? nil : progress }
         }
         importProgress = nil
+        announceArrival(objects: report.importedIDs)
+        NotificationCenter.default.post(name: Self.libraryDidChange, object: nil)
         await refreshAll()
         extractPendingContent()
         fetchPendingLinkMetadata()
@@ -691,6 +776,36 @@ final class LibraryModel {
             return
         }
         await importItems(items)
+    }
+
+    /// A photo from the system camera. The camera view already encodes it to
+    /// PNG, so this stays free of UIKit types.
+    func importCapturedPhoto(_ data: Data) async {
+        await importItems([.data(data, contentType: .png, suggestedName: "Photo.png")])
+    }
+
+    /// The PDF VisionKit's document camera produced from one or more scanned
+    /// pages.
+    func importScannedDocument(_ data: Data) async {
+        await importItems([.data(data, contentType: .pdf, suggestedName: "Scan.pdf")])
+    }
+
+    /// Continuity Camera hands back raw bytes with no content type attached,
+    /// so this sniffs the format the same way `PasteImporter` does for a
+    /// pasted image.
+    func importContinuityCameraCapture(_ data: Data) async {
+        let contentType: UTType
+        if data.starts(with: [0xFF, 0xD8, 0xFF]) {
+            contentType = .jpeg
+        } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+            contentType = .png
+        } else if data.starts(with: Array("%PDF".utf8)) {
+            contentType = .pdf
+        } else {
+            contentType = .jpeg
+        }
+        let name = "Continuity Camera.\(contentType.preferredFilenameExtension ?? "dat")"
+        await importItems([.data(data, contentType: contentType, suggestedName: name)])
     }
 
     // MARK: External navigation
@@ -735,20 +850,62 @@ final class LibraryModel {
             guard let self else { return }
             let service = library.service
             let thumbnails = library.thumbnails
-            let pending = await service.linksAwaitingMetadata()
+            let metadataPending = await service.linksAwaitingMetadata()
+            let previewCandidates = await service.linksAdvertisingPreviewImage()
+            let pending = metadataPending + previewCandidates.filter { !metadataPending.contains($0) }
             guard !pending.isEmpty else { return }
+
+            var didChange = false
 
             for id in pending {
                 guard let object = await service.object(id, in: accessContext),
-                      let url = object.sourceURL,
-                      let result = await LinkMetadataFetcher.fetch(for: url)
+                      let url = object.sourceURL
                 else { continue }
 
-                try? await service.applyLinkMetadata(result.metadata, to: id)
+                let needsMetadata = object.linkPageTitle == nil
+                let hasLocalPreview = await thumbnails.hasPreviewImage(for: id)
+                let needsDimensions = object.aspectRatio == nil
+
+                if needsDimensions, hasLocalPreview,
+                   let dimensions = await thumbnails.cachedPreviewImageDimensions(for: id) {
+                    try? await service.applyLinkPreviewDimensions(
+                        width: dimensions.width,
+                        height: dimensions.height,
+                        to: id
+                    )
+                    didChange = true
+                }
+
+                guard needsMetadata || !hasLocalPreview else { continue }
+                guard let result = await LinkMetadataFetcher.fetch(for: url) else { continue }
+
+                // A preview-only rebuild must not replace good synced metadata
+                // with nil values from a partial refetch.
+                if needsMetadata {
+                    try? await service.applyLinkMetadata(result.metadata, to: id)
+                    didChange = true
+                } else if needsDimensions,
+                          let width = result.metadata.previewPixelWidth,
+                          let height = result.metadata.previewPixelHeight {
+                    try? await service.applyLinkPreviewDimensions(
+                        width: width,
+                        height: height,
+                        to: id
+                    )
+                    didChange = true
+                }
                 if let imageData = result.previewImageData {
                     await thumbnails.storePreviewImage(imageData, for: id)
+                    didChange = true
+                    NotificationCenter.default.post(
+                        name: .nookThumbnailDidChange,
+                        object: id.uuid
+                    )
                 }
             }
+
+            guard didChange else { return }
+            NotificationCenter.default.post(name: Self.libraryDidChange, object: nil)
             await refreshAll()
         }
     }
@@ -859,8 +1016,39 @@ final class LibraryModel {
 
     // MARK: Mutations
 
-    func createFolder(named name: String, in parent: FolderID?) async {
-        await perform { try await self.library.service.createFolder(named: name, in: parent) }
+    private func announceArrival(objects: [ObjectID] = [],
+                                 folders: [FolderID] = [],
+                                 collections: [CollectionID] = []) {
+        guard !objects.isEmpty || !folders.isEmpty || !collections.isEmpty else { return }
+        isReflowPending = true
+        arrivalRevision += 1
+        arrival = LibraryArrival(revision: arrivalRevision,
+                                 destination: destination,
+                                 objectIDs: objects,
+                                 folderIDs: folders,
+                                 collectionIDs: collections)
+
+        clearArrivalTask?.cancel()
+        clearArrivalTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.arrival = nil
+        }
+    }
+
+    func createFolder(
+        named name: String,
+        in parent: FolderID?,
+        appearance: EntityAppearance = .system
+    ) async {
+        await perform {
+            let created = try await self.library.service.createFolder(
+                named: name,
+                in: parent,
+                appearance: appearance
+            )
+            self.announceArrival(folders: [created.id])
+        }
     }
 
     func rename(folder id: FolderID, to name: String) async {
@@ -903,12 +1091,20 @@ final class LibraryModel {
 
     // MARK: Collections
 
-    func createCollection(named name: String, adding ids: [ObjectID] = []) async {
+    func createCollection(
+        named name: String,
+        adding ids: [ObjectID] = [],
+        appearance: EntityAppearance = .system
+    ) async {
         await perform {
-            let created = try await self.library.service.createCollection(named: name)
+            let created = try await self.library.service.createCollection(
+                named: name,
+                appearance: appearance
+            )
             if !ids.isEmpty {
                 try await self.library.service.addObjects(ids, toCollection: created.id)
             }
+            self.announceArrival(collections: [created.id])
         }
     }
 
@@ -930,17 +1126,26 @@ final class LibraryModel {
         await perform { try await self.library.service.deleteCollection(id) }
     }
 
-    /// Drops `moved` in ahead of `target` in the collection's manual order.
-    func reorder(_ moved: [ObjectID], before target: ObjectID) async {
-        guard case .collection(let id) = scope, !moved.contains(target) else { return }
-        var order = contents.objects.map(\.id)
-        order.removeAll { moved.contains($0) }
-        guard let index = order.firstIndex(of: target) else { return }
-        order.insert(contentsOf: moved, at: index)
-        await perform { try await self.library.service.reorderCollection(id, objectOrder: order) }
-    }
-
     // MARK: Appearance
+
+    func updateEntity(
+        _ reference: LibraryReference,
+        name: String,
+        appearance: EntityAppearance
+    ) async {
+        await perform {
+            switch reference {
+            case .folder(let id):
+                try await self.library.service.updateFolder(id, name: name, appearance: appearance)
+            case .collection(let id):
+                try await self.library.service.updateCollection(id, name: name, appearance: appearance)
+            case .tag(let id):
+                try await self.library.service.updateTag(id, name: name, appearance: appearance)
+            case .object:
+                break
+            }
+        }
+    }
 
     func setAppearance(_ appearance: EntityAppearance, for reference: LibraryReference) async {
         await perform {
@@ -958,6 +1163,19 @@ final class LibraryModel {
     }
 
     // MARK: Tags
+
+    func createTag(
+        named name: String,
+        adding ids: [ObjectID] = [],
+        appearance: EntityAppearance = .system
+    ) async {
+        await perform {
+            let created = try await self.library.service.createTag(named: name, appearance: appearance)
+            if !ids.isEmpty {
+                try await self.library.service.addTag(named: created.name, to: ids)
+            }
+        }
+    }
 
     func renameTag(_ id: TagID, to name: String) async {
         await perform { try await self.library.service.renameTag(id, to: name) }
@@ -977,10 +1195,13 @@ final class LibraryModel {
     }
 
     func perform(_ work: @escaping () async throws -> Void) async {
+        isReflowPending = true
         do {
             try await work()
+            NotificationCenter.default.post(name: Self.libraryDidChange, object: nil)
             await refreshAll()
         } catch {
+            isReflowPending = false
             alert = LibraryAlert(title: "Something went wrong", message: error.localizedDescription)
         }
     }
@@ -1010,7 +1231,7 @@ final class LibraryModel {
         case .dateAdded:
             let merged = (folders + objects).sorted { $0.sortDate < $1.sortDate }
             return sort.ascending ? merged : merged.reversed()
-        case .dateCreated, .kind, .size, .manual:
+        case .dateCreated, .kind, .size:
             return folders + objects
         }
     }
@@ -1023,9 +1244,7 @@ final class LibraryModel {
     /// inspector, preview's next and previous — is asking about the thing
     /// rather than about the tile.
     var visibleObjects: [ObjectSnapshot] {
-        guard isShowingHome else { return contents.objects }
-        var seen: Set<ObjectID> = []
-        return homeSections.flatMap(\.objects).filter { seen.insert($0.id).inserted }
+        contents.objects
     }
 
     /// The objects the current selection names.
@@ -1034,11 +1253,11 @@ final class LibraryModel {
     /// named once here — the batch actions favourite, move and delete a thing,
     /// not a tile.
     var selectedObjectIDs: Set<ObjectID> {
-        isShowingHome ? Set(homeSelection.map(\.object)) : selection
+        selection
     }
 
     var hasSelection: Bool {
-        isShowingHome ? !homeSelection.isEmpty : !selection.isEmpty
+        !selection.isEmpty
     }
 
     var selectedObjects: [ObjectSnapshot] {
@@ -1050,15 +1269,12 @@ final class LibraryModel {
     /// never does, whichever place the canvas was last pointed at.
     var isShowingDeleted: Bool { !isShowingHome && scope == .recentlyDeleted }
 
-    /// The orders this destination offers. Manual order only means something
-    /// inside a collection, which Home is not.
     var availableSortFields: [ObjectSortField] {
-        var fields: [ObjectSortField] = [.name, .dateAdded, .dateCreated, .kind, .size]
-        if !isShowingHome, case .collection = scope { fields.insert(.manual, at: 0) }
-        return fields
+        [.name, .dateAdded, .dateCreated, .kind, .size]
     }
 
     var currentFolderID: FolderID? {
+        guard !isShowingHome else { return nil }
         if case .folder(let id) = scope { return id }
         return nil
     }
@@ -1115,53 +1331,12 @@ final class LibraryModel {
         selectPreviewed(next)
     }
 
-    /// Puts the selection on whatever preview has moved to.
-    ///
-    /// On Home an object can be showing in two sections, so the tile the
-    /// cursor is already resting on decides which of them is meant — stepping
-    /// through Recent stays in Recent.
+    /// Puts the selection and cursor on whatever preview has moved to.
     func selectPreviewed(_ object: ObjectSnapshot) {
-        guard isShowingHome else {
-            selection = [object.id]
-            selectionAnchor = object.id
-            return
-        }
-        let tile = homeOrder.first { $0.object == object.id && $0.scope == homeCursor?.scope }
-            ?? homeOrder.first { $0.object == object.id }
-        homeSelection = tile.map { [$0] } ?? []
-        homeSelectionAnchor = tile
-        if let tile { homeCursor = tile }
+        selection = [object.id]
+        selectionAnchor = object.id
+        cursor = .object(object.id)
     }
-}
-
-/// One band on the Home screen.
-struct HomeSection: Identifiable {
-    struct Definition {
-        let scope: LibraryScope
-        let title: String
-        let symbolName: String
-        let showsWhenEmpty: Bool
-    }
-
-    let definition: Definition
-    let objects: [ObjectSnapshot]
-
-    /// How much of a place a section shows before the heading becomes the
-    /// way to see the rest. Enough to fill a couple of rows and be scanned,
-    /// not enough to make Home a second copy of the library.
-    static let itemLimit = 12
-
-    var id: LibraryScope { definition.scope }
-    var title: String { definition.title }
-    var symbolName: String { definition.symbolName }
-    var scope: LibraryScope { definition.scope }
-
-    /// The default sections. Customising which sections appear, and their
-    /// order, is deliberately left until after the core loop is stable.
-    static let defaults: [Definition] = [
-        Definition(scope: .inbox, title: "Inbox", symbolName: "tray", showsWhenEmpty: true),
-        Definition(scope: .recent, title: "Recent", symbolName: "clock", showsWhenEmpty: false)
-    ]
 }
 
 /// Where the sidebar can point. Home is not a query over objects, so it is not
@@ -1169,16 +1344,6 @@ struct HomeSection: Identifiable {
 enum LibraryDestination: Hashable {
     case home
     case scope(LibraryScope)
-}
-
-/// One tile on Home: an object, in the band it is showing in.
-///
-/// The band is part of the identity because Home's sections are independent
-/// queries — anything recently imported and still unsorted is in both Inbox
-/// and Recent — so an object id alone names two tiles at once.
-struct HomeTileID: Hashable, Sendable {
-    let scope: LibraryScope
-    let object: ObjectID
 }
 
 /// Which column the keyboard is talking to.

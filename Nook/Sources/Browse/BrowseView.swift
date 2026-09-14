@@ -6,43 +6,69 @@ import NookLibrary
 /// object replaces the grid rather than stacking a window on top of it.
 struct BrowseView: View {
     @Bindable var model: LibraryModel
+    /// A destination pushed from the compact Library list already receives
+    /// native stack navigation. Its custom history pair would be relocated to
+    /// the trailing toolbar beside the view controls, duplicating navigation.
+    var showsHistoryControls = true
     /// Where the canvas actually drew each item, which is what tells an arrow
     /// key what "the row above" means in a layout that is not a uniform grid.
     @State private var itemFrames = GalleryFrames<CanvasItemID>()
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isCanvasFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             if let previewed = model.previewedObject {
                 ObjectPreviewView(model: model, object: previewed)
-                    .transition(.opacity)
+                    .transition(previewTransition)
             } else {
                 canvas
-                    .transition(.opacity)
+                    .transition(previewTransition)
             }
+
+            #if os(macOS)
+            if model.previewedObjectID == nil {
+                LibraryFloatingActionButton(model: model)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+            #endif
         }
-        .motionAware(.smooth(duration: 0.22), value: model.previewedObjectID)
-        .navigationTitle(title)
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
+                   value: model.previewedObjectID)
+        .navigationTitle(navigationTitle)
+        .navigationSubtitle(navigationSubtitle)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbar { GalleryToolbar(model: model) }
+        .toolbar {
+            GalleryToolbar(model: model, showsHistoryControls: showsHistoryControls)
+        }
         .searchable(text: $model.searchText, tokens: $model.searchTokens, prompt: searchPrompt) { token in
             Label(token.name, systemImage: token.symbolName)
         }
         .searchFocused($isSearchFocused)
         .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
         .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
+        // Opening a preview swaps most of the toolbar's items out from under
+        // it, and the search field is what AppKit hands the keyboard to when
+        // nothing else claims it during that rebuild.
+        .onChange(of: model.previewedObjectID) { _, previewed in
+            if previewed != nil { isSearchFocused = false }
+        }
+    }
+
+    private var previewTransition: AnyTransition {
+        .motionAware(.scale(scale: 0.97).combined(with: .opacity),
+                     reduceMotion: reduceMotion)
     }
 
     // MARK: Canvas
 
     private var canvas: some View {
         Group {
-            if model.scope == .hidden, !model.isShowingHiddenContent {
-                hiddenDoor
-            } else if let locked = model.lockedLocation {
+            if let locked = model.lockedLocation {
                 lockedState(locked)
             } else if model.contents.isEmpty {
                 emptyState
@@ -56,12 +82,19 @@ struct BrowseView: View {
                             // canvas scrolls.
                             .coordinateSpace(.named(canvasCoordinateSpace))
                     }
+                    .refreshable {
+                        await model.refreshAll()
+                    }
                     #if os(macOS)
                     .onTapGesture {
                         model.focus(.canvas)
                         model.deselectAll()
                     }
                     #endif
+                    // Wins only where nothing more specific is hit: an item's
+                    // own context menu, nested inside this one, takes right
+                    // click before this ever sees it.
+                    .contextMenu { LocationMenu(model: model) }
                     .focusable()
                     .focusEffectDisabled()
                     .focused($isCanvasFocused)
@@ -93,12 +126,15 @@ struct BrowseView: View {
                     // the old ones would answer the next arrow key wrongly.
                     .onChange(of: model.viewMode) { itemFrames.removeAll() }
                     .onChange(of: model.itemScale) { itemFrames.removeAll() }
+                    .onChange(of: model.masonryCaptionDisplay) { itemFrames.removeAll() }
                     .onChange(of: model.contents) {
                         itemFrames.keep(Set(model.canvasOrder))
                     }
                 }
             }
         }
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
+                   value: model.contents.isEmpty)
         .modifier(GalleryDropTarget(model: model))
     }
 
@@ -106,62 +142,87 @@ struct BrowseView: View {
     /// a masonry wall and a list is the layout and the card, and both of those
     /// are decided in `Gallery`.
     private var items: some View {
-        GalleryLayout(mode: model.viewMode, scale: model.itemScale) {
-            ForEach(model.canvasItems) { item in
-                switch item {
-                case .folder(let folder):
-                    let isCursor = model.cursor == .folder(folder.id)
-                    FolderItemView(folder: folder, mode: model.viewMode,
-                                   peeks: model.folderPeeks[folder.id] ?? [],
-                                   isCursor: isCursor, scale: model.itemScale) {
-                        model.scope = .folder(folder.id)
-                    }
-                    .draggable(FolderTransfer(id: folder.id))
-                    .modifier(FolderDropTarget(model: model, folder: folder))
-                    .galleryItem(CanvasItemID.folder(folder.id),
-                                 isCursor: isCursor,
-                                 mode: model.viewMode,
-                                 radius: model.viewMode.folderCornerRadius,
-                                 in: canvasCoordinateSpace,
-                                 frames: itemFrames)
-                case .object(let object):
-                    let isSelected = model.selection.contains(object.id)
-                    let isCursor = model.cursor == .object(object.id)
-                    ObjectItemView(object: object, mode: model.viewMode,
-                                   isSelected: isSelected, isCursor: isCursor,
-                                   scale: model.itemScale)
-                    .modifier(ObjectItemBehavior(
-                        model: model,
-                        object: object,
-                        isSelected: isSelected,
-                        select: { model.select(object.id, modifiers: $0) },
-                        open: { model.openObject(object) }
-                    ))
-                    .galleryItem(CanvasItemID.object(object.id),
-                                 isCursor: isCursor,
-                                 mode: model.viewMode,
-                                 radius: model.viewMode.itemCornerRadius,
-                                 in: canvasCoordinateSpace,
-                                 frames: itemFrames)
-                }
-            }
+        VStack(spacing: 0) {
+            canvasGrid
+            CloudSyncStatusView(model: model)
         }
         .padding(model.viewMode.contentInsets)
+        .animation(reduceMotion ? nil : NookMotion.reflow,
+                   value: model.reflowRevision)
     }
 
-    /// Hidden with nobody authenticated: reached by Back, or by a prompt the
-    /// user answered with no. It says what is behind it and asks again, rather
-    /// than showing an empty place that looks like nothing is hidden.
-    private var hiddenDoor: some View {
-        ContentUnavailableView {
-            Label("Hidden", systemImage: "eye.slash")
-        } description: {
-            Text("Authenticate to see the items and folders you've hidden.")
-        } actions: {
-            Button("Show Hidden Items") {
-                Task { await model.openHidden() }
-            }
+    private var canvasGrid: some View {
+        GalleryLayout(mode: model.viewMode,
+                      scale: model.itemScale,
+                      masonryCaptionDisplay: model.masonryCaptionDisplay) {
+            ForEach(model.canvasItems) { item in canvasItem(item) }
         }
+    }
+
+    @ViewBuilder
+    private func canvasItem(_ item: CanvasItem) -> some View {
+        switch item {
+        case .folder(let folder):
+            let isSelected = model.cursor == .folder(folder.id)
+            let isCursor = isSelected
+            FolderItemView(folder: folder, mode: model.viewMode,
+                           peeks: model.folderPeeks[folder.id] ?? [],
+                           isSelected: isSelected, isCursor: isCursor,
+                           scale: model.itemScale,
+                           masonryCaptionDisplay: model.masonryCaptionDisplay,
+                           select: { model.selectFolder(folder.id, modifiers: $0) }) {
+                model.navigate(to: .scope(.folder(folder.id)))
+            }
+            .contextMenu {
+                FolderMenu(model: model, folder: folder) {
+                    model.navigate(to: .scope(.folder(folder.id)))
+                }
+            }
+            .draggable(FolderTransfer(id: folder.id))
+            .modifier(FolderDropTarget(model: model, folder: folder))
+            .galleryItem(CanvasItemID.folder(folder.id),
+                         isCursor: isCursor,
+                         mode: model.viewMode,
+                         radius: model.viewMode.itemCornerRadius,
+                         in: canvasCoordinateSpace,
+                         frames: itemFrames)
+            .plopIn(trigger: arrivalTrigger(for: folder.id),
+                    order: arrivalOrder(for: folder.id))
+            .transition(itemTransition)
+        case .object(let object):
+            let isSelected = model.selection.contains(object.id)
+            let isCursor = model.cursor == .object(object.id)
+            ObjectItemView(object: object, mode: model.viewMode,
+                           isSelected: isSelected, isCursor: isCursor,
+                           scale: model.itemScale,
+                           masonryCaptionDisplay: model.masonryCaptionDisplay,
+                           showsMasonryTypeLabels: model.showsMasonryTypeLabels)
+            .modifier(ObjectItemBehavior(
+                model: model,
+                object: object,
+                isSelected: isSelected,
+                select: { model.select(object.id, modifiers: $0) },
+                open: { model.openObject(object) }
+            ))
+            .galleryItem(CanvasItemID.object(object.id),
+                         isCursor: isCursor,
+                         mode: model.viewMode,
+                         radius: model.viewMode.itemCornerRadius,
+                         in: canvasCoordinateSpace,
+                         frames: itemFrames)
+            .plopIn(trigger: arrivalTrigger(for: object.id),
+                    order: arrivalOrder(for: object.id))
+            .transition(itemTransition)
+        }
+    }
+
+    private var itemTransition: AnyTransition {
+        let removal = AnyTransition.scale(scale: 0.88).combined(with: .opacity)
+        return .asymmetric(
+            insertion: .identity,
+            removal: .motionAware(removal, reduceMotion: reduceMotion)
+        )
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
     }
 
     /// A locked place is a door before it is a location, so it is drawn as
@@ -187,13 +248,37 @@ struct BrowseView: View {
         } actions: {
             if !model.searchText.isEmpty {
                 Button("Clear Search") { model.searchText = "" }
-            } else if model.scope != .recentlyDeleted, model.scope != .hidden {
+            } else if model.isShowingHome {
+                Button("Import Files…") { model.isImporterPresented = true }
+            } else if model.scope != .recentlyDeleted {
                 Button("Import Files…") { model.isImporterPresented = true }
             }
         }
     }
 
     // MARK: Actions
+
+    private func arrivalTrigger(for id: ObjectID) -> Int? {
+        guard let arrival = model.arrival, arrival.destination == model.destination,
+              arrival.objectOrder(id) != nil else { return nil }
+        return arrival.revision
+    }
+
+    private func arrivalOrder(for id: ObjectID) -> Int {
+        guard let arrival = model.arrival, arrival.destination == model.destination else { return 0 }
+        return arrival.objectOrder(id) ?? 0
+    }
+
+    private func arrivalTrigger(for id: FolderID) -> Int? {
+        guard let arrival = model.arrival, arrival.destination == model.destination,
+              arrival.folderOrder(id) != nil else { return nil }
+        return arrival.revision
+    }
+
+    private func arrivalOrder(for id: FolderID) -> Int {
+        guard let arrival = model.arrival, arrival.destination == model.destination else { return 0 }
+        return arrival.folderOrder(id) ?? 0
+    }
 
     /// Puts the keyboard where the model says it belongs.
     private func syncFocus() {
@@ -203,7 +288,8 @@ struct BrowseView: View {
     // MARK: Copy
 
     private var title: String {
-        switch model.scope {
+        if model.isShowingHome { return "All" }
+        return switch model.scope {
         case .folder: model.breadcrumbs.last?.name ?? "Folder"
         case .collection(let id): model.collections.first { $0.id == id }?.name ?? "Collection"
         case .tag(let id): model.tags.first { $0.id == id }?.name ?? "Tag"
@@ -211,8 +297,87 @@ struct BrowseView: View {
         }
     }
 
+    private var navigationTitle: String {
+        model.previewedObject?.title ?? (model.isShowingHome ? "All" : title)
+    }
+
+    private var navigationSubtitle: String {
+        if let object = model.previewedObject {
+            return metadataParts(for: object, includesKind: true).joined(separator: " · ")
+        }
+
+        let itemCount = model.contents.objects.count
+        let folderCount = model.contents.folders.count
+        var parts: [String]
+
+        if model.searchText.isEmpty {
+            parts = [inflectedString("^[\(itemCount) item](inflect: true)")]
+            if folderCount > 0 {
+                parts.append(inflectedString("^[\(folderCount) folder](inflect: true)"))
+            }
+        } else {
+            let resultCount = itemCount + folderCount
+            parts = [inflectedString("^[\(resultCount) result](inflect: true)")]
+        }
+
+        let selectedObjects = model.contents.objects.filter { model.selection.contains($0.id) }
+        if !model.selection.isEmpty {
+            parts.append(inflectedString("^[\(model.selection.count) item](inflect: true) selected"))
+        }
+
+        if selectedObjects.count == 1, let object = selectedObjects.first {
+            parts.append(contentsOf: metadataParts(for: object, includesKind: false))
+        } else if selectedObjects.count > 1 {
+            let sizes = selectedObjects.compactMap(\.byteSize)
+            if sizes.count == selectedObjects.count,
+               let totalSize = Format.bytes(sizes.reduce(0, +)) {
+                parts.append(totalSize)
+            }
+        }
+
+        return parts.joined(separator: " · ")
+    }
+
+    private func metadataParts(for object: ObjectSnapshot, includesKind: Bool) -> [String] {
+        var parts: [String] = includesKind ? [object.kind.displayName] : []
+
+        if let fileExtension = fileExtension(for: object),
+           !parts.contains(where: { $0.caseInsensitiveCompare(fileExtension) == .orderedSame }) {
+            parts.append(fileExtension)
+        } else if parts.isEmpty {
+            parts.append(object.kind.displayName)
+        }
+
+        if let size = Format.bytes(object.byteSize) { parts.append(size) }
+        if let dimensions = Format.dimensions(object) { parts.append(dimensions) }
+        if let duration = Format.duration(object.duration) { parts.append(duration) }
+        if let pageCount = object.pageCount {
+            parts.append(inflectedString("^[\(pageCount) page](inflect: true)"))
+        }
+        if object.kind == .link, let domain = object.sourceDomain { parts.append(domain) }
+
+        return parts
+    }
+
+    private func inflectedString(_ resource: LocalizedStringResource) -> String {
+        let localized = AttributedString(localized: resource)
+        return String(localized.inflected().characters)
+    }
+
+    private func fileExtension(for object: ObjectSnapshot) -> String? {
+        if let filename = object.originalFilename {
+            let fileExtension = URL(fileURLWithPath: filename).pathExtension
+            if !fileExtension.isEmpty { return fileExtension.uppercased() }
+        }
+        return object.contentTypeIdentifier
+            .flatMap(UTType.init)
+            .flatMap(\.preferredFilenameExtension)?
+            .uppercased()
+    }
+
     private var searchPrompt: String {
-        switch model.scope {
+        if model.isShowingHome { return "Search your library" }
+        return switch model.scope {
         case .allObjects: "Search your library"
         default: "Search in \(title)"
         }
@@ -220,11 +385,11 @@ struct BrowseView: View {
 
     private var emptyTitle: String {
         if !model.searchText.isEmpty { return "No Results" }
+        if model.isShowingHome { return "Your Library Is Empty" }
         switch model.scope {
         case .inbox: return "Inbox Zero"
         case .favorites: return "No Favorites"
         case .recentlyDeleted: return "Nothing Deleted"
-        case .hidden: return "Nothing Hidden"
         case .collection: return "Empty Collection"
         default: return "Nothing Here Yet"
         }
@@ -232,11 +397,11 @@ struct BrowseView: View {
 
     private var emptySymbol: String {
         if !model.searchText.isEmpty { return "magnifyingglass" }
+        if model.isShowingHome { return "tray" }
         switch model.scope {
         case .inbox: return "tray"
         case .favorites: return "star"
         case .recentlyDeleted: return "trash"
-        case .hidden: return "eye.slash"
         case .collection: return "rectangle.stack"
         default: return "square.grid.2x2"
         }
@@ -246,11 +411,13 @@ struct BrowseView: View {
         if !model.searchText.isEmpty {
             return "No items in \(title) match “\(model.searchText)”."
         }
+        if model.isShowingHome {
+            return "Drag files in, import them, or share something to Nook."
+        }
         switch model.scope {
         case .inbox: return "Anything you import without choosing a folder waits here."
         case .favorites: return "Items you favorite show up here."
         case .recentlyDeleted: return "Deleted items stay here for 30 days before they're removed."
-        case .hidden: return "Items and folders you hide are kept here, and stay out of every other view. Unhiding one puts it back where it came from."
         case .collection: return "Drag items here, or use Add to Collection, to gather them without moving them."
         default: return "Drag files in, or import them, to get started."
         }
@@ -264,7 +431,8 @@ private struct CanvasObjectDropTarget: ViewModifier {
     let model: LibraryModel
 
     private var destination: FolderID? {
-        switch model.scope {
+        if model.isShowingHome { return nil }
+        return switch model.scope {
         case .inbox: nil
         case .folder(let id): id
         default: nil
@@ -369,4 +537,13 @@ enum OpenExternally {
 import AppKit
 #elseif canImport(UIKit)
 import UIKit
+#endif
+
+#if DEBUG
+#Preview {
+    PreviewHost { model in
+        BrowseView(model: model)
+    }
+    .frame(minWidth: 600, minHeight: 500)
+}
 #endif

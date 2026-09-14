@@ -6,11 +6,18 @@ public extension LibraryService {
     // MARK: Folders
 
     @discardableResult
-    func createFolder(named name: String, in parent: FolderID? = nil) throws -> FolderSnapshot {
+    func createFolder(
+        named name: String,
+        in parent: FolderID? = nil,
+        appearance: EntityAppearance = .system
+    ) throws -> FolderSnapshot {
         let parentFolder = parent.flatMap { folder(withIdentifier: $0.uuid) }
         if let parent, parentFolder == nil { throw LibraryError.folderNotFound(parent) }
 
         let created = Folder(name: sanitized(name, fallback: "Untitled Folder"), parent: parentFolder)
+        created.colorHex = appearance.colorHex
+        created.symbolName = appearance.symbolName
+        created.emoji = appearance.emoji
         context.insert(created)
         try didMutate()
         return snapshot(created, access: .standard)!
@@ -24,6 +31,15 @@ public extension LibraryService {
 
     func setAppearance(_ appearance: EntityAppearance, forFolder id: FolderID) throws {
         guard let folder = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
+        folder.colorHex = appearance.colorHex
+        folder.symbolName = appearance.symbolName
+        folder.emoji = appearance.emoji
+        try didMutate()
+    }
+
+    func updateFolder(_ id: FolderID, name: String, appearance: EntityAppearance) throws {
+        guard let folder = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
+        folder.name = sanitized(name, fallback: folder.name)
         folder.colorHex = appearance.colorHex
         folder.symbolName = appearance.symbolName
         folder.emoji = appearance.emoji
@@ -244,6 +260,18 @@ public extension LibraryService {
         return snapshot(resolved, access: .standard)
     }
 
+    /// Creates a standalone tag, or resolves an existing tag with the same
+    /// normalized name, and applies the appearance staged in the editor.
+    @discardableResult
+    func createTag(named name: String, appearance: EntityAppearance = .system) throws -> TagSnapshot {
+        let resolved = try resolveTag(named: sanitized(name, fallback: "Untitled Tag"))
+        resolved.colorHex = appearance.colorHex
+        resolved.symbolName = appearance.symbolName
+        resolved.emoji = appearance.emoji
+        try didMutate()
+        return snapshot(resolved, access: .standard)
+    }
+
     func addTag(named name: String, to ids: [ObjectID]) throws {
         let resolved = try resolveTag(named: name)
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
@@ -277,6 +305,15 @@ public extension LibraryService {
         try didMutate()
     }
 
+    func updateTag(_ id: TagID, name: String, appearance: EntityAppearance) throws {
+        guard let target = tag(withIdentifier: id.uuid) else { throw LibraryError.tagNotFound(id) }
+        target.name = sanitized(name, fallback: target.name)
+        target.colorHex = appearance.colorHex
+        target.symbolName = appearance.symbolName
+        target.emoji = appearance.emoji
+        try didMutate()
+    }
+
     func deleteTag(_ id: TagID) throws {
         guard let target = tag(withIdentifier: id.uuid) else { throw LibraryError.tagNotFound(id) }
         context.delete(target)
@@ -286,8 +323,14 @@ public extension LibraryService {
     // MARK: Collections
 
     @discardableResult
-    func createCollection(named name: String) throws -> CollectionSnapshot {
+    func createCollection(
+        named name: String,
+        appearance: EntityAppearance = .system
+    ) throws -> CollectionSnapshot {
         let created = LibraryCollection(name: sanitized(name, fallback: "Untitled Collection"))
+        created.colorHex = appearance.colorHex
+        created.symbolName = appearance.symbolName
+        created.emoji = appearance.emoji
         context.insert(created)
         try didMutate()
         return snapshot(created, access: .standard)!
@@ -343,25 +386,6 @@ public extension LibraryService {
         try didMutate()
     }
 
-    /// Rewrites a collection's manual order to the given sequence. Objects not
-    /// listed keep their relative order after the ones that are.
-    func reorderCollection(_ id: CollectionID, objectOrder: [ObjectID]) throws {
-        guard let target = collection(withIdentifier: id.uuid) else {
-            throw LibraryError.collectionNotFound(id)
-        }
-        let position = Dictionary(uniqueKeysWithValues: objectOrder.enumerated().map { ($1.uuid, $0) })
-        let memberships = target.orderedMemberships
-        let reordered = memberships.enumerated().sorted { left, right in
-            let leftKey = left.element.object.flatMap { position[$0.identifier] } ?? (objectOrder.count + left.offset)
-            let rightKey = right.element.object.flatMap { position[$0.identifier] } ?? (objectOrder.count + right.offset)
-            return leftKey < rightKey
-        }
-        for (index, entry) in reordered.enumerated() {
-            entry.element.sortIndex = index
-        }
-        try didMutate()
-    }
-
     /// Collection privacy protects this surface only. The member objects keep
     /// whatever privacy their folder ancestry gives them.
     func setPrivacy(_ flags: PrivacyFlags, forCollection id: CollectionID) throws {
@@ -393,6 +417,17 @@ public extension LibraryService {
         guard let target = collection(withIdentifier: id.uuid) else {
             throw LibraryError.collectionNotFound(id)
         }
+        target.colorHex = appearance.colorHex
+        target.symbolName = appearance.symbolName
+        target.emoji = appearance.emoji
+        try didMutate()
+    }
+
+    func updateCollection(_ id: CollectionID, name: String, appearance: EntityAppearance) throws {
+        guard let target = collection(withIdentifier: id.uuid) else {
+            throw LibraryError.collectionNotFound(id)
+        }
+        target.name = sanitized(name, fallback: target.name)
         target.colorHex = appearance.colorHex
         target.symbolName = appearance.symbolName
         target.emoji = appearance.emoji
