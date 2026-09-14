@@ -341,12 +341,19 @@ private struct AppearancePicker: View {
     private var customColorPicker: some View {
         let isPreset = Self.palette.contains { $0.hex == appearance.colorHex }
         let selected = appearance.colorHex != nil && !isPreset
-        return ColorPicker("Custom Color", selection: $customColor, supportsOpacity: false)
-            .labelsHidden()
-            .frame(width: 36, height: 36)
-            .scaleEffect(reduceMotion || !selected ? 1 : 1.08)
-            .motionAware(NookMotion.interaction, value: selected)
-            .accessibilityAddTraits(selected ? .isSelected : [])
+        return Group {
+            #if os(macOS)
+            MinimalColorWell(color: $customColor)
+            #else
+            ColorPicker("Custom Color", selection: $customColor, supportsOpacity: false)
+                .labelsHidden()
+            #endif
+        }
+        .frame(width: 36, height: 36)
+        .scaleEffect(reduceMotion || !selected ? 1 : 1.08)
+        .motionAware(NookMotion.interaction, value: selected)
+        .accessibilityLabel("Custom Color")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var searchField: some View {
@@ -572,6 +579,48 @@ private enum AppearanceIconCatalog {
     }
 }
 
+#if os(macOS)
+/// Wraps `NSColorWell` in its `.minimal` style — a plain swatch with no
+/// disclosure chevron or fused popover button. SwiftUI's `ColorPicker` has no
+/// way to opt out of AppKit's `.expanded` default (the pill shape), so this
+/// drops down to AppKit to get the plain well back.
+private struct MinimalColorWell: NSViewRepresentable {
+    @Binding var color: Color
+
+    func makeNSView(context: Context) -> NSColorWell {
+        let well = NSColorWell()
+        well.colorWellStyle = .minimal
+        well.color = NSColor(color)
+        well.target = context.coordinator
+        well.action = #selector(Coordinator.colorChanged(_:))
+        return well
+    }
+
+    func updateNSView(_ well: NSColorWell, context: Context) {
+        let nsColor = NSColor(color)
+        if well.color != nsColor {
+            well.color = nsColor
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(color: $color)
+    }
+
+    final class Coordinator: NSObject {
+        let color: Binding<Color>
+
+        init(color: Binding<Color>) {
+            self.color = color
+        }
+
+        @MainActor @objc func colorChanged(_ sender: NSColorWell) {
+            color.wrappedValue = Color(sender.color)
+        }
+    }
+}
+#endif
+
 private extension Color {
     var hexRGB: String? {
         #if os(macOS)
@@ -597,3 +646,12 @@ private extension Color {
         )
     }
 }
+
+#if DEBUG
+#Preview {
+    PreviewHost { model in
+        AppearanceEditor(target: .newFolder(parent: nil)) { _, _ in }
+            .environment(model)
+    }
+}
+#endif
