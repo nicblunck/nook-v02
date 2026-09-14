@@ -13,15 +13,11 @@ import NookLibrary
 // MARK: Metrics
 
 extension LibraryViewMode {
-    /// The inset a gallery's contents sit in.
-    ///
-    /// The list is tighter because its rows carry their own padding and read
-    /// as one column, where the two grids read as items on a field.
+    /// The inset a gallery's contents sit in — the same in every view mode,
+    /// so anything anchored to the canvas edge (the Folders First shelf) sits
+    /// the same distance in regardless of which arrangement is showing.
     var contentInsets: EdgeInsets {
-        switch self {
-        case .grid, .masonry: EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20)
-        case .list: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
-        }
+        EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20)
     }
 
     /// Whether the cursor is drawn as a ring around the item.
@@ -67,6 +63,12 @@ struct GalleryLayout<Content: View>: View {
     /// each layout's natural size.
     var scale: Double = 1
     var masonryCaptionDisplay: MasonryCaptionDisplay = .automatic
+    /// Replaces the grid's own adaptive column resolution with an exact
+    /// count and width, computed by the caller from a measured width. Lets
+    /// something drawn outside the grid — the Folders First shelf — line up
+    /// with these columns instead of guessing at what the grid would have
+    /// chosen on its own.
+    var fixedColumns: GalleryMetrics.Columns? = nil
     @ViewBuilder let content: Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -75,10 +77,7 @@ struct GalleryLayout<Content: View>: View {
         Group {
             switch mode {
             case .grid:
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: cellWidth.lowerBound,
-                                                       maximum: cellWidth.upperBound),
-                                             spacing: 8)],
-                          spacing: 14 * min(scale, 1.6)) {
+                LazyVGrid(columns: gridColumns, spacing: 14 * min(scale, 1.6)) {
                     content
                 }
             case .masonry:
@@ -96,11 +95,49 @@ struct GalleryLayout<Content: View>: View {
         .animation(reduceMotion ? nil : NookMotion.reflow, value: mode)
     }
 
+    private var gridColumns: [GridItem] {
+        if let fixedColumns {
+            return Array(repeating: GridItem(.fixed(fixedColumns.width), spacing: GalleryMetrics.columnSpacing),
+                         count: fixedColumns.count)
+        }
+        let range = GalleryMetrics.cellWidthRange(scale: scale)
+        return [GridItem(.adaptive(minimum: range.lowerBound, maximum: range.upperBound),
+                         spacing: GalleryMetrics.columnSpacing)]
+    }
+}
+
+/// The grid's own cell sizing, pulled out from `GalleryLayout` so something
+/// laid out beside it — the Folders First shelf — can measure a width and
+/// resolve the same columns instead of drifting from whatever the grid
+/// actually rendered.
+enum GalleryMetrics {
+    static let columnSpacing: CGFloat = 8
+
+    struct Columns: Equatable {
+        let count: Int
+        let width: CGFloat
+    }
+
     /// The cell holds the icon and two lines of name, and keeps room for the
     /// name even where the icons themselves have been made small.
-    private var cellWidth: ClosedRange<CGFloat> {
+    static func cellWidthRange(scale: Double) -> ClosedRange<CGFloat> {
         let width = 96 * scale
         return max(84, width)...max(112, width * 1.3)
+    }
+
+    /// What the grid's own `.adaptive` column would resolve to at this
+    /// width: as many columns as fit at the minimum cell width, stretched
+    /// no further than the maximum.
+    static func resolvedColumns(for availableWidth: CGFloat, scale: Double) -> Columns? {
+        guard availableWidth > 0 else { return nil }
+        let range = cellWidthRange(scale: scale)
+        var count = max(1, Int(((availableWidth + columnSpacing) / (range.lowerBound + columnSpacing)).rounded(.down)))
+        var width = (availableWidth - CGFloat(count - 1) * columnSpacing) / CGFloat(count)
+        while width > range.upperBound {
+            count += 1
+            width = (availableWidth - CGFloat(count - 1) * columnSpacing) / CGFloat(count)
+        }
+        return Columns(count: count, width: width)
     }
 }
 
