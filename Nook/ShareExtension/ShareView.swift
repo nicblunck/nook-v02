@@ -72,12 +72,12 @@ struct ShareView: View {
         HStack {
             Button(action: onCancel) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .background(.quaternary, in: .circle)
+                    .frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
             .keyboardShortcut(.cancelAction)
             .accessibilityLabel("Cancel")
 
@@ -90,12 +90,12 @@ struct ShareView: View {
 
             Button { Task { await save() } } label: {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.blue, in: .circle)
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glassProminent)
+            .buttonBorderShape(.circle)
+            .tint(Color.blue)
             .keyboardShortcut(.defaultAction)
             .disabled(state == .saving || items.isEmpty)
             .opacity(items.isEmpty ? 0.4 : 1)
