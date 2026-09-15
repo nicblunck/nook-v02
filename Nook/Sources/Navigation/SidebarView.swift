@@ -247,14 +247,16 @@ struct SidebarView: View {
             Label {
                 HStack {
                     Text(folder.name)
-                    privacyBadges(isHidden: folder.isHidden, isLocked: folder.isLocked)
+                    privacyBadges(isHidden: folder.isHidden, isLocked: folder.isLocked,
+                                 isLockOpen: folder.isLocked && folder.visibility == .full)
                 }
             } icon: {
                 EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(folder.name)
-            .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.isLocked)
+            .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.isLocked,
+                                              isLockOpen: folder.isLocked && folder.visibility == .full)
                 .joined(separator: ", "))
         }
         .modifier(SidebarFolderDragSource(folderID: folder.id))
@@ -367,19 +369,20 @@ struct SidebarView: View {
     /// tertiary on purpose: they say what state a place is in, never anything
     /// about what it holds.
     @ViewBuilder
-    private func privacyBadges(isHidden: Bool, isLocked: Bool = false) -> some View {
+    private func privacyBadges(isHidden: Bool, isLocked: Bool = false, isLockOpen: Bool = false) -> some View {
         if isHidden {
             Image(systemName: "eye.slash").font(.caption2).foregroundStyle(.tertiary)
         }
         if isLocked {
-            Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.tertiary)
+            Image(systemName: isLockOpen ? "lock.open.fill" : "lock.fill")
+                .font(.caption2).foregroundStyle(.tertiary)
         }
     }
 
-    private func spokenPrivacy(isHidden: Bool, isLocked: Bool = false) -> [String] {
+    private func spokenPrivacy(isHidden: Bool, isLocked: Bool = false, isLockOpen: Bool = false) -> [String] {
         var parts: [String] = []
         if isHidden { parts.append("Hidden") }
-        if isLocked { parts.append("Locked") }
+        if isLocked { parts.append(isLockOpen ? "Unlocked" : "Locked") }
         return parts
     }
 

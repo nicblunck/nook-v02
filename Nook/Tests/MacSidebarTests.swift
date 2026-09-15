@@ -235,6 +235,32 @@ struct MacSidebarTests {
         #expect(!sidebar.press(125))
     }
 
+    @Test("A locked folder's badge opens when authenticated, and closes again on leaving")
+    func lockedFolderBadgeTracksAuthentication() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.createFolder(named: "Secrets", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.setLocked(true, forFolder: folder)
+
+        let sidebar = try await HostedSidebar(model: model)
+        await sidebar.settle()
+        let id = SidebarItem.ID.destination(.scope(.folder(folder.id)))
+        #expect(sidebar.item(id)?.row.isLocked == true)
+        #expect(sidebar.item(id)?.row.isLockOpen == false)
+
+        await model.openFolder(folder.id)
+        await sidebar.settle()
+        #expect(sidebar.item(id)?.row.isLocked == true)
+        #expect(sidebar.item(id)?.row.isLockOpen == true)
+
+        model.navigate(to: .scope(.inbox))
+        await model.loadPreferences()
+        await sidebar.settle()
+        #expect(sidebar.item(id)?.row.isLockOpen == false)
+    }
+
     @Test("A folder's menu offers what its context menu did")
     func folderMenu() async throws {
         let harness = try await TestModel()
