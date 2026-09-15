@@ -18,6 +18,9 @@ public struct ObjectDigest: Codable, Sendable, Hashable {
     public let byteSize: Int64?
     public let sourceURL: String?
     /// True when the item is locked and only its outline is being shown.
+    /// Objects can no longer be locked in their own right, so in practice
+    /// this is always false — an object buried in a locked folder is
+    /// excluded from results entirely rather than surfacing here redacted.
     public let isRedacted: Bool
 
     init(_ snapshot: ObjectSnapshot) {

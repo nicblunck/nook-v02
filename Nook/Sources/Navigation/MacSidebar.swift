@@ -474,7 +474,6 @@ extension MacSidebar {
                 icon: icon(for: collection.appearance, fallback: "rectangle.stack"),
                 count: collection.memberCount > 0 ? collection.memberCount : nil,
                 isHidden: collection.isHidden,
-                isLocked: collection.isLocked,
                 destination: destination,
                 // A drop here adds a membership. Nothing moves.
                 dropTarget: .collection(collection.id),
@@ -564,7 +563,13 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
               let item = outline.item(atRow: outline.selectedRow) as? SidebarItem,
               let destination = item.row.destination
         else { return }
-        model.navigate(to: destination)
+        // A locked folder authenticates before the canvas lands on it, rather
+        // than navigating straight to the door.
+        if case .scope(.folder(let id)) = destination {
+            Task { await model.openFolder(id) }
+        } else {
+            model.navigate(to: destination)
+        }
     }
 
     func outlineViewItemDidExpand(_ notification: Notification) {
@@ -670,12 +675,11 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                                                   appearance: collection.appearance))
             }
             menu.addItem(.separator())
-            // A hidden or locked collection conceals the collection itself.
-            // What it gathers stays exactly as reachable as it was: the true
-            // folder hierarchy is where storage privacy lives.
-            addPrivacyItems(to: menu, for: collection,
-                            hide: { [model] in await model.setHidden($0, forCollection: collection) },
-                            lock: { [model] in await model.setLocked($0, forCollection: collection) })
+            // A hidden collection conceals the collection itself. What it
+            // gathers stays exactly as reachable as it was: the true folder
+            // hierarchy is where storage privacy — including locking — lives.
+            addHideItem(to: menu, for: collection,
+                       hide: { [model] in await model.setHidden($0, forCollection: collection) })
             menu.addItem(.separator())
             menu.add("Delete Collection") { [model] in Task { await model.deleteCollection(collection.id) } }
         case .tag(let tag):
@@ -697,10 +701,18 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                                  for item: some PrivacyBearing,
                                  hide: @escaping (Bool) async -> Void,
                                  lock: @escaping (Bool) async -> Void) {
-        let hidden = item.isExplicitlyHidden
-        menu.add(hidden ? "Unhide" : "Hide") { Task { await hide(!hidden) } }
+        addHideItem(to: menu, for: item, hide: hide)
         let locked = item.isExplicitlyLocked
         menu.add(locked ? "Unlock" : "Lock") { Task { await lock(!locked) } }
+    }
+
+    /// Hide alone, for entities — collections — that can be hidden but never
+    /// locked.
+    private func addHideItem(to menu: NSMenu,
+                             for item: some PrivacyBearing,
+                             hide: @escaping (Bool) async -> Void) {
+        let hidden = item.isExplicitlyHidden
+        menu.add(hidden ? "Unhide" : "Hide") { Task { await hide(!hidden) } }
     }
 }
 

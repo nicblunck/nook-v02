@@ -68,24 +68,18 @@ struct ObjectListRow: View {
 
     /// Privacy and Favorite ride along with the name rather than sitting in
     /// their own column, so they read as properties of the item, not as
-    /// another piece of metadata alongside kind, size, and date.
+    /// another piece of metadata alongside kind, size, and date. Objects
+    /// can't be locked in their own right, so there is no lock glyph here —
+    /// only a folder shows that.
     private var titleText: Text {
-        switch (object.isHidden, object.isLocked, object.isFavorite) {
-        case (true, true, true):
-            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "lock.fill")) \(Image(systemName: "star.fill"))")
-        case (true, true, false):
-            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "lock.fill"))")
-        case (true, false, true):
+        switch (object.isHidden, object.isFavorite) {
+        case (true, true):
             Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "star.fill"))")
-        case (true, false, false):
+        case (true, false):
             Text("\(object.title) \(Image(systemName: "eye.slash"))")
-        case (false, true, true):
-            Text("\(object.title) \(Image(systemName: "lock.fill")) \(Image(systemName: "star.fill"))")
-        case (false, true, false):
-            Text("\(object.title) \(Image(systemName: "lock.fill"))")
-        case (false, false, true):
+        case (false, true):
             Text("\(object.title) \(Image(systemName: "star.fill"))")
-        case (false, false, false):
+        case (false, false):
             Text(object.title)
         }
     }
@@ -105,7 +99,7 @@ struct FolderListRow: View {
 
             Text(folder.name).lineLimit(1)
             Spacer(minLength: 8)
-            Text(Format.itemCount(folder.objectCount))
+            Text(Format.caption(for: folder))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -119,15 +113,8 @@ struct FolderListRow: View {
         .motionAware(NookMotion.interaction, value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
-        .accessibilityValue(folderValue)
+        .accessibilityValue(Format.spokenCaption(for: folder))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    }
-
-    private var folderValue: String {
-        var parts = [Format.itemCount(folder.objectCount)]
-        if folder.isHidden { parts.append("Hidden") }
-        if folder.isLocked { parts.append("Locked") }
-        return parts.joined(separator: ", ")
     }
 }
 
@@ -363,21 +350,25 @@ private struct ObjectMasonryBadges: View {
     let showsTypeLabel: Bool
 
     var body: some View {
-        if showsTypeLabel || object.isHidden || object.isLocked || object.isFavorite {
+        if showsTypeLabel || object.isHidden || object.isFavorite {
             HStack(spacing: 4) {
-                if object.isHidden { badge("eye.slash") }
-                if object.isLocked { badge("lock.fill") }
-                if object.isFavorite { badge("star.fill") }
-                if showsTypeLabel { badge(object.kind.symbolName) }
+                if object.isHidden { GalleryBadge(symbolName: "eye.slash") }
+                if object.isFavorite { GalleryBadge(symbolName: "star.fill") }
+                if showsTypeLabel { GalleryBadge(symbolName: object.kind.symbolName) }
             }
             .padding(8)
         }
     }
+}
 
-    /// State and type symbols sit over the picture itself, so they remain
-    /// readable independently of the caption presentation.
-    private func badge(_ symbol: String) -> some View {
-        Image(systemName: symbol)
+/// A small circular glyph over a picture — used for state and type marks
+/// (hidden, favorite, file type, locked) so every one of them reads the same
+/// way, whether it sits over an object's thumbnail or a folder's icon.
+struct GalleryBadge: View {
+    let symbolName: String
+
+    var body: some View {
+        Image(systemName: symbolName)
             .font(.caption2.weight(.semibold))
             .padding(5)
             .background(.regularMaterial, in: .circle)
@@ -473,6 +464,13 @@ private struct FolderMasonryMedia: View {
                         .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             }
+            // Same corner, same glyph treatment as a hidden, favorite or
+            // typed object sitting beside it in the same wall of tiles.
+            .overlay(alignment: .topTrailing) {
+                if folder.isLocked {
+                    GalleryBadge(symbolName: "lock.fill").padding(8)
+                }
+            }
     }
 }
 
@@ -482,7 +480,7 @@ private struct FolderMasonryCaption: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            titleText
+            Text(folder.name)
                 .font(.callout)
                 .lineLimit(2)
                 .truncationMode(.tail)
@@ -495,13 +493,5 @@ private struct FolderMasonryCaption: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background { MasonryCaptionGlass(color: color) }
-    }
-
-    /// Locked rides along with the name in the caption bar, rather than
-    /// floating over the icon, the way it does on the object tile beside it.
-    private var titleText: Text {
-        folder.isLocked
-            ? Text("\(folder.name) \(Image(systemName: "lock.fill"))")
-            : Text(folder.name)
     }
 }

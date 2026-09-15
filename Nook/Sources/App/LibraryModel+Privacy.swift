@@ -103,50 +103,80 @@ extension LibraryModel {
 
     // MARK: Locks
 
-    /// Authenticates against whatever imposes an item's lock — which may be an
-    /// ancestor folder rather than the item itself, and releases that whole
-    /// branch when it is.
+    /// Authenticates against a locked folder and releases it — and everything
+    /// beneath it — for as long as the browsed location stays inside its
+    /// subtree. Leaving that subtree re-locks it; see `closeLockedFolders()`.
     ///
-    /// Returns true when the caller may go on to open the thing, including the
-    /// case where it was never locked to begin with.
+    /// Returns true when the caller may go on to open the folder, including
+    /// the case where it was never locked to begin with.
+    ///
+    /// `refreshing` defaults to true for a caller that is already sitting at
+    /// the location being unlocked — the refresh is what makes the now-full
+    /// contents actually appear. A caller about to navigate there, such as
+    /// `openFolder`, passes false: refreshing here would run while `scope`
+    /// still points at wherever the canvas was a moment ago, so
+    /// `closeLockedFolders()` would see the new unlock as not covering the
+    /// current place and revoke it immediately, before the navigation this
+    /// unlock exists for ever lands. The navigation that follows triggers its
+    /// own refresh once `scope` actually is the unlocked folder.
     @discardableResult
-    func unlock(_ item: some PrivacyBearing, named name: String) async -> Bool {
+    func unlock(_ item: some PrivacyBearing, named name: String, refreshing: Bool = true) async -> Bool {
         guard let source = item.lockedSource else { return true }
         guard !accessContext.unlockedEntities.contains(source.uuid) else { return true }
         guard await authenticate(reason: "Unlock “\(name)”.") else { return false }
         accessContext = accessContext.unlocking(source)
-        await refreshAll()
+        if refreshing { await refreshAll() }
         return true
     }
 
     /// Whether the location on screen is one the user has yet to authenticate.
+    /// Only folders can be locked doors; collections never are.
     var lockedLocation: (reference: LibraryReference, name: String)? {
         guard !isShowingHome else { return nil }
         switch scope {
         case .folder(let id), .folderTree(let id):
             guard let folder = breadcrumbs.last, folder.id == id, folder.visibility.isRedacted else { return nil }
             return (folder.reference, folder.name)
-        case .collection(let id):
-            guard let collection = collections.first(where: { $0.id == id }),
-                  collection.visibility.isRedacted
-            else { return nil }
-            return (collection.reference, collection.name)
         default:
             return nil
         }
     }
 
-    /// Opens the lock on the location currently being browsed.
+    /// Opens a folder — authenticating first when it is itself a locked door,
+    /// so the canvas lands straight on its contents rather than showing the
+    /// door and waiting for a separate Unlock click. Declining authentication
+    /// opens nothing; the browsed location stays exactly where it was.
+    func openFolder(_ id: FolderID) async {
+        if let folder = await library.service.folder(id, in: accessContext), folder.visibility.isRedacted {
+            guard await unlock(folder, named: folder.name, refreshing: false) else { return }
+        }
+        navigate(to: .scope(.folder(id)))
+    }
+
+    /// Opens the lock on the folder currently being browsed.
     func unlockCurrentLocation() async {
         switch scope {
         case .folder(let id), .folderTree(let id):
             guard let folder = breadcrumbs.last, folder.id == id else { return }
             await unlock(folder, named: folder.name)
-        case .collection(let id):
-            guard let collection = collections.first(where: { $0.id == id }) else { return }
-            await unlock(collection, named: collection.name)
         default:
             break
+        }
+    }
+
+    /// Re-locks any folder whose subtree the browsed location has left —
+    /// called on every navigation, the same choke point `closeHidden()` uses,
+    /// so leaving a locked folder always closes the door behind it. Standing
+    /// inside it, or inside a folder nested beneath it, keeps it open.
+    func closeLockedFolders() async {
+        guard !accessContext.unlockedEntities.isEmpty else { return }
+        let destination: LibraryScope? = isShowingHome ? nil : scope
+        let stillOpen = await library.service.unlockedFoldersInScope(destination, among: accessContext.unlockedEntities)
+        guard stillOpen != accessContext.unlockedEntities else { return }
+        accessContext.unlockedEntities = stillOpen
+        if let previewed = previewedObject, previewed.isLocked,
+           let source = previewed.lockedSource, !stillOpen.contains(source.uuid) {
+            previewedObjectID = nil
         }
     }
 
@@ -180,22 +210,6 @@ extension LibraryModel {
         }
         await perform(successToast: message, systemImage: isHidden ? "eye.slash.fill" : "eye.fill") {
             try await self.library.service.setHidden(isHidden, forObjects: ids)
-        }
-    }
-
-    func setLocked(_ isLocked: Bool, for objects: [ObjectSnapshot]) async {
-        let ids = objects.map(\.id)
-        guard !ids.isEmpty else { return }
-        guard await authenticate(reason: reason(isLocked ? "Lock" : "Unlock", count: ids.count)) else { return }
-        if isLocked, let previewed = previewedObjectID, ids.contains(previewed) { previewedObjectID = nil }
-        let message: LocalizedStringResource
-        if ids.count == 1 {
-            message = isLocked ? "Locked item" : "Unlocked item"
-        } else {
-            message = isLocked ? "Locked \(ids.count) items" : "Unlocked \(ids.count) items"
-        }
-        await perform(successToast: message, systemImage: isLocked ? "lock.fill" : "lock.open.fill") {
-            try await self.library.service.setLocked(isLocked, forObjects: ids)
         }
     }
 
@@ -236,21 +250,7 @@ extension LibraryModel {
         }
     }
 
-    func setLocked(_ isLocked: Bool, forCollection collection: CollectionSnapshot) async {
-        guard await authenticate(reason: "\(isLocked ? "Lock" : "Unlock") “\(collection.name)”.") else { return }
-        await perform(
-            successToast: isLocked ? "Locked collection" : "Unlocked collection",
-            systemImage: isLocked ? "lock.fill" : "lock.open.fill"
-        ) {
-            try await self.library.service.setLocked(isLocked, forCollection: collection.id)
-        }
-    }
-
     // MARK: Internals
-
-    private func reason(_ verb: String, count: Int) -> String {
-        count == 1 ? "\(verb) this item." : "\(verb) \(count) items."
-    }
 
     /// Asks the device owner. A cancelled prompt is an answer, not a fault, so
     /// only a real failure is worth an alert.

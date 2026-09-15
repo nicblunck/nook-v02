@@ -6,8 +6,8 @@ import NookLibrary
 ///
 /// Runs without opening the app and returns entities, so a shortcut can pass
 /// the results on to something else. It reads through the same query API the
-/// interface uses, under the standard access context — hidden content is not
-/// discoverable here, and a locked item comes back already redacted.
+/// interface uses, under the standard access context — hidden content, and
+/// anything inside a locked folder, is not discoverable here at all.
 struct SearchLibraryIntent: AppIntent {
     static let title: LocalizedStringResource = "Search Library"
     static let description = IntentDescription(

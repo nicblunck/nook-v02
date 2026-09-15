@@ -317,7 +317,13 @@ struct CompactLibraryList: View {
             await model.openHidden()
             return
         }
-        model.navigate(to: .scope(scope))
+        // A locked folder authenticates before the canvas lands on it, rather
+        // than navigating straight to the door.
+        if case .folder(let id) = scope {
+            await model.openFolder(id)
+        } else {
+            model.navigate(to: .scope(scope))
+        }
         await model.loadPreferences()
         await model.refreshContents()
     }

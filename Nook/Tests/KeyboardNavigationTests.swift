@@ -318,7 +318,7 @@ struct KeyboardNavigationTests {
         let model = harness.model
 
         model.cursor = .folder(drafts.id)
-        model.openCursorItem()
+        await model.openCursorItem()
         #expect(model.scope == .folder(drafts.id))
     }
 
@@ -330,7 +330,7 @@ struct KeyboardNavigationTests {
 
         model.moveCursor(.down)
         let id = try #require(model.cursor?.objectID)
-        model.openCursorItem()
+        await model.openCursorItem()
         #expect(model.previewedObjectID == id)
     }
 

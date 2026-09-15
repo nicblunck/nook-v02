@@ -40,19 +40,20 @@ struct DerivedContentTests {
         let harness = try await TestLibrary()
         defer { harness.cleanUp() }
 
+        let folder = try await harness.service.createFolder(named: "Finances")
         let source = try harness.makeSourceFile(named: "salary.txt", contents: "figures")
-        let report = await harness.service.importItems([.file(url: source)], into: .root)
+        let report = await harness.service.importItems([.file(url: source)], into: .folder(folder.id))
         let id = try #require(report.importedIDs.first)
         await harness.service.extractPendingText()
 
-        try await harness.service.setPrivacy(PrivacyFlags(isLocked: true), forObjects: [id])
+        try await harness.service.setPrivacy(PrivacyFlags(isLocked: true), forFolder: folder.id)
 
         await #expect(throws: LibraryError.self) {
             _ = try await harness.service.extractedText(for: id)
         }
 
-        // ...and comes back once the lock is authenticated.
-        let authenticated = AccessContext().unlocking(.object(id))
+        // ...and comes back once the locking folder is authenticated.
+        let authenticated = AccessContext().unlocking(.folder(folder.id))
         #expect(try await harness.service.extractedText(for: id, in: authenticated) == "figures")
     }
 

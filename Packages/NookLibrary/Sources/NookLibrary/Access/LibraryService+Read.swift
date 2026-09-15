@@ -233,6 +233,29 @@ extension LibraryService {
         revealsHiddenContent(scope) ? access : access.leavingHiddenContext()
     }
 
+    /// Which of the given unlocked folders still cover the given scope — i.e.
+    /// the scope is that folder itself, or a folder/folder-tree scope nested
+    /// under it.
+    ///
+    /// Unlike Hidden, whose authenticated state is a single global switch,
+    /// each unlocked folder only stays open while the browsed location is
+    /// inside its own subtree. A folder unlocked but no longer covering the
+    /// current scope has been left, and re-locks.
+    public func unlockedFoldersInScope(_ scope: LibraryScope?, among unlocked: Set<UUID>) -> Set<UUID> {
+        guard !unlocked.isEmpty, let scope else { return [] }
+        let folderID: FolderID?
+        switch scope {
+        case .folder(let id), .folderTree(let id):
+            folderID = id
+        default:
+            folderID = nil
+        }
+        guard let folderID, let folder = folder(withIdentifier: folderID.uuid) else { return [] }
+        var chain = Set(folder.ancestors.map(\.identifier))
+        chain.insert(folder.identifier)
+        return unlocked.intersection(chain)
+    }
+
     func hasHiddenAncestor(_ folder: Folder?) -> Bool {
         guard let folder else { return false }
         return PrivacyResolver.effectivePrivacy(of: folder).isHidden

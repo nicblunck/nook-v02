@@ -93,23 +93,17 @@ struct ObjectCard: View {
 
     /// Privacy and Favorite ride along with the name rather than the picture,
     /// so the icon itself never carries a mark of what the object is doing.
+    /// Objects can't be locked in their own right, so there is no lock glyph
+    /// here — only a folder shows that.
     private var titleText: Text {
-        switch (object.isHidden, object.isLocked, object.isFavorite) {
-        case (true, true, true):
-            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "lock.fill")) \(Image(systemName: "star.fill"))")
-        case (true, true, false):
-            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "lock.fill"))")
-        case (true, false, true):
+        switch (object.isHidden, object.isFavorite) {
+        case (true, true):
             Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "star.fill"))")
-        case (true, false, false):
+        case (true, false):
             Text("\(object.title) \(Image(systemName: "eye.slash"))")
-        case (false, true, true):
-            Text("\(object.title) \(Image(systemName: "lock.fill")) \(Image(systemName: "star.fill"))")
-        case (false, true, false):
-            Text("\(object.title) \(Image(systemName: "lock.fill"))")
-        case (false, false, true):
+        case (false, true):
             Text("\(object.title) \(Image(systemName: "star.fill"))")
-        case (false, false, false):
+        case (false, false):
             Text(object.title)
         }
     }

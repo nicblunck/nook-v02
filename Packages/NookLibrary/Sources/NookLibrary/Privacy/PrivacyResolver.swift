@@ -11,7 +11,10 @@ enum PrivacyResolver {
     static func effectivePrivacy(of object: LibraryObject) -> EffectivePrivacy {
         var flags = object.privacyFlags
         var hiddenSource: LibraryReference? = flags.isHidden ? object.reference : nil
-        var lockedSource: LibraryReference? = flags.isLocked ? object.reference : nil
+        // Objects can never carry their own lock — only an ancestor folder
+        // can lock an object, so `lockedSource` here can only ever be a
+        // folder found while walking up, never the object itself.
+        var lockedSource: LibraryReference?
 
         var current = object.folder
         var seen: Set<UUID> = []
@@ -28,7 +31,8 @@ enum PrivacyResolver {
             current = folder.parent
         }
 
-        return EffectivePrivacy(flags: flags, hiddenSource: hiddenSource, lockedSource: lockedSource)
+        return EffectivePrivacy(flags: flags, hiddenSource: hiddenSource, lockedSource: lockedSource,
+                                 isLockedAtSource: false)
     }
 
     static func effectivePrivacy(of folder: Folder) -> EffectivePrivacy {
@@ -47,17 +51,24 @@ enum PrivacyResolver {
             }
         }
 
-        return EffectivePrivacy(flags: flags, hiddenSource: hiddenSource, lockedSource: lockedSource)
+        // True only when the folder's own flag won the race above — i.e. no
+        // ancestor got there first. That is exactly "this folder is itself
+        // the locked door" rather than something buried behind one.
+        let isLockedAtSource = flags.isLocked && lockedSource == folder.reference
+        return EffectivePrivacy(flags: flags, hiddenSource: hiddenSource, lockedSource: lockedSource,
+                                 isLockedAtSource: isLockedAtSource)
     }
 
     /// A collection's own surface privacy. Its members keep whatever privacy
-    /// their folder ancestry gives them, independently of this.
+    /// their folder ancestry gives them, independently of this. Collections
+    /// cannot be locked, only hidden.
     static func surfacePrivacy(of collection: LibraryCollection) -> EffectivePrivacy {
         let flags = collection.privacyFlags
         return EffectivePrivacy(
             flags: flags,
             hiddenSource: flags.isHidden ? collection.reference : nil,
-            lockedSource: flags.isLocked ? collection.reference : nil
+            lockedSource: nil,
+            isLockedAtSource: false
         )
     }
 }

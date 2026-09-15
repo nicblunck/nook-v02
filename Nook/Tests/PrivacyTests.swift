@@ -136,9 +136,10 @@ struct PrivacyTests {
         #expect(model.contents.objects.isEmpty)
     }
 
-    /// A locked object stays on the canvas — it is the door the user has to
-    /// find — but arrives without its title, its metadata or its bytes.
-    @Test("Locking redacts an object where it stands, and unlocking gives it back")
+    /// Only a folder can be locked. Its contents are wholly absent from the
+    /// canvas until it is opened and authenticated — never merely redacted
+    /// the way the folder door itself is.
+    @Test("Locking a folder excludes its contents everywhere, and unlocking gives them back")
     func locksAndUnlocks() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
@@ -146,35 +147,81 @@ struct PrivacyTests {
         model.navigate(to: .scope(.inbox))
 
         let object = try #require(try await harness.importFile(named: "secret.txt"))
-        await model.setLocked(true, for: [object])
+        await model.createFolder(named: "Secrets", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.move([object.id], to: folder.id)
+        await model.setLocked(true, forFolder: folder)
 
-        let locked = try #require(model.contents.objects.first)
-        #expect(locked.visibility.isRedacted)
-        #expect(locked.title == ObjectSnapshot.lockedPlaceholderTitle)
-        #expect(locked.blob == nil)
-        #expect(model.localURL(for: locked) == nil)
+        // Absent from an unrelated scope entirely, not merely redacted there.
+        model.navigate(to: .scope(.allObjects))
+        await model.refreshContents()
+        #expect(model.contents.objects.isEmpty)
 
-        #expect(await model.unlock(locked, named: locked.title))
+        model.navigate(to: .scope(.folder(folder.id)))
+        await model.refreshContents()
+        #expect(model.contents.objects.isEmpty)
+        #expect(model.lockedLocation?.reference == folder.reference)
+
+        await model.unlockCurrentLocation()
+        #expect(model.lockedLocation == nil)
         let unlocked = try #require(model.contents.objects.first)
         #expect(unlocked.visibility == .full)
         #expect(unlocked.originalFilename == "secret.txt")
         #expect(model.localURL(for: unlocked) != nil)
     }
 
-    @Test("A refused unlock leaves the object redacted")
-    func refusedUnlockKeepsRedaction() async throws {
+    /// `openFolder` authenticates before navigating, from a scope that has
+    /// nothing to do with the folder being opened. Regression coverage for a
+    /// bug where authenticating there ran `unlock`'s default post-unlock
+    /// refresh while `scope` still pointed at the old place, which made
+    /// `closeLockedFolders()` see the brand-new unlock as not covering the
+    /// current location and revoke it immediately — so the folder opened
+    /// already re-locked despite a successful Face ID prompt.
+    @Test("Opening a locked folder from elsewhere leaves it unlocked once you land")
+    func openingALockedFolderDoesNotImmediatelyRelockIt() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
         model.navigate(to: .scope(.inbox))
 
         let object = try #require(try await harness.importFile(named: "secret.txt"))
-        await model.setLocked(true, for: [object])
+        await model.createFolder(named: "Secrets", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.move([object.id], to: folder.id)
+        await model.setLocked(true, forFolder: folder)
+
+        // Starting somewhere unrelated to the folder being opened is exactly
+        // what exposed the bug: `unlock`'s refresh ran under the wrong scope.
+        model.navigate(to: .scope(.allObjects))
+        await model.refreshContents()
+
+        await model.openFolder(folder.id)
+        await model.refreshContents()
+        #expect(model.scope == .folder(folder.id))
+        #expect(model.lockedLocation == nil)
+        let unlocked = try #require(model.contents.objects.first)
+        #expect(unlocked.visibility == .full)
+    }
+
+    @Test("A refused unlock leaves a locked folder's contents excluded")
+    func refusedUnlockKeepsFolderExcluded() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let object = try #require(try await harness.importFile(named: "secret.txt"))
+        await model.createFolder(named: "Secrets", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.move([object.id], to: folder.id)
+        await model.setLocked(true, forFolder: folder)
         harness.authenticator.outcome = .cancelled
 
-        let locked = try #require(model.contents.objects.first)
-        #expect(await model.unlock(locked, named: locked.title) == false)
-        #expect(try #require(model.contents.objects.first).visibility.isRedacted)
+        model.navigate(to: .scope(.folder(folder.id)))
+        await model.refreshContents()
+        await model.unlockCurrentLocation()
+        #expect(model.lockedLocation?.reference == folder.reference)
+        #expect(model.contents.objects.isEmpty)
     }
 
     @Test("A hidden folder moves into Hidden, and takes its contents with it")
@@ -252,29 +299,37 @@ struct PrivacyTests {
         #expect(model.contents.folders.isEmpty)
     }
 
-    @Test("Losing focus re-hides items without relocking unlocked content")
+    /// `rehideItems()` — what focus loss triggers — only ever narrows Hidden.
+    /// It never touches `unlockedEntities`, so a folder unlocked earlier and
+    /// still being browsed stays open across a focus loss; only navigating
+    /// away from its subtree re-locks it.
+    @Test("Losing focus re-hides Hidden without relocking a folder you're still browsing")
     func focusLossRehidesAndPreservesLocks() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
         model.navigate(to: .scope(.inbox))
 
-        let hiddenObject = try #require(try await harness.importFile(named: "hidden.txt"))
         let lockedObject = try #require(try await harness.importFile(named: "locked.txt"))
-        await model.setHidden(true, for: [hiddenObject])
-        await model.setLocked(true, for: [lockedObject])
-        let locked = try #require(model.contents.objects.first { $0.id == lockedObject.id })
-        #expect(await model.unlock(locked, named: locked.title))
+        await model.createFolder(named: "Secrets", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.move([lockedObject.id], to: folder.id)
+        await model.setLocked(true, forFolder: folder)
 
-        await model.openHidden()
-        #expect(model.contents.objects.contains { $0.id == hiddenObject.id })
+        model.navigate(to: .scope(.folder(folder.id)))
+        await model.refreshContents()
+        await model.unlockCurrentLocation()
+        #expect(try #require(model.contents.objects.first { $0.id == lockedObject.id }).visibility == .full)
+
+        // Enter Hidden's authenticated state directly, without navigating
+        // scope away from the folder — leaving its subtree is what re-locks
+        // it, and that is not what focus loss does.
+        model.accessContext = model.accessContext.enteringHiddenContext()
         await model.appDidLoseFocus()
         #expect(!model.isShowingHiddenContent)
+        #expect(model.scope == .folder(folder.id))
 
-        model.navigate(to: .scope(.inbox))
-        await model.loadPreferences()
         await model.refreshContents()
-        #expect(!model.contents.objects.contains { $0.id == hiddenObject.id })
         #expect(try #require(model.contents.objects.first { $0.id == lockedObject.id }).visibility == .full)
 
         model.settings.rehidesWhenAppLosesFocus = false
@@ -361,7 +416,7 @@ struct PrivacyTests {
         model.navigate(to: .scope(.folder(folder.id)))
         await model.refreshContents()
         #expect(model.lockedLocation?.reference == folder.reference)
-        #expect(try #require(model.contents.objects.first).visibility.isRedacted)
+        #expect(model.contents.objects.isEmpty)
 
         await model.unlockCurrentLocation()
         #expect(model.lockedLocation == nil)

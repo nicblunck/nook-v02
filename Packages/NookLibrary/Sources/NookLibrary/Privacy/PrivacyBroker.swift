@@ -21,7 +21,10 @@ public struct PrivacyBroker: Sendable {
             return .excluded
         }
         if privacy.isLocked && !isReleased(privacy.lockedSource, in: context, requiresHiddenContext: false) {
-            return .redacted(lockedBy: privacy.lockedSource)
+            // The locked door itself still surfaces structurally; anything
+            // only locked because it is buried behind that door is absent
+            // everywhere until the door is opened.
+            return privacy.isLockedAtSource ? .redacted(lockedBy: privacy.lockedSource) : .excluded
         }
         return .full
     }

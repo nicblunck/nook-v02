@@ -354,6 +354,7 @@ final class LibraryModel {
         // again. Every navigation path — the scheduled refresh and the
         // callers that await this directly — funnels through here.
         await closeHidden()
+        await closeLockedFolders()
 
         // Home is one fixed place rather than a row in the library, so what it
         // remembers is kept beside the global default rather than on a folder.
@@ -880,6 +881,13 @@ final class LibraryModel {
     /// Spotlight result — that may have arrived before any window existed.
     func handle(_ request: AppNavigator.Request) async {
         switch request {
+        case .scope(.folder(let id)):
+            // A locked folder authenticates before the canvas lands on it,
+            // rather than navigating straight to the door.
+            await openFolder(id)
+            await loadPreferences()
+            await refreshContents()
+
         case .scope(let requested):
             navigate(to: .scope(requested))
             await loadPreferences()
@@ -891,7 +899,7 @@ final class LibraryModel {
             await loadPreferences()
             await refreshContents()
             // Through the same opening as a click, so an intent cannot show
-            // what a lock would have withheld on the canvas.
+            // more than the folder ancestry it lives in would have allowed.
             openObject(contents.objects.first { $0.id == id } ?? object)
         }
     }
@@ -979,8 +987,10 @@ final class LibraryModel {
     // MARK: Originals
 
     /// A local file URL for an object's original, when the bytes are already
-    /// on this device. Returns nil for a locked object, which arrives without
-    /// a blob descriptor, and for one whose original has not been downloaded.
+    /// on this device. Returns nil for one whose original has not been
+    /// downloaded, or that arrived with no blob descriptor at all — which is
+    /// what an object still buried in a locked folder would carry, though
+    /// such an object is excluded before it ever reaches a snapshot list.
     nonisolated func localURL(for object: ObjectSnapshot) -> URL? {
         guard let descriptor = object.blob else { return nil }
         return library.blobStore.localURL(for: descriptor)

@@ -35,14 +35,14 @@ enum Format {
     ///
     /// Two things separate it from the written one. The interpunct that reads
     /// as a separator on screen is pronounced when spoken, so the parts are
-    /// joined with commas instead. And favourite and locked are shown as a
-    /// glyph that carries no label of its own, which would otherwise leave a
-    /// locked object sounding identical to an unprotected one.
+    /// joined with commas instead. And favourite is shown as a glyph that
+    /// carries no label of its own, which would otherwise leave a favourite
+    /// object sounding identical to a plain one. Objects can't be locked in
+    /// their own right — only a folder's caption ever says "Locked".
     static func spokenCaption(for object: ObjectSnapshot) -> String {
         var parts = captionParts(for: object)
         if object.isHidden { parts.append("Hidden") }
         if object.isFavorite { parts.append("Favorite") }
-        if object.isLocked { parts.append("Locked") }
         return parts.joined(separator: ", ")
     }
 
@@ -65,16 +65,21 @@ enum Format {
         count == 1 ? "1 folder" : "\(count) folders"
     }
 
-    /// The one-line secondary caption under a folder card.
+    /// The one-line secondary caption under a folder card. A locked folder's
+    /// counts are always zero — they describe what the door withholds, not
+    /// what it holds — so "Locked" replaces them rather than sitting beside
+    /// a misleading "0 items".
     static func caption(for folder: FolderSnapshot) -> String {
-        folderCaptionParts(for: folder).joined(separator: " · ")
+        folder.isLocked ? "Locked" : folderCaptionParts(for: folder).joined(separator: " · ")
     }
 
     /// The same caption, phrased for speech.
     static func spokenCaption(for folder: FolderSnapshot) -> String {
+        guard !folder.isLocked else {
+            return folder.isHidden ? "Locked, Hidden" : "Locked"
+        }
         var parts = folderCaptionParts(for: folder)
         if folder.isHidden { parts.append("Hidden") }
-        if folder.isLocked { parts.append("Locked") }
         return parts.joined(separator: ", ")
     }
 

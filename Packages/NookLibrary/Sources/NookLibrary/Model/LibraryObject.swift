@@ -52,8 +52,9 @@ public final class LibraryObject {
 
     // MARK: Privacy
 
+    /// Objects cannot be individually locked — only folders can. An object's
+    /// effective lock state comes entirely from folder ancestry.
     public var isHidden: Bool = false
-    public var isLocked: Bool = false
 
     // MARK: Relationships
 
@@ -104,7 +105,7 @@ public final class LibraryObject {
     public var isDeleted_: Bool { deletedAt != nil }
 
     public var privacyFlags: PrivacyFlags {
-        PrivacyFlags(isHidden: isHidden, isLocked: isLocked)
+        PrivacyFlags(isHidden: isHidden, isLocked: false)
     }
 
     public var tagList: [Tag] { tags ?? [] }
