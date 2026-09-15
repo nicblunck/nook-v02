@@ -7,8 +7,8 @@ import NookLibrary
 /// Siri, Spotlight, Shortcuts and Apple Intelligence all address content
 /// through these. They resolve by durable id, so a shortcut still points at the
 /// same item after a rename or a move, and every lookup goes through
-/// `LibraryService` with the standard access context — meaning hidden content
-/// is never offered to the system, and a locked item arrives already redacted.
+/// `LibraryService` with the standard access context — meaning hidden content,
+/// and anything inside a locked folder, is never offered to the system at all.
 struct ObjectEntity: AppEntity, Identifiable {
     let id: String
     let title: String

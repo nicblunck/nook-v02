@@ -289,7 +289,7 @@ struct SidebarView: View {
             Label {
                 HStack {
                     Text(collection.name)
-                    privacyBadges(isHidden: collection.isHidden, isLocked: collection.isLocked)
+                    privacyBadges(isHidden: collection.isHidden)
                     if collection.memberCount > 0 {
                         Spacer()
                         Text("\(collection.memberCount)")
@@ -319,12 +319,11 @@ struct SidebarView: View {
                 )
             }
             Divider()
-            // A hidden or locked collection conceals the collection itself.
-            // What it gathers stays exactly as reachable as it was: the true
-            // folder hierarchy is where storage privacy lives.
-            privacyMenuItems(for: collection,
-                             hide: { await model.setHidden($0, forCollection: collection) },
-                             lock: { await model.setLocked($0, forCollection: collection) })
+            // A hidden collection conceals the collection itself. What it
+            // gathers stays exactly as reachable as it was: the true folder
+            // hierarchy is where storage privacy — including locking — lives.
+            hideMenuItem(for: collection,
+                        hide: { await model.setHidden($0, forCollection: collection) })
             Divider()
             Button("Delete Collection", role: .destructive) {
                 Task { await model.deleteCollection(collection.id) }
@@ -368,7 +367,7 @@ struct SidebarView: View {
     /// tertiary on purpose: they say what state a place is in, never anything
     /// about what it holds.
     @ViewBuilder
-    private func privacyBadges(isHidden: Bool, isLocked: Bool) -> some View {
+    private func privacyBadges(isHidden: Bool, isLocked: Bool = false) -> some View {
         if isHidden {
             Image(systemName: "eye.slash").font(.caption2).foregroundStyle(.tertiary)
         }
@@ -377,7 +376,7 @@ struct SidebarView: View {
         }
     }
 
-    private func spokenPrivacy(isHidden: Bool, isLocked: Bool) -> [String] {
+    private func spokenPrivacy(isHidden: Bool, isLocked: Bool = false) -> [String] {
         var parts: [String] = []
         if isHidden { parts.append("Hidden") }
         if isLocked { parts.append("Locked") }
@@ -386,7 +385,7 @@ struct SidebarView: View {
 
     private func spokenCollectionState(_ collection: CollectionSnapshot) -> String {
         var parts = collection.memberCount > 0 ? [Format.itemCount(collection.memberCount)] : []
-        parts.append(contentsOf: spokenPrivacy(isHidden: collection.isHidden, isLocked: collection.isLocked))
+        parts.append(contentsOf: spokenPrivacy(isHidden: collection.isHidden))
         return parts.joined(separator: ", ")
     }
     #endif
@@ -437,7 +436,13 @@ struct SidebarView: View {
             get: { model.destination },
             set: { value in
                 guard let value else { return }
-                model.navigate(to: value)
+                // A locked folder authenticates before the canvas lands on it,
+                // rather than navigating straight to the door.
+                if case .scope(.folder(let id)) = value {
+                    Task { await model.openFolder(id) }
+                } else {
+                    model.navigate(to: value)
+                }
             }
         )
     }

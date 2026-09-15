@@ -127,12 +127,12 @@ extension LibraryModel {
     // MARK: Opening
 
     /// Return, and the Open command: enter a folder, or open a thing.
-    func openCursorItem() {
+    func openCursorItem() async {
         switch cursor {
         case .folder(let id):
-            // The same step clicking a folder takes, so history records it the
-            // same way.
-            scope = .folder(id)
+            // The same step clicking a folder takes, including authenticating
+            // first if it is locked.
+            await openFolder(id)
         case .object(let id):
             guard let object = contents.objects.first(where: { $0.id == id }) else { return }
             openObject(object)
@@ -144,13 +144,12 @@ extension LibraryModel {
     /// Opening a thing. A link points at the live web rather than at stored
     /// content, so it opens where the user's browsing actually happens.
     ///
-    /// A locked object is a door before it is a thing. Authenticating replaces
-    /// the redacted snapshot with a whole one, so what finally opens is read
-    /// from the canvas again rather than from the one that arrived without its
-    /// address or its bytes.
+    /// Objects can no longer be individually locked — an object never reaches
+    /// here unless the folder it lives in is already open, so there is no
+    /// per-object authentication step left to do.
     func openObject(_ object: ObjectSnapshot) {
         cursor = .object(object.id)
-        open(object) { [self] opened in
+        reveal(object) { [self] opened in
             selection = [opened.id]
             selectionAnchor = opened.id
         }
@@ -160,20 +159,6 @@ extension LibraryModel {
     /// canvas names an object, Home names the tile that was clicked — and runs
     /// only once something is actually shown, so a link that opens in the
     /// browser changes no selection.
-    private func open(_ object: ObjectSnapshot,
-                      selecting select: @escaping (ObjectSnapshot) -> Void) {
-        guard object.isLocked else {
-            reveal(object, selecting: select)
-            return
-        }
-        Task {
-            guard await unlock(object, named: object.title),
-                  let unlocked = visibleObjects.first(where: { $0.id == object.id })
-            else { return }
-            reveal(unlocked, selecting: select)
-        }
-    }
-
     private func reveal(_ object: ObjectSnapshot,
                         selecting select: (ObjectSnapshot) -> Void) {
         if object.kind == .link, let url = object.sourceURL {
@@ -191,10 +176,6 @@ extension LibraryModel {
     /// the user did not ask for.
     func previewCursorItem() {
         guard let object = cursorObject, object.kind != .link else { return }
-        guard !object.isLocked else {
-            openObject(object)
-            return
-        }
         selection = [object.id]
         selectionAnchor = object.id
         previewedObjectID = object.id
@@ -217,8 +198,8 @@ extension LibraryModel {
         canOpenCursorItem
     }
 
-    func openCurrentItem() {
-        openCursorItem()
+    func openCurrentItem() async {
+        await openCursorItem()
     }
 
     var canQuickLookCurrentItem: Bool {

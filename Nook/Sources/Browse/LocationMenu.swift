@@ -76,18 +76,29 @@ struct FolderMenu: View {
 /// Hide and Lock as a pair of menu items, offered on what the place is in its
 /// own right — a subfolder of a hidden folder is hidden without being hidden
 /// itself, and only the ancestor can lift that. Shared by the sidebar and the
-/// canvas so the two never drift apart on what these buttons say or do.
+/// canvas so the two never drift apart on what these buttons say or do. Only
+/// a folder can lock, so this pair is folder-only; collections get the
+/// hide-only sibling below.
 @MainActor
 @ViewBuilder
 func privacyMenuItems(for item: some PrivacyBearing,
                       hide: @escaping (Bool) async -> Void,
                       lock: @escaping (Bool) async -> Void) -> some View {
-    Button(item.isExplicitlyHidden ? "Unhide" : "Hide",
-           systemImage: item.isExplicitlyHidden ? "eye" : "eye.slash") {
-        Task { await hide(!item.isExplicitlyHidden) }
-    }
+    hideMenuItem(for: item, hide: hide)
     Button(item.isExplicitlyLocked ? "Unlock" : "Lock",
            systemImage: item.isExplicitlyLocked ? "lock.open" : "lock") {
         Task { await lock(!item.isExplicitlyLocked) }
+    }
+}
+
+/// Hide alone, for entities — collections — that can be hidden but never
+/// locked.
+@MainActor
+@ViewBuilder
+func hideMenuItem(for item: some PrivacyBearing,
+                  hide: @escaping (Bool) async -> Void) -> some View {
+    Button(item.isExplicitlyHidden ? "Unhide" : "Hide",
+           systemImage: item.isExplicitlyHidden ? "eye" : "eye.slash") {
+        Task { await hide(!item.isExplicitlyHidden) }
     }
 }

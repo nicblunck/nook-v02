@@ -576,7 +576,7 @@ struct NookCommands: Commands {
             // because a menu command outranks the field editor: Return, Space
             // and a bare arrow would be taken away from every text field in the
             // app, so those stay on the focused canvas instead.
-            Button("Open") { model?.openCurrentItem() }
+            Button("Open") { Task { await model?.openCurrentItem() } }
                 .keyboardShortcut(.downArrow, modifiers: .command)
                 .disabled(model.map { !$0.canOpenCurrentItem || $0.isTypingText } ?? true)
 

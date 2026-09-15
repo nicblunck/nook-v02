@@ -5,8 +5,10 @@ import NookLibrary
 /// Renders an object's thumbnail, falling back to a type glyph while it loads
 /// or when there is nothing to render.
 ///
-/// A locked object arrives here with no blob and therefore no thumbnail, so a
-/// protected preview cannot be drawn even by mistake.
+/// An object buried in a locked folder is excluded outright rather than
+/// arriving here redacted, so there is no protected-preview case to guard
+/// against — an object only ever reaches this view once it is fully
+/// accessible.
 struct ThumbnailView: View {
     let object: ObjectSnapshot
     var maximumSize: CGFloat = 512
@@ -55,7 +57,7 @@ struct ThumbnailView: View {
     private var placeholder: some View {
         ZStack {
             Rectangle().fill(.quaternary.opacity(0.5))
-            Image(systemName: object.isLocked ? "lock.fill" : object.kind.symbolName)
+            Image(systemName: object.kind.symbolName)
                 .font(.system(size: 22 * typeScale, weight: .regular))
                 .foregroundStyle(.secondary)
                 .opacity(didAttempt ? 1 : 0.55)

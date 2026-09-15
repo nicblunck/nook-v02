@@ -26,8 +26,9 @@ public final class LibraryCollection {
     /// Collection privacy protects only this surface. It does not change the
     /// visibility of the underlying objects through their true folder
     /// locations, which is the whole difference from folder privacy.
+    ///
+    /// Collections cannot be locked — only folders can.
     public var isHidden: Bool = false
-    public var isLocked: Bool = false
 
     // MARK: Smart collections
     //
@@ -60,7 +61,7 @@ public final class LibraryCollection {
     public var reference: LibraryReference { .collection(id) }
 
     public var privacyFlags: PrivacyFlags {
-        PrivacyFlags(isHidden: isHidden, isLocked: isLocked)
+        PrivacyFlags(isHidden: isHidden, isLocked: false)
     }
 
     public var orderedMemberships: [CollectionMembership] {

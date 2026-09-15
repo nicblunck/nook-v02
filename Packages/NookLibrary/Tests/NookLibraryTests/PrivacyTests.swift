@@ -146,30 +146,9 @@ struct PrivacyTests {
         #expect(await harness.service.subfolders(of: parent.id, in: authenticated).isEmpty)
     }
 
-    @Test("A locked object still lists, but yields no content and no metadata")
-    func lockedObjectIsRedacted() async throws {
-        let harness = try await TestLibrary()
-        defer { harness.cleanUp() }
-
-        let source = try harness.makeSourceFile(named: "taxes.txt", contents: "figures")
-        let report = await harness.service.importItems([.file(url: source)], into: .root)
-        let id = try #require(report.importedIDs.first)
-        try await harness.service.updateObject(id, notes: "sensitive")
-        try await harness.service.setPrivacy(PrivacyFlags(isLocked: true), forObjects: [id])
-
-        let object = try #require(await harness.service.object(id))
-        #expect(object.visibility.isRedacted)
-        #expect(object.title == ObjectSnapshot.lockedPlaceholderTitle)
-        #expect(object.notes.isEmpty)
-        #expect(object.originalFilename == nil)
-        // No blob descriptor means no thumbnail and no preview can be produced.
-        #expect(object.blob == nil)
-
-        await #expect(throws: LibraryError.self) {
-            _ = try await harness.service.originalURL(for: id)
-        }
-    }
-
+    /// Only a folder can be locked, and only the folder itself — the door —
+    /// is still discoverable while locked. Anything it contains is entirely
+    /// absent, not merely redacted, until the folder is authenticated.
     @Test("Authenticating the locking folder releases its descendants")
     func unlockingAncestorReleasesDescendants() async throws {
         let harness = try await TestLibrary()
@@ -181,7 +160,12 @@ struct PrivacyTests {
         let id = try #require(report.importedIDs.first)
         try await harness.service.setPrivacy(PrivacyFlags(isLocked: true), forFolder: folder.id)
 
-        #expect(try #require(await harness.service.object(id)).visibility.isRedacted)
+        // The folder itself is the door: still discoverable, redacted rather
+        // than excluded. What it contains is fully absent, not just withheld.
+        #expect(try #require(await harness.service.folder(folder.id)).visibility.isRedacted)
+        #expect(await harness.service.object(id) == nil)
+        #expect(await harness.service.objects(matching: ObjectQuery(scope: .folder(folder.id))).isEmpty)
+        #expect(await harness.service.objects(matching: ObjectQuery(scope: .allObjects)).isEmpty)
 
         let authenticated = AccessContext().unlocking(.folder(folder.id))
         let released = try #require(await harness.service.object(id, in: authenticated))

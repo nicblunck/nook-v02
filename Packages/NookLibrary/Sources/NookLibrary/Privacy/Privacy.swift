@@ -33,15 +33,23 @@ public struct EffectivePrivacy: Hashable, Sendable {
     public var hiddenSource: LibraryReference?
     /// The entity whose Locked state applies, if any. May be the entity itself.
     public var lockedSource: LibraryReference?
+    /// True when `lockedSource` is the entity itself rather than an ancestor
+    /// folder — i.e. this entity *is* the locked door, not something buried
+    /// behind one. Only a folder can ever be true here, since only folders
+    /// carry their own lock flag; an object or collection's lock, when
+    /// present, always comes from an ancestor.
+    public var isLockedAtSource: Bool
 
     public static let normal = EffectivePrivacy(flags: .normal)
 
     public init(flags: PrivacyFlags,
                 hiddenSource: LibraryReference? = nil,
-                lockedSource: LibraryReference? = nil) {
+                lockedSource: LibraryReference? = nil,
+                isLockedAtSource: Bool = false) {
         self.flags = flags
         self.hiddenSource = hiddenSource
         self.lockedSource = lockedSource
+        self.isLockedAtSource = isLockedAtSource
     }
 
     public var isHidden: Bool { flags.isHidden }
@@ -83,8 +91,10 @@ public struct AccessContext: Sendable {
 
     /// The same context with hidden content out of reach again.
     ///
-    /// Locks already authenticated are kept, because a lock is about content
-    /// and hiding is about visibility.
+    /// Unlocked folders are untouched here — leaving Hidden and leaving a
+    /// locked folder are different events. A locked folder re-locks when the
+    /// browsed location steps outside its subtree, which the app layer
+    /// tracks separately by pruning `unlockedEntities` on navigation.
     public func leavingHiddenContext() -> AccessContext {
         var copy = self
         copy.hiddenContextUnlocked = false
@@ -96,11 +106,17 @@ public struct AccessContext: Sendable {
 public enum Visibility: Hashable, Sendable {
     /// Fully readable, including contents and originals.
     case full
-    /// May appear structurally, but thumbnails, previews, contents and
-    /// sensitive metadata are withheld until the lock is authenticated.
+    /// The locked door itself: a folder that is explicitly locked may still
+    /// appear structurally (name, icon, badge) wherever it would otherwise be
+    /// listed, but its thumbnails, previews, contents and sensitive metadata
+    /// are withheld until the lock is authenticated. Only a folder that
+    /// carries its own lock flag ever resolves here — an object or
+    /// collection made visible only by an ancestor's lock is `.excluded`.
     case redacted(lockedBy: LibraryReference?)
     /// Must not appear at all: not in browsing, search, Spotlight, Siri,
-    /// widgets, MCP or model context.
+    /// widgets, MCP or model context. This is also what anything buried
+    /// inside a locked folder resolves to, everywhere except while browsing
+    /// inside that folder's own subtree while authenticated.
     case excluded
 
     public var isExcluded: Bool {

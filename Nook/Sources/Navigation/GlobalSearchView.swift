@@ -209,9 +209,10 @@ struct GlobalSearchView: View {
             model.navigate(to: .scope(object.folderID.map { LibraryScope.folder($0) } ?? .inbox))
             await model.loadPreferences()
             await model.refreshContents()
-            // Opened the same way as anything on the canvas, so a locked
-            // result asks for authentication here too rather than arriving at
-            // a preview with nothing it is allowed to show.
+            // A result buried in a locked folder can only have appeared here
+            // while that folder was already authenticated, so it is always
+            // safe to open directly — falling back to the search snapshot
+            // only covers the ordinary refresh race, not a lock.
             let landed = model.contents.objects.first { $0.id == object.id } ?? object
             model.openObject(landed)
         }

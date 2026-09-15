@@ -157,10 +157,12 @@ public extension LibraryService {
         try didMutate()
     }
 
+    /// Objects have no lock of their own — only `isHidden` is settable here.
+    /// `flags.isLocked` is ignored; whatever an object shows for lock comes
+    /// entirely from its folder ancestry.
     func setPrivacy(_ flags: PrivacyFlags, forObjects ids: [ObjectID]) throws {
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
             object.isHidden = flags.isHidden
-            object.isLocked = flags.isLocked
             if flags.isHidden { object.folder = nil }
         }
         try didMutate()
@@ -176,13 +178,6 @@ public extension LibraryService {
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
             object.isHidden = isHidden
             if isHidden { object.folder = nil }
-        }
-        try didMutate()
-    }
-
-    func setLocked(_ isLocked: Bool, forObjects ids: [ObjectID]) throws {
-        for object in objects(withIdentifiers: ids.map(\.uuid)) {
-            object.isLocked = isLocked
         }
         try didMutate()
     }
@@ -396,13 +391,13 @@ public extension LibraryService {
     }
 
     /// Collection privacy protects this surface only. The member objects keep
-    /// whatever privacy their folder ancestry gives them.
+    /// whatever privacy their folder ancestry gives them. Collections have no
+    /// lock of their own; `flags.isLocked` is ignored.
     func setPrivacy(_ flags: PrivacyFlags, forCollection id: CollectionID) throws {
         guard let target = collection(withIdentifier: id.uuid) else {
             throw LibraryError.collectionNotFound(id)
         }
         target.isHidden = flags.isHidden
-        target.isLocked = flags.isLocked
         try didMutate()
     }
 
@@ -411,14 +406,6 @@ public extension LibraryService {
             throw LibraryError.collectionNotFound(id)
         }
         target.isHidden = isHidden
-        try didMutate()
-    }
-
-    func setLocked(_ isLocked: Bool, forCollection id: CollectionID) throws {
-        guard let target = collection(withIdentifier: id.uuid) else {
-            throw LibraryError.collectionNotFound(id)
-        }
-        target.isLocked = isLocked
         try didMutate()
     }
 

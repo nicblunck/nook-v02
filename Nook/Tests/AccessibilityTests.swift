@@ -48,18 +48,22 @@ struct AccessibilityTests {
         #expect(Format.spokenCaption(for: favorited).contains("Favorite"))
     }
 
-    @Test("A locked object does not sound like an unprotected one")
+    /// Only a folder can be locked, so only a folder's caption ever needs to
+    /// say so — an object never sounds locked in its own right, even one
+    /// sitting inside a locked folder, since it is absent from the caption
+    /// surface entirely until the folder is opened.
+    @Test("A locked folder does not sound like an unprotected one, and an object never does")
     func lockedReachesTheCaption() async throws {
         let test = try await TestModel()
         defer { test.cleanUp() }
         let object = try #require(try await test.importFile(named: "sealed.txt"))
 
-        try await test.model.library.service.setPrivacy(
-            PrivacyFlags(isLocked: true),
-            forObjects: [object.id]
-        )
-        await test.model.refreshContents()
-        let locked = try #require(test.model.contents.objects.first { $0.id == object.id })
+        #expect(!Format.spokenCaption(for: object).contains("Locked"))
+
+        await test.model.createFolder(named: "Sealed", in: nil)
+        let folder = try #require(test.model.folderTree.first?.folder)
+        await test.model.setLocked(true, forFolder: folder)
+        let locked = try #require(test.model.folderTree.first { $0.folder.id == folder.id }?.folder)
 
         #expect(locked.isLocked)
         #expect(Format.spokenCaption(for: locked).contains("Locked"))

@@ -21,7 +21,8 @@ public actor ThumbnailStore {
 
     /// Returns PNG data for an object's thumbnail, generating it on first ask.
     /// Returns nil when the object has no renderable content, or when its
-    /// content is protected — a locked object arrives here with no blob.
+    /// content is protected — an object still buried in a locked folder
+    /// arrives here with no blob.
     public func thumbnail(for object: ObjectSnapshot, maximumSize: CGFloat = 512) async -> Data? {
         guard object.isContentAccessible else { return nil }
 

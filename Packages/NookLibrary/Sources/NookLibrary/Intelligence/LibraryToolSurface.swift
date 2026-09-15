@@ -87,7 +87,13 @@ public struct LibraryToolSurface: Sendable {
               let snapshot = await service.object(id, in: access)
         else { return nil }
 
-        // A locked item is described but never quoted.
+        // Only a folder that is itself the locked door ever resolves to
+        // `.redacted` — an object buried behind one resolves to `.excluded`
+        // and never reaches this point at all (`service.object` above
+        // already returned nil for it). This function only ever looks up
+        // objects, so in practice this branch cannot currently trigger; it
+        // stays as a defensive backstop on the privacy boundary rather than
+        // an assumption this surface silently depends on.
         guard !snapshot.visibility.isRedacted else {
             return ObjectContent(
                 reference: snapshot.reference.description,

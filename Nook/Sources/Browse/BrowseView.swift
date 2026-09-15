@@ -359,11 +359,11 @@ struct BrowseView: View {
                            scale: scale,
                            masonryCaptionDisplay: model.masonryCaptionDisplay,
                            select: { model.selectFolder(folder.id, modifiers: $0) }) {
-                model.navigate(to: .scope(.folder(folder.id)))
+                Task { await model.openFolder(folder.id) }
             }
             .contextMenu {
                 FolderMenu(model: model, folder: folder) {
-                    model.navigate(to: .scope(.folder(folder.id)))
+                    Task { await model.openFolder(folder.id) }
                 }
             }
             .draggable(FolderTransfer(id: folder.id))
@@ -686,7 +686,7 @@ private struct CanvasKeyboard: ViewModifier {
             }
             .onKeyPress(.return) {
                 guard model.cursor != nil else { return .ignored }
-                model.openCursorItem()
+                Task { await model.openCursorItem() }
                 return .handled
             }
             .onKeyPress(.space) {

@@ -96,25 +96,26 @@ struct ToolSurfaceTests {
         )).isEmpty)
     }
 
-    @Test("A locked item can be outlined but never quoted")
-    func lockedContentIsDescribedNotQuoted() async throws {
+    /// Only a folder can be locked, and its contents are unreachable through
+    /// every tool the same way hidden content is — not merely redacted, the
+    /// way a locked object used to arrive here before objects lost their own
+    /// lock.
+    @Test("A locked folder's contents are unreachable through every tool")
+    func lockedContentIsUnreachable() async throws {
         let (harness, surface) = try await makeLibrary()
         defer { harness.cleanUp() }
 
+        let folder = try await harness.service.createFolder(named: "Finances")
         let source = try harness.makeSourceFile(named: "salary.txt", contents: "confidential figures")
-        let report = await harness.service.importItems([.file(url: source)], into: .root)
+        let report = await harness.service.importItems([.file(url: source)], into: .folder(folder.id))
         let id = try #require(report.importedIDs.first)
         await harness.service.extractPendingText()
-        try await harness.service.setPrivacy(PrivacyFlags(isLocked: true), forObjects: [id])
+        try await harness.service.setPrivacy(PrivacyFlags(isLocked: true), forFolder: folder.id)
 
         let reference = "object://\(id.uuid.uuidString)"
-        let digest = try #require(await surface.getObject(reference: reference))
-        #expect(digest.isRedacted)
-        #expect(digest.title == ObjectSnapshot.lockedPlaceholderTitle)
-
-        let content = try #require(await surface.getObjectContent(reference: reference))
-        #expect(content.extractedText == nil)
-        #expect(content.unavailableReason == "This item is locked.")
+        #expect(await surface.searchObjects(.init(query: "salary")).isEmpty)
+        #expect(await surface.getObject(reference: reference) == nil)
+        #expect(await surface.getObjectContent(reference: reference) == nil)
     }
 
     @Test("Digests carry no filesystem path")
