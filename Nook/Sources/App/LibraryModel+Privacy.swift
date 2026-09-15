@@ -149,6 +149,10 @@ extension LibraryModel {
     func openFolder(_ id: FolderID) async {
         if let folder = await library.service.folder(id, in: accessContext), folder.visibility.isRedacted {
             guard await unlock(folder, named: folder.name, refreshing: false) else { return }
+            // The sidebar shows this folder's own lock badge as open the
+            // instant it's authenticated, rather than waiting on whatever
+            // the navigation below happens to refresh.
+            await refreshSidebar()
         }
         navigate(to: .scope(.folder(id)))
     }
@@ -178,6 +182,9 @@ extension LibraryModel {
            let source = previewed.lockedSource, !stillOpen.contains(source.uuid) {
             previewedObjectID = nil
         }
+        // A folder that just re-locked shows that in the sidebar right away,
+        // the same way `closeHidden()` refreshes it on the way out.
+        await refreshSidebar()
     }
 
     // MARK: Setting privacy

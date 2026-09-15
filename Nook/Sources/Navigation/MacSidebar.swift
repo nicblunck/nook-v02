@@ -176,6 +176,9 @@ struct SidebarRow: Equatable {
     var count: Int?
     var isHidden = false
     var isLocked = false
+    /// True while a locked folder is currently authenticated — the badge
+    /// still marks it as a locked place, but with the door standing open.
+    var isLockOpen = false
     /// Nil for a section header or a placeholder: nothing to navigate to.
     var destination: LibraryDestination?
     var dropTarget: DropTarget?
@@ -256,6 +259,12 @@ extension MacSidebar {
                 if let kept = byID[item.id] {
                     let wasExpandable = !kept.children.isEmpty
                     if kept.row != item.row || wasExpandable != !item.children.isEmpty { changed.append(kept) }
+                    // The identity is kept for the outline's sake — its
+                    // expansion state and selection track this object — but
+                    // what it shows has to catch up, or a row whose content
+                    // changed without its position or children changing
+                    // would reload showing the same stale row it always had.
+                    kept.row = item.row
                     merged.append(kept)
                 } else {
                     merged.append(item)
@@ -457,6 +466,7 @@ extension MacSidebar {
                 icon: icon(for: folder.appearance, fallback: "folder"),
                 isHidden: folder.isHidden,
                 isLocked: folder.isLocked,
+                isLockOpen: folder.isLocked && folder.visibility == .full,
                 destination: destination,
                 // Dropping onto a folder moves: this is the true hierarchy, so
                 // the drop is a real relocation. Files from outside are
@@ -940,8 +950,6 @@ private final class SidebarRowCell: NSTableCellView {
         }
         hiddenBadge.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 9, weight: .regular))
-        lockedBadge.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 9, weight: .regular))
         count.alignment = .right
         count.setContentHuggingPriority(.required, for: .horizontal)
         count.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -971,6 +979,10 @@ private final class SidebarRowCell: NSTableCellView {
         name.stringValue = row.title
         hiddenBadge.isHidden = !row.isHidden
         lockedBadge.isHidden = !row.isLocked
+        lockedBadge.image = NSImage(
+            systemSymbolName: row.isLockOpen ? "lock.open.fill" : "lock.fill",
+            accessibilityDescription: nil
+        )?.withSymbolConfiguration(.init(pointSize: 9, weight: .regular))
         if let value = row.count {
             count.stringValue = "\(value)"
             count.isHidden = false
