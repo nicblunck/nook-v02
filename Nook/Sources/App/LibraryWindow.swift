@@ -167,6 +167,27 @@ struct LibraryWindow: View {
                 NavigationStack { SettingsView(settings: model.settings) }
                 #endif
             }
+            // On iPhone the metadata panel is a sheet rather than the side
+            // panel or popover it is at regular width. It is raised here
+            // with the window's other presentations rather than by the
+            // compact shell, because a view that attaches its own sheet to
+            // this chain owns the presentation and leaves everything below
+            // unable to put anything up.
+            #if os(iOS)
+            .sheet(isPresented: compactInspector) {
+                NavigationStack {
+                    InfoPanel(model: model)
+                        .navigationTitle("Info")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { model.setInspector(false) }
+                            }
+                        }
+                }
+                .presentationDetents([.medium, .large])
+            }
+            #endif
             .sheet(item: $model.editingAppearance) { target in
                 AppearanceEditor(target: target) { name, appearance in
                     switch target.action {
@@ -273,6 +294,16 @@ struct LibraryWindow: View {
             BrowseView(model: model)
         }
     }
+
+    #if os(iOS)
+    /// Only the compact shell shows the inspector as a sheet. At regular
+    /// width the canvas's own Info button puts the same content in a
+    /// popover, and both reading the flag would race for it.
+    private var compactInspector: Binding<Bool> {
+        Binding(get: { horizontalSizeClass == .compact && model.isInspectorPresented },
+                set: { model.setInspector($0) })
+    }
+    #endif
 
     #if os(iOS) || os(macOS)
     /// Photos hands over bytes rather than a file on disk, so each selection

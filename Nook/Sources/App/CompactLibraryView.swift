@@ -11,26 +11,19 @@ import NookLibrary
 /// collections, media types and tags, exactly as they do in the sidebar.
 /// Adding content moves from a hidden long-press menu to a bottom toolbar
 /// that stays docked beneath whatever is pushed on screen.
+///
+/// Metadata comes up as a sheet on iPhone rather than as a side panel, but
+/// that sheet is raised by `LibraryWindow` along with every other
+/// presentation the app puts up. A second view attaching its own sheet to
+/// this same chain takes the presentation over, and everything the window
+/// raises — the appearance editor, the file importer, the photo picker, the
+/// camera — stops coming up at all.
 struct CompactLibraryView: View {
-    @Bindable var model: LibraryModel
+    let model: LibraryModel
 
     var body: some View {
         NavigationStack {
             CompactLibraryList(model: model)
-        }
-        // Metadata comes up as a sheet here rather than as a side panel.
-        .sheet(isPresented: $model.isInspectorPresented) {
-            NavigationStack {
-                InfoPanel(model: model)
-                    .navigationTitle("Info")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { model.setInspector(false) }
-                        }
-                    }
-            }
-            .presentationDetents([.medium, .large])
         }
     }
 }
@@ -233,6 +226,12 @@ struct CompactLibraryList: View {
         .refreshable {
             await model.refreshAll()
         }
+        // The landing list is not a place. Nothing is open while it is on
+        // screen, so the model should not still be pointing at whichever
+        // folder was last pushed: saying so is what lands what the
+        // add-content bar brings in in the Inbox, and a new folder at the
+        // root, rather than inside that folder where neither would show.
+        .onAppear { model.navigate(to: .home) }
         .navigationTitle("Nook")
         .animation(reduceMotion ? nil : NookMotion.reflow,
                    value: model.sidebarReflowRevision)
