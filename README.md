@@ -37,6 +37,28 @@ the generated project alongside the spec. CI runs
 `Scripts/check-generated-project.sh` and rejects stale project, plist,
 entitlement, or shared-scheme output.
 
+### Duplicate Nooks in the share sheet
+
+The project builds one share extension per app and nothing here can build a
+second: `Nook-macOS` embeds `NookMacShare`, `Nook-iOS` embeds
+`NookShareExtension`, and the two carry different bundle identifiers.
+
+A share sheet full of identical Nook rows is therefore never the project. macOS
+lists one row per *registered copy* of an extension, and it registers a copy for
+every `Nook.app` it has seen on disk — one per DerivedData folder, so one per
+checkout and one per folder move, plus one per archive, plus anything left in
+`/Applications`. Rebuilding does not clear them, because the old bundles are
+still there.
+
+```bash
+Scripts/share-extensions.sh          # what is registered, and which copy is live
+Scripts/share-extensions.sh --prune  # unregister everything but the live one
+```
+
+The script never deletes anything. A stale registration whose app bundle is
+still on disk can come back the next time macOS scans, so the script prints
+those bundles and leaves removing them to you.
+
 ## Structure
 
 ```text
