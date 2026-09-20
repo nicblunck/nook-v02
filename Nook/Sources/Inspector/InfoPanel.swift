@@ -14,21 +14,44 @@ struct InfoPanel: View {
     @State private var editingID: ObjectID?
     @FocusState private var isEditingText: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var object: ObjectSnapshot? {
         model.previewedObject ?? model.selectedObjects.first
+    }
+
+    /// Which of the panel's three faces is showing. Walking the selection
+    /// moves between them, and a form dissolving through an empty state is
+    /// two panels of text on top of each other, so they are swapped.
+    private enum InfoFace: Equatable {
+        case multiple
+        case object
+        case none
+    }
+
+    /// Named by which face rather than by which object: walking from one item
+    /// to the next keeps the same form, and animating its fields relaying out
+    /// would be a different change than the one this is here to cover.
+    private var face: InfoFace {
+        if model.selectedObjects.count > 1 { return .multiple }
+        return object == nil ? .none : .object
     }
 
     var body: some View {
         Group {
             if model.selectedObjects.count > 1 {
                 multipleSelection
+                    .transition(.nookSwap(reduceMotion: reduceMotion))
             } else if let object {
                 details(for: object)
+                    .transition(.nookSwap(reduceMotion: reduceMotion))
             } else {
                 ContentUnavailableView("No Selection", systemImage: "info.circle",
                                        description: Text("Select an item to see its details."))
+                    .transition(.nookSwap(reduceMotion: reduceMotion))
             }
         }
+        .nookMotion(.presentation, value: face)
         .task(id: object?.id) { loadDrafts() }
         .onChange(of: isEditingText) { _, editing in model.isTextEntryFocused = editing }
         .onDisappear { model.isTextEntryFocused = false }

@@ -135,8 +135,8 @@ struct CompactLibraryList: View {
                             EntityIcon(appearance: node.folder.appearance, fallbackSymbol: "folder")
                         }
                         .draggable(FolderTransfer(id: node.folder.id))
-                        .plopIn(trigger: arrivalTrigger(for: node.folder.id),
-                                order: arrivalOrder(for: node.folder.id))
+                        .arriving(trigger: arrivalTrigger(for: node.folder.id),
+                                  order: arrivalOrder(for: node.folder.id))
                         .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
@@ -172,8 +172,8 @@ struct CompactLibraryList: View {
                         row(scope: .collection(collection.id), title: collection.name) {
                             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
                         }
-                        .plopIn(trigger: arrivalTrigger(for: collection.id),
-                                order: arrivalOrder(for: collection.id))
+                        .arriving(trigger: arrivalTrigger(for: collection.id),
+                                  order: arrivalOrder(for: collection.id))
                         .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
@@ -234,8 +234,7 @@ struct CompactLibraryList: View {
             await model.refreshAll()
         }
         .navigationTitle("Nook")
-        .animation(reduceMotion ? nil : NookMotion.reflow,
-                   value: model.sidebarReflowRevision)
+        .nookMotion(.reflow, value: model.sidebarReflowRevision)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Settings", systemImage: "gear") { model.isSettingsPresented = true }
@@ -245,9 +244,7 @@ struct CompactLibraryList: View {
     }
 
     private var compactItemTransition: AnyTransition {
-        let movement = AnyTransition.scale(scale: 0.94).combined(with: .opacity)
-        return .motionAware(movement, reduceMotion: reduceMotion)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+        .nookDeparture(reduceMotion: reduceMotion)
     }
 
     private func arrivalTrigger(for id: FolderID) -> Int? {

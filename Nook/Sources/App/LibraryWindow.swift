@@ -133,7 +133,7 @@ struct LibraryWindow: View {
                         ))
                 }
             }
-            .motionAware(.smooth(duration: 0.25), value: model.importProgress?.completed)
+            .nookMotion(.presentation, value: model.importProgress?.completed)
             // Global Search floats above whatever is on screen; it does not
             // navigate the canvas to get there.
             .overlay {
@@ -153,8 +153,7 @@ struct LibraryWindow: View {
                     ))
                 }
             }
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                       value: model.isGlobalSearchPresented)
+            .nookMotion(.presentation, value: model.isGlobalSearchPresented)
             .sheet(isPresented: $model.isAddURLPresented) {
                 AddURLView { url in
                     Task { await model.importItems([.link(url)]) }
@@ -370,6 +369,25 @@ private struct LastSyncedText: View {
 struct CloudSyncStatusView: View {
     @Bindable var model: LibraryModel
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Which of the three things the row can say it is saying.
+    ///
+    /// The three readings are different widths, so without naming the change
+    /// the row jumps from "Syncing" to a checkmark and a date between frames,
+    /// shifting everything beside it. Swapped rather than cross-faded: a
+    /// spinner showing through a checkmark is not a state the row is ever in.
+    private enum SyncFace: Equatable {
+        case syncing
+        case issue
+        case idle
+    }
+
+    private var face: SyncFace {
+        if model.isCloudSyncing { return .syncing }
+        return model.cloudSyncError != nil ? .issue : .idle
+    }
+
     var body: some View {
         Menu {
             if let error = model.cloudSyncError {
@@ -385,23 +403,10 @@ struct CloudSyncStatusView: View {
                 Text("Waiting for the first iCloud sync")
             }
         } label: {
-            HStack(spacing: 5) {
-                if model.isCloudSyncing {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Syncing")
-                } else if model.cloudSyncError != nil {
-                    Label("Sync issue", systemImage: "exclamationmark.icloud")
-                } else {
-                    Image(systemName: "checkmark.icloud")
-                    if let date = model.lastCloudSyncDate {
-                        LastSyncedText(date: date)
-                    } else {
-                        Text("iCloud")
-                    }
-                }
-            }
-            .font(.caption)
+            statusLabel
+                .font(.caption)
+                .transition(.nookSwap(reduceMotion: reduceMotion))
+                .nookMotion(.presentation, value: face)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -410,6 +415,31 @@ struct CloudSyncStatusView: View {
         .frame(maxWidth: .infinity)
         .help(helpText)
         .accessibilityLabel(helpText)
+    }
+
+    /// One view per reading rather than one row that changes shape inside
+    /// itself, so the swap above has two distinct things to swap between.
+    @ViewBuilder
+    private var statusLabel: some View {
+        switch face {
+        case .syncing:
+            HStack(spacing: 5) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Syncing")
+            }
+        case .issue:
+            Label("Sync issue", systemImage: "exclamationmark.icloud")
+        case .idle:
+            HStack(spacing: 5) {
+                Image(systemName: "checkmark.icloud")
+                if let date = model.lastCloudSyncDate {
+                    LastSyncedText(date: date)
+                } else {
+                    Text("iCloud")
+                }
+            }
+        }
     }
 
     private var helpText: String {

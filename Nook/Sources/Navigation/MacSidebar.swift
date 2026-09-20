@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import QuartzCore
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
@@ -227,9 +228,21 @@ extension MacSidebar {
                 outline.reloadData()
                 for section in roots { outline.expandItem(section) }
             } else {
+                // The outline is the one surface in the app AppKit animates
+                // for us, and left alone it does so on AppKit's own default
+                // rather than Nook's. Running the whole reconciliation inside
+                // one animation context puts the Mac sidebar on the same
+                // timing as the SwiftUI half, so a folder appearing here and
+                // the same folder appearing on the canvas take the same time
+                // and use the same curve.
+                NSAnimationContext.beginGrouping()
+                NSAnimationContext.current.duration = Self.outlineAnimationDuration
+                NSAnimationContext.current.timingFunction =
+                    CAMediaTimingFunction(name: .easeOut)
                 outline.beginUpdates()
                 merge(fresh, into: nil, outline: outline)
                 outline.endUpdates()
+                NSAnimationContext.endGrouping()
             }
 
             syncExpansion(with: sidebar.expandedFolders, outline: outline)
@@ -240,6 +253,15 @@ extension MacSidebar {
                 appliedFocusRequest = sidebar.keyboardFocusRequest
                 if sidebar.wantsKeyboard { takeKeyboard() }
             }
+        }
+
+        /// The same window the SwiftUI side gives a change of layout.
+        static var outlineAnimationDuration: TimeInterval {
+            prefersReducedMotion ? 0 : NookMotion.reflowWindow
+        }
+
+        static var prefersReducedMotion: Bool {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         }
 
         /// Reconciles one level of the tree: rows that are still there keep
@@ -267,8 +289,14 @@ extension MacSidebar {
             let inserted = IndexSet(difference.insertions.compactMap { if case .insert(let offset, _, _) = $0 { offset } else { nil } })
 
             if let parent { parent.children = merged } else { roots = merged }
-            if !removed.isEmpty { outline.removeItems(at: removed, inParent: parent, withAnimation: .effectFade) }
-            if !inserted.isEmpty { outline.insertItems(at: inserted, inParent: parent, withAnimation: .effectFade) }
+            // Rows leave by fading where they stand and arrive by fading in;
+            // neither slides, so a row on its way out never travels across
+            // one on its way in. Under Reduce Motion the outline is simply
+            // brought up to date, which is what the rest of the app does for
+            // a change of layout.
+            let effect: NSTableView.AnimationOptions = Self.prefersReducedMotion ? .effectNone : .effectFade
+            if !removed.isEmpty { outline.removeItems(at: removed, inParent: parent, withAnimation: effect) }
+            if !inserted.isEmpty { outline.insertItems(at: inserted, inParent: parent, withAnimation: effect) }
             for item in changed { outline.reloadItem(item, reloadChildren: false) }
 
             // Children of kept rows are merged in turn; new rows arrived with

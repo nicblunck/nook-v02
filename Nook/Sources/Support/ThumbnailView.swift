@@ -34,6 +34,15 @@ struct ThumbnailView: View {
                 placeholder
             }
         }
+        // A thumbnail arrives whenever the disk gets round to it, and cutting
+        // straight from the type glyph to the picture is the most visible
+        // snap in the app: a wall of cards pops one tile at a time as the
+        // loads land. The picture rises through the placeholder instead.
+        // Both are the same object at the same size and neither one moves, so
+        // this is the one place a cross-fade is the honest answer rather than
+        // two things overlapping — and it is kept to the shortest window
+        // there is, because a card scrolled back into view plays it again.
+        .nookMotion(.interaction, value: image == nil)
         // Keyed on accessibility as well as identity: locking or unlocking
         // leaves the id unchanged, and a task keyed on id alone would never
         // rerun to drop or refetch the picture.

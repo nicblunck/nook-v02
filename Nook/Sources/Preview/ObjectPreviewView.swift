@@ -15,11 +15,12 @@ struct ObjectPreviewView: View {
 
     var body: some View {
         content
-            .transition(.opacity)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                       value: object.id)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
-                       value: resolvedURL)
+            // Stepping to the next object runs the picture out, the spinner
+            // in, then the next picture: three states in a row, and a plain
+            // fade would show each pair through the other.
+            .transition(.nookSwap(reduceMotion: reduceMotion))
+            .nookMotion(.presentation, value: object.id)
+            .nookMotion(.interaction, value: resolvedURL)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background.secondary)
             #if os(macOS)
@@ -100,7 +101,7 @@ struct ObjectPreviewView: View {
                   systemImage: object.isFavorite ? "star.fill" : "star")
         }
         .contentTransition(.symbolEffect)
-        .motionAware(NookMotion.interaction, value: object.isFavorite)
+        .nookMotion(.interaction, value: object.isFavorite)
     }
 
     // MARK: Actions

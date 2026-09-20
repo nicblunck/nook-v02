@@ -57,7 +57,7 @@ struct ObjectListRow: View {
                 .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(0.18)) : AnyShapeStyle(.clear))
         }
         .contentShape(.rect)
-        .motionAware(NookMotion.interaction, value: isSelected)
+        .nookMotion(.interaction, value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         .accessibilityValue(Format.spokenCaption(for: object))
@@ -116,7 +116,7 @@ struct FolderListRow: View {
                 .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(0.18)) : AnyShapeStyle(.clear))
         }
         .contentShape(.rect)
-        .motionAware(NookMotion.interaction, value: isSelected)
+        .nookMotion(.interaction, value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
         .accessibilityValue(folderValue)
@@ -243,9 +243,14 @@ struct ObjectMasonryCard: View {
         }
         .contentShape(.rect(cornerRadius: radius))
         .onHover { isHovering = $0 }
-        .motionAware(.smooth(duration: 0.16), value: isHovering || isCursor)
-        .motionAware(NookMotion.reflow, value: captionDisplay)
-        .motionAware(.smooth(duration: 0.16), value: isSelected)
+        .nookMotion(.interaction, value: isHovering || isCursor)
+        .nookMotion(.interaction, value: isSelected)
+        // A change of caption setting is deliberately not animated here.
+        // It changes every tile's height, and the masonry wall resolves its
+        // placements from a cache that a height still in flight cannot
+        // invalidate — so animating it leaves each tile growing into the one
+        // placed below. The wall re-places in a single frame instead, which
+        // is the one arrangement in which nothing overlaps.
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         // macOS only draws the caption where the pointer or keyboard is,
@@ -443,9 +448,14 @@ struct FolderMasonryCard: View {
         .contentShape(.rect(cornerRadius: radius))
         .onHover { isHovering = $0 }
         .itemClick(select: select, open: onOpen)
-        .motionAware(.smooth(duration: 0.16), value: isOpen)
-        .motionAware(NookMotion.reflow, value: captionDisplay)
-        .motionAware(.smooth(duration: 0.16), value: isSelected)
+        .nookMotion(.interaction, value: isOpen)
+        .nookMotion(.interaction, value: isSelected)
+        // A change of caption setting is deliberately not animated here.
+        // It changes every tile's height, and the masonry wall resolves its
+        // placements from a cache that a height still in flight cannot
+        // invalidate — so animating it leaves each tile growing into the one
+        // placed below. The wall re-places in a single frame instead, which
+        // is the one arrangement in which nothing overlaps.
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
         .accessibilityValue(Format.spokenCaption(for: folder))

@@ -41,7 +41,7 @@ struct ObjectCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
         .contentShape(.rect(cornerRadius: 8))
-        .motionAware(NookMotion.interaction, value: isHighlighted)
+        .nookMotion(.interaction, value: isHighlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         // The badges below are drawn without labels, so the spoken caption is
@@ -224,8 +224,8 @@ struct FolderCard: View {
         .contentShape(.rect(cornerRadius: 8))
         .onHover { isHovered = $0 }
         .itemClick(select: select, open: onOpen)
-        .motionAware(NookMotion.interaction, value: isOpen)
-        .motionAware(NookMotion.interaction, value: isHighlighted)
+        .nookMotion(.interaction, value: isOpen)
+        .nookMotion(.interaction, value: isHighlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
         // An explicit label replaces the combined children, so what the card

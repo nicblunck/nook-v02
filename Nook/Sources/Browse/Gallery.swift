@@ -73,6 +73,14 @@ struct GalleryLayout<Content: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Changing arrangement is a swap, not a reflow.
+    ///
+    /// The three modes are not the same wall rearranged: a card that sits in
+    /// the fourth column of an icon grid belongs in the ninth row of a list,
+    /// and animating it there sends it diagonally through every card in
+    /// between. Worse in the masonry wall, where items also change column. So
+    /// the old arrangement leaves completely before the new one is drawn, and
+    /// nothing is ever on screen twice.
     var body: some View {
         Group {
             switch mode {
@@ -92,7 +100,8 @@ struct GalleryLayout<Content: View>: View {
                 }
             }
         }
-        .animation(reduceMotion ? nil : NookMotion.reflow, value: mode)
+        .transition(.nookSwap(reduceMotion: reduceMotion))
+        .nookMotion(.presentation, value: mode)
     }
 
     private var gridColumns: [GridItem] {
@@ -280,7 +289,7 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
                     .opacity(isCursor && showsRing ? 1 : 0)
                     .allowsHitTesting(false)
             }
-            .motionAware(NookMotion.interaction, value: isCursor)
+            .nookMotion(.interaction, value: isCursor)
             .onGeometryChange(for: CGRect.self) {
                 $0.frame(in: .named(coordinateSpace))
             } action: { frames.record($0, for: id) }
@@ -397,8 +406,7 @@ struct GalleryDropTarget: ViewModifier {
                         ))
                 }
             }
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
-                       value: isTargeted && isArrivingFromOutside)
+            .nookMotion(.interaction, value: isTargeted && isArrivingFromOutside)
     }
 }
 

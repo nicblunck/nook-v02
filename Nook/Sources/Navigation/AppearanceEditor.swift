@@ -386,7 +386,7 @@ private struct AppearancePicker: View {
                 .frame(height: 36)
         }
         .buttonStyle(.plain)
-        .motionAware(NookMotion.interaction, value: selected)
+        .nookMotion(.interaction, value: selected)
         .accessibilityLabel(option.name)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -425,7 +425,7 @@ private struct AppearancePicker: View {
         }
         .scaleEffect(reduceMotion || !selected ? 1 : 1.08)
         .frame(height: 36)
-        .motionAware(NookMotion.interaction, value: selected)
+        .nookMotion(.interaction, value: selected)
         .accessibilityLabel("Custom Color")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -520,7 +520,7 @@ private struct AppearancePicker: View {
                 .scaleEffect(reduceMotion || !selected ? 1 : 1.05)
         }
         .buttonStyle(.plain)
-        .motionAware(NookMotion.interaction, value: selected)
+        .nookMotion(.interaction, value: selected)
         .accessibilityLabel(symbol)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

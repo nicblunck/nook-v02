@@ -47,8 +47,11 @@ struct FolderPeekIcon: View {
                     .shadow(color: .black.opacity(0.18), radius: 0.5, y: -0.5)
             }
         }
-        .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.72),
-                   value: isOpen && !reduceMotion)
+        // Opening is the layout's own timing rather than a spring of its
+        // own. The old one overshot, and `openness` past 1 does not stop at
+        // the open folder — it keeps extrapolating the spread, throwing a
+        // sheet out past the icon square and over the name underneath.
+        .nookMotion(.presentation, value: isOpen && !reduceMotion)
         .accessibilityHidden(true)
     }
 }

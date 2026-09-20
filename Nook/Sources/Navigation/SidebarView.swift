@@ -63,8 +63,7 @@ struct SidebarView: View {
         rows
             .navigationTitle("Nook")
             .safeAreaInset(edge: .bottom, spacing: 0) { footer }
-            .animation(reduceMotion ? nil : NookMotion.reflow,
-                       value: model.sidebarReflowRevision)
+            .nookMotion(.reflow, value: model.sidebarReflowRevision)
     }
 
     #if !os(macOS)
@@ -227,7 +226,7 @@ struct SidebarView: View {
                             .foregroundStyle(.tertiary)
                             .monospacedDigit()
                             .contentTransition(.numericText(value: Double(count)))
-                            .motionAware(NookMotion.interaction, value: count)
+                            .nookMotion(.interaction, value: count)
                     }
                 }
             } icon: {
@@ -258,8 +257,8 @@ struct SidebarView: View {
                 .joined(separator: ", "))
         }
         .modifier(SidebarFolderDragSource(folderID: folder.id))
-        .plopIn(trigger: sidebarArrivalTrigger(for: folder.id),
-                order: sidebarArrivalOrder(for: folder.id))
+        .arriving(trigger: sidebarArrivalTrigger(for: folder.id),
+                  order: sidebarArrivalOrder(for: folder.id))
         .transition(sidebarItemTransition)
         .contextMenu {
             Button("Rename…") { prompt(.renameFolder(folder.id), initial: folder.name) }
@@ -296,7 +295,7 @@ struct SidebarView: View {
                             .foregroundStyle(.tertiary)
                             .monospacedDigit()
                             .contentTransition(.numericText(value: Double(collection.memberCount)))
-                            .motionAware(NookMotion.interaction, value: collection.memberCount)
+                            .nookMotion(.interaction, value: collection.memberCount)
                     }
                 }
             } icon: {
@@ -306,8 +305,8 @@ struct SidebarView: View {
             .accessibilityLabel(collection.name)
             .accessibilityValue(spokenCollectionState(collection))
         }
-        .plopIn(trigger: sidebarArrivalTrigger(for: collection.id),
-                order: sidebarArrivalOrder(for: collection.id))
+        .arriving(trigger: sidebarArrivalTrigger(for: collection.id),
+                  order: sidebarArrivalOrder(for: collection.id))
         .transition(sidebarItemTransition)
         .contextMenu {
             Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
@@ -395,9 +394,7 @@ struct SidebarView: View {
 
     #if !os(macOS)
     private var sidebarItemTransition: AnyTransition {
-        let movement = AnyTransition.scale(scale: 0.94).combined(with: .opacity)
-        return .motionAware(movement, reduceMotion: reduceMotion)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+        .nookDeparture(reduceMotion: reduceMotion)
     }
 
     private func sidebarArrivalTrigger(for id: FolderID) -> Int? {
@@ -466,7 +463,7 @@ private struct FolderRows<Row: View>: View {
                 row(node.folder)
             }
         }
-        .motionAware(NookMotion.reflow, value: model.expandedFolders)
+        .nookMotion(.reflow, value: model.expandedFolders)
     }
 
     private func expansion(of id: FolderID) -> Binding<Bool> {

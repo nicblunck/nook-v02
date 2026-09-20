@@ -79,11 +79,17 @@ struct BrowseView: View {
                 LibraryFloatingActionButton(model: model)
                     .padding(24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    // Sized down on its way out rather than faded in place:
+                    // it sits over the canvas, and a button dissolving on top
+                    // of an opening picture reads as a smudge.
+                    .transition(.motionAware(
+                        .scale(scale: 0.88).combined(with: .opacity),
+                        reduceMotion: reduceMotion
+                    ))
             }
             #endif
         }
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                   value: model.previewedObjectID)
+        .nookMotion(.presentation, value: model.previewedObjectID)
         .navigationTitle(navigationTitle)
         .navigationSubtitle(navigationSubtitle)
         #if os(iOS)
@@ -111,21 +117,48 @@ struct BrowseView: View {
         }
     }
 
+    /// Opening an object replaces the canvas rather than covering it, so the
+    /// two are swapped rather than cross-faded: the canvas is completely gone
+    /// before the preview begins to appear. A cross-fade here would show a
+    /// grid of thumbnails through the middle of the picture being opened.
     private var previewTransition: AnyTransition {
-        .motionAware(.scale(scale: 0.97).combined(with: .opacity),
-                     reduceMotion: reduceMotion)
+        .nookSwap(reduceMotion: reduceMotion)
     }
 
     // MARK: Canvas
+
+    /// Which of the canvas's four faces is showing.
+    ///
+    /// One value for the whole set rather than a separate condition each, so
+    /// moving between any two of them is the same kind of change and is timed
+    /// the same way. Animating only emptiness, as this once did, left the
+    /// locked and hidden doors snapping in while the empty state faded.
+    private enum CanvasFace: Equatable {
+        case hidden
+        case locked
+        case empty
+        case contents
+    }
+
+    private var canvasFace: CanvasFace {
+        if !model.isShowingHome, model.scope == .hidden, !model.isShowingHiddenContent {
+            return .hidden
+        }
+        if model.lockedLocation != nil { return .locked }
+        return model.contents.isEmpty ? .empty : .contents
+    }
 
     private var canvas: some View {
         Group {
             if !model.isShowingHome, model.scope == .hidden, !model.isShowingHiddenContent {
                 hiddenDoor
+                    .transition(.nookSwap(reduceMotion: reduceMotion))
             } else if let locked = model.lockedLocation {
                 lockedState(locked)
+                    .transition(.nookSwap(reduceMotion: reduceMotion))
             } else if model.contents.isEmpty {
                 emptyState
+                    .transition(.nookSwap(reduceMotion: reduceMotion))
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -135,7 +168,16 @@ struct BrowseView: View {
                             // sits in the canvas and does not change as the
                             // canvas scrolls.
                             .coordinateSpace(.named(canvasCoordinateSpace))
+                            // A location's contents are a different set of
+                            // things, not the same things rearranged, so they
+                            // are swapped rather than diffed: without this the
+                            // outgoing items animate away while the incoming
+                            // ones are already drawn in the slots they are
+                            // leaving.
+                            .id(model.destination)
+                            .transition(.nookSwap(.navigation, reduceMotion: reduceMotion))
                     }
+                    .nookMotion(.navigation, value: model.destination)
                     .refreshable {
                         await model.refreshAll()
                     }
@@ -187,8 +229,7 @@ struct BrowseView: View {
                 }
             }
         }
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                   value: model.contents.isEmpty)
+        .nookMotion(.presentation, value: canvasFace)
         .modifier(GalleryDropTarget(model: model))
     }
 
@@ -209,8 +250,7 @@ struct BrowseView: View {
         // lets the shelf's columns match them exactly rather than guess.
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridContentWidth = $0 }
         .padding(model.viewMode.contentInsets)
-        .animation(reduceMotion ? nil : NookMotion.reflow,
-                   value: model.reflowRevision)
+        .nookMotion(.reflow, value: model.reflowRevision)
     }
 
     /// Folders First pulls locations out of the grid entirely rather than
@@ -263,7 +303,7 @@ struct BrowseView: View {
     /// than the wider, bled one.
     private var folderShelfHeader: some View {
         Button {
-            withAnimation(reduceMotion ? nil : NookMotion.reflow) {
+            withAnimation(NookMotion.animation(.reflow, reduceMotion: reduceMotion)) {
                 isFolderShelfExpanded.toggle()
             }
         } label: {
@@ -374,8 +414,8 @@ struct BrowseView: View {
                          radius: mode.itemCornerRadius,
                          in: canvasCoordinateSpace,
                          frames: itemFrames)
-            .plopIn(trigger: arrivalTrigger(for: folder.id),
-                    order: arrivalOrder(for: folder.id))
+            .arriving(trigger: arrivalTrigger(for: folder.id),
+                      order: arrivalOrder(for: folder.id))
             .transition(itemTransition)
         case .object(let object):
             let isSelected = model.selection.contains(object.id)
@@ -398,19 +438,14 @@ struct BrowseView: View {
                          radius: mode.itemCornerRadius,
                          in: canvasCoordinateSpace,
                          frames: itemFrames)
-            .plopIn(trigger: arrivalTrigger(for: object.id),
-                    order: arrivalOrder(for: object.id))
+            .arriving(trigger: arrivalTrigger(for: object.id),
+                      order: arrivalOrder(for: object.id))
             .transition(itemTransition)
         }
     }
 
     private var itemTransition: AnyTransition {
-        let removal = AnyTransition.scale(scale: 0.88).combined(with: .opacity)
-        return .asymmetric(
-            insertion: .identity,
-            removal: .motionAware(removal, reduceMotion: reduceMotion)
-        )
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+        .nookDeparture(reduceMotion: reduceMotion)
     }
 
     /// Hidden with nobody authenticated: reached by Back, or by a prompt the

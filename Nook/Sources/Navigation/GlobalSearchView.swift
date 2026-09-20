@@ -81,7 +81,7 @@ struct GlobalSearchView: View {
                                         in: .capsule)
                     }
                     .buttonStyle(.plain)
-                    .motionAware(NookMotion.interaction, value: isOn)
+                    .nookMotion(.interaction, value: isOn)
                     .accessibilityAddTraits(isOn ? .isSelected : [])
                 }
             }
@@ -105,22 +105,24 @@ struct GlobalSearchView: View {
                         ForEach(results) { object in
                             resultRow(object)
                                 .id(object.id)
-                                .transition(.motionAware(
-                                    .scale(scale: 0.98).combined(with: .opacity),
-                                    reduceMotion: reduceMotion
-                                ))
+                                // Typing replaces most of the list on every
+                                // keystroke. A row that is leaving is gone
+                                // before a row that is arriving starts to
+                                // show, so the two are never stacked in the
+                                // same slot; a row that survives the keystroke
+                                // simply moves.
+                                .transition(.nookSwap(reduceMotion: reduceMotion))
                         }
                     }
                     .padding(8)
-                    .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
-                               value: results.map(\.id))
+                    .nookMotion(.reflow, value: results.map(\.id))
                 }
                 .onChange(of: highlighted) {
                     guard let highlighted else { return }
                     // Arrow-keying through results still has to bring the row
                     // into view; Reduce Motion only asks that it not scroll
                     // there.
-                    withAnimation(reduceMotion ? nil : .default) {
+                    withAnimation(NookMotion.animation(.presentation, reduceMotion: reduceMotion)) {
                         proxy.scrollTo(highlighted, anchor: .center)
                     }
                 }
@@ -155,7 +157,7 @@ struct GlobalSearchView: View {
         .contentShape(.rect)
         .onTapGesture { open(object) }
         .onHover { if $0 { highlighted = object.id } }
-        .motionAware(NookMotion.interaction, value: highlighted == object.id)
+        .nookMotion(.interaction, value: highlighted == object.id)
     }
 
     private func location(of object: ObjectSnapshot) -> String {
