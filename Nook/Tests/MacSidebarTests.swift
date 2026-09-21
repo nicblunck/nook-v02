@@ -135,6 +135,51 @@ struct MacSidebarTests {
         #expect(sidebar.titles(under: .section(.folders)) == ["Work"])
     }
 
+    @Test("Rows leave, close up, make room and arrive in turn, never at once")
+    func rowsComeAndGoInStages() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.createFolder(named: "Work", in: nil)
+        let sidebar = try await HostedSidebar(model: model, animatesChanges: true)
+        let work = try #require(model.folderTree.first?.folder)
+
+        // Arriving with nothing leaving: the rows below make room at once,
+        // but the new row stays invisible until they have, then fades in.
+        await model.createFolder(named: "Archive", in: nil)
+        await sidebar.settle()
+        #expect(sidebar.titles(under: .section(.folders)) == ["Archive", "Work"])
+        let archiveID = try #require(model.folderTree.first { $0.folder.name == "Archive" }?.folder.id)
+        let archive = try #require(sidebar.item(.destination(.scope(.folder(archiveID)))))
+        let archiveRow = try #require(sidebar.outline.rowView(atRow: sidebar.outline.row(forItem: archive),
+                                                              makeIfNecessary: false))
+        #expect(archiveRow.alphaValue == 0)
+        try? await Task.sleep(for: .seconds(1.2))
+        #expect(archiveRow.alphaValue == 1)
+
+        // Leaving: the row fades where it stands before the rows below close
+        // up behind it, so it is still in the outline just after the change.
+        await model.deleteFolder(work.id)
+        await sidebar.settle()
+        #expect(sidebar.titles(under: .section(.folders)) == ["Archive", "Work"])
+        try? await Task.sleep(for: .seconds(1.2))
+        #expect(sidebar.titles(under: .section(.folders)) == ["Archive"])
+    }
+
+    @Test("A change arriving mid-stage is shown once the stage is clear")
+    func laterChangeFollowsTheStages() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        let sidebar = try await HostedSidebar(model: model, animatesChanges: true)
+
+        await model.createFolder(named: "One", in: nil)
+        try? await Task.sleep(for: .milliseconds(150))
+        await model.createFolder(named: "Two", in: nil)
+        try? await Task.sleep(for: .seconds(2))
+        #expect(sidebar.titles(under: .section(.folders)) == ["One", "Two"])
+    }
+
     @Test("A folder is offered every folder but its own subtree, and lands where it is dropped")
     func folderDrop() async throws {
         let harness = try await TestModel()
@@ -286,7 +331,7 @@ private final class HostedSidebar {
     let outline: SidebarOutlineView
     let coordinator: MacSidebar.Coordinator
 
-    init(model: LibraryModel) async throws {
+    init(model: LibraryModel, animatesChanges: Bool = false) async throws {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 260, height: 600),
                           styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = NSHostingView(rootView: SidebarView(model: model))
@@ -297,6 +342,9 @@ private final class HostedSidebar {
         let content = try #require(window.contentView)
         outline = try #require(Self.find(SidebarOutlineView.self, in: content))
         coordinator = try #require(outline.dataSource as? MacSidebar.Coordinator)
+        // Rows come and go in stages over most of a second in the app; the
+        // tests below read the outline the moment the model changes.
+        coordinator.animatesChanges = animatesChanges
     }
 
     /// Lets SwiftUI carry a model change through to the outline: sleeping

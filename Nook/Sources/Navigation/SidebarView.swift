@@ -63,7 +63,9 @@ struct SidebarView: View {
         rows
             .navigationTitle("Nook")
             .safeAreaInset(edge: .bottom, spacing: 0) { footer }
-            .animation(reduceMotion ? nil : NookMotion.reflow,
+            // Rows that stay close up behind one that has left, and only
+            // once it has gone.
+            .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
                        value: model.sidebarReflowRevision)
     }
 
@@ -118,8 +120,10 @@ struct SidebarView: View {
                         destinationRow(.scope(.kind(kind))) {
                             Label(kind.pluralDisplayName, systemImage: kind.symbolName)
                         }
+                        .transition(sidebarItemTransition)
                     }
                 }
+                .transition(sidebarItemTransition)
             }
 
             if !model.tags.isEmpty {
@@ -133,9 +137,14 @@ struct SidebarView: View {
                     .padding(.vertical, 4)
                     .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 6, trailing: 12))
                     .listRowSeparator(.hidden)
+                    .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
+                               value: model.tags.map(\.id))
                 }
+                .transition(sidebarItemTransition)
             }
         }
+        .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
+                   value: model.mediaTypes)
     }
     #endif
 
@@ -188,6 +197,7 @@ struct SidebarView: View {
                 .contentShape(.rect(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        .motionAware(NookMotion.interaction, value: isCurrent)
         .help(title)
         .accessibilityLabel(title)
         .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
@@ -261,7 +271,8 @@ struct SidebarView: View {
         }
         .modifier(SidebarFolderDragSource(folderID: folder.id))
         .plopIn(trigger: sidebarArrivalTrigger(for: folder.id),
-                order: sidebarArrivalOrder(for: folder.id))
+                order: sidebarArrivalOrder(for: folder.id),
+                delay: model.sidebarChange.enterDelay(reduceMotion: reduceMotion))
         .transition(sidebarItemTransition)
         .contextMenu {
             Button("Rename…") { prompt(.renameFolder(folder.id), initial: folder.name) }
@@ -309,7 +320,8 @@ struct SidebarView: View {
             .accessibilityValue(spokenCollectionState(collection))
         }
         .plopIn(trigger: sidebarArrivalTrigger(for: collection.id),
-                order: sidebarArrivalOrder(for: collection.id))
+                order: sidebarArrivalOrder(for: collection.id),
+                delay: model.sidebarChange.enterDelay(reduceMotion: reduceMotion))
         .transition(sidebarItemTransition)
         .contextMenu {
             Button("Rename…") { prompt(.renameCollection(collection.id), initial: collection.name) }
@@ -396,10 +408,14 @@ struct SidebarView: View {
     // MARK: Naming
 
     #if !os(macOS)
+    /// A place leaving shrinks away; one arriving waits until it has gone
+    /// and the rows have closed up, then fades in.
     private var sidebarItemTransition: AnyTransition {
-        let movement = AnyTransition.scale(scale: 0.94).combined(with: .opacity)
-        return .motionAware(movement, reduceMotion: reduceMotion)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+        model.sidebarChange.itemTransition(
+            exit: .scale(scale: 0.94).combined(with: .opacity),
+            enter: .scale(scale: 0.94).combined(with: .opacity),
+            reduceMotion: reduceMotion
+        )
     }
 
     private func sidebarArrivalTrigger(for id: FolderID) -> Int? {
@@ -532,10 +548,11 @@ private struct OptionalDropTarget: ViewModifier {
         if let target {
             content
                 .background {
-                    if isTargeted {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.3))
-                    }
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.accentColor.opacity(0.3))
+                        .opacity(isTargeted ? 1 : 0)
                 }
+                .motionAware(NookMotion.interaction, value: isTargeted)
                 .libraryDropTarget(target, model: model) { isTargeted = $0 }
         } else {
             content

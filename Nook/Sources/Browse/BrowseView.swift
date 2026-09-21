@@ -98,8 +98,11 @@ struct BrowseView: View {
                 MacAddContentToolbar(model: model)
                     .padding(.bottom, 22)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .transition(.motionAware(
-                        .move(edge: .bottom).combined(with: .opacity),
+                    // Leaves with the canvas and comes back with it, on the
+                    // same beat.
+                    .transition(.staged(
+                        exit: .move(edge: .bottom).combined(with: .opacity),
+                        enter: .move(edge: .bottom).combined(with: .opacity),
                         reduceMotion: reduceMotion
                     ))
             }
@@ -144,8 +147,11 @@ struct BrowseView: View {
                     #else
                     .padding(.bottom, 20)
                     #endif
-                    .transition(.motionAware(
-                        .move(edge: .bottom).combined(with: .opacity),
+                    // A confirmation arriving on the heels of another waits
+                    // for it to leave rather than sliding up through it.
+                    .transition(.staged(
+                        exit: .move(edge: .bottom).combined(with: .opacity),
+                        enter: .move(edge: .bottom).combined(with: .opacity),
                         reduceMotion: reduceMotion
                     ))
             }
@@ -156,9 +162,12 @@ struct BrowseView: View {
         )
     }
 
+    /// Browsing gives way to preview and preview gives way back to browsing:
+    /// whichever is leaving settles out before the other settles in.
     private var previewTransition: AnyTransition {
-        .motionAware(.scale(scale: 0.97).combined(with: .opacity),
-                     reduceMotion: reduceMotion)
+        .staged(exit: .scale(scale: 0.97).combined(with: .opacity),
+                enter: .scale(scale: 0.97).combined(with: .opacity),
+                reduceMotion: reduceMotion)
     }
 
     // MARK: Canvas
@@ -167,8 +176,10 @@ struct BrowseView: View {
         Group {
             if !model.isShowingHome, model.scope == .hidden, !model.isShowingHiddenContent {
                 hiddenDoor
+                    .transition(swapTransition)
             } else if let locked = model.lockedLocation {
                 lockedState(locked)
+                    .transition(swapTransition)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -228,6 +239,7 @@ struct BrowseView: View {
                         itemFrames.keep(Set(model.canvasOrder))
                     }
                 }
+                .transition(swapTransition)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -239,9 +251,13 @@ struct BrowseView: View {
             )
             .ignoresSafeArea()
         }
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                   value: model.contents.isEmpty)
         .modifier(GalleryDropTarget(model: model))
+    }
+
+    /// One thing standing in for another in the same space — a door for a
+    /// canvas, an empty state for a grid: a plain staged fade.
+    private var swapTransition: AnyTransition {
+        .staged(reduceMotion: reduceMotion)
     }
 
     private var galleryAccentColor: Color {
@@ -254,13 +270,32 @@ struct BrowseView: View {
     /// the toolbar, not as another row of gallery content.
     private var filterBarGap: CGFloat { 12 }
 
+    /// Keyed on the place the contents came from, so arriving somewhere else
+    /// swaps the whole canvas — the old place fades out, then the new one
+    /// fades in — while a change within the same place is choreographed item
+    /// by item in `placeContents`. Nothing is drawn until the first place has
+    /// loaded, so launch does not open on an empty state that is about to be
+    /// replaced. The stack keeps the two places in the same spot while one
+    /// gives way to the other.
+    private var items: some View {
+        ZStack(alignment: .top) {
+            if let place = model.contentsDestination {
+                placeContents
+                    .id(place)
+                    .transition(swapTransition)
+            }
+        }
+    }
+
     /// One arrangement for all three view modes: what differs between a grid,
     /// a masonry wall and a list is the layout and the card, and both of those
     /// are decided in `Gallery`.
-    private var items: some View {
+    private var placeContents: some View {
         VStack(spacing: 0) {
             LibraryContentFilterBar(
                 selection: model.contentFilter,
+                available: model.availableContentFilters,
+                change: model.contentFilterChange,
                 tint: galleryAccentColor,
                 horizontalInset: model.viewMode.contentInsets.leading,
                 select: selectContentFilter
@@ -273,11 +308,13 @@ struct BrowseView: View {
                         max(240, length - 44)
                     }
                     .padding(.horizontal, model.viewMode.contentInsets.leading)
+                    .transition(swapTransition)
             } else {
                 VStack(spacing: 0) {
                     if showsFolderShelf {
                         folderShelfSection
                             .padding(.bottom, model.viewMode.contentInsets.top)
+                            .transition(folderShelfTransition)
                     }
                     canvasGrid
                     CloudSyncStatusView(model: model)
@@ -288,12 +325,24 @@ struct BrowseView: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridContentWidth = $0 }
                 .padding(.horizontal, model.viewMode.contentInsets.leading)
                 .padding(.top, filterBarGap)
+                .transition(swapTransition)
             }
         }
         .padding(.top, filterBarGap)
         .padding(.bottom, model.viewMode.contentInsets.bottom)
-        .animation(reduceMotion ? nil : NookMotion.reflow,
-                   value: model.reflowRevision)
+        // Whatever stays moves into place with the reflow spring — held back,
+        // when something is leaving, until it has left. A change of
+        // arrangement (sort, Folders First, captions) has no exit to wait on
+        // and moves at once.
+        .animation(model.contentsChange.shift(reduceMotion: reduceMotion),
+                   value: ReflowKey(contents: model.contents, revision: model.reflowRevision))
+    }
+
+    /// What the grid answers to with a move: the items themselves, and the
+    /// preference-driven rearrangements the model counts.
+    private struct ReflowKey: Equatable {
+        let contents: LocationContents
+        let revision: Int
     }
 
     /// Folders First pulls locations out of the grid entirely rather than
@@ -301,6 +350,18 @@ struct BrowseView: View {
     /// as items that happen to come first among the things being browsed.
     private var showsFolderShelf: Bool {
         model.foldersFirst && !model.contents.folders.isEmpty
+    }
+
+    /// The shelf appearing with the folders that fill it arrives on their
+    /// beat. Appearing for a change of arrangement instead, it waits for the
+    /// folders to leave the grid and the objects to close up behind them.
+    private var folderShelfTransition: AnyTransition {
+        let change = model.contentsChange
+        let enterDelay = change.inserts
+            ? change.enterDelay(reduceMotion: reduceMotion)
+            : (reduceMotion ? NookMotion.reducedDuration
+                            : NookMotion.exitDuration + NookMotion.shiftDuration)
+        return .staged(enterDelay: enterDelay, reduceMotion: reduceMotion)
     }
 
     /// The grid's own columns, resolved from the same width the grid itself
@@ -441,7 +502,8 @@ struct BrowseView: View {
                          in: canvasCoordinateSpace,
                          frames: itemFrames)
             .plopIn(trigger: arrivalTrigger(for: folder.id),
-                    order: arrivalOrder(for: folder.id))
+                    order: arrivalOrder(for: folder.id),
+                    delay: model.contentsChange.enterDelay(reduceMotion: reduceMotion))
             .transition(itemTransition)
         case .object(let object):
             let isSelected = model.selection.contains(object.id)
@@ -465,18 +527,22 @@ struct BrowseView: View {
                          in: canvasCoordinateSpace,
                          frames: itemFrames)
             .plopIn(trigger: arrivalTrigger(for: object.id),
-                    order: arrivalOrder(for: object.id))
+                    order: arrivalOrder(for: object.id),
+                    delay: model.contentsChange.enterDelay(reduceMotion: reduceMotion))
             .transition(itemTransition)
         }
     }
 
+    /// An item leaving shrinks away first; one arriving waits until whatever
+    /// left has gone and whatever stayed has settled, then fades in. An
+    /// explicit arrival still plops — `plopIn` holds it back by the same
+    /// wait, so the plop lands on the same beat the fade would have.
     private var itemTransition: AnyTransition {
-        let removal = AnyTransition.scale(scale: 0.88).combined(with: .opacity)
-        return .asymmetric(
-            insertion: .identity,
-            removal: .motionAware(removal, reduceMotion: reduceMotion)
+        model.contentsChange.itemTransition(
+            exit: .scale(scale: 0.88).combined(with: .opacity),
+            enter: .scale(scale: 0.96).combined(with: .opacity),
+            reduceMotion: reduceMotion
         )
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
     }
 
     /// Hidden with nobody authenticated: reached by Back, or by a prompt the
@@ -682,6 +748,11 @@ struct BrowseView: View {
 /// being cut off by the gallery's card-column padding.
 private struct LibraryContentFilterBar: View {
     let selection: LibraryContentFilter?
+    /// Which pills are worth showing here — a type with nothing behind it
+    /// at this location doesn't get a pill.
+    let available: Set<LibraryContentFilter>
+    /// The stages the latest change to `available` needs.
+    let change: MotionChoreography
     let tint: Color
     /// Matches the gallery's own column inset, so the first pill's leading
     /// edge lines up with the folder shelf and the grid beneath it instead
@@ -689,19 +760,29 @@ private struct LibraryContentFilterBar: View {
     var horizontalInset: CGFloat = 20
     let select: (LibraryContentFilter) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                ForEach(LibraryContentFilter.allCases) { filter in
+                ForEach(LibraryContentFilter.allCases.filter(available.contains)) { filter in
                     LibraryContentFilterButton(
                         filter: filter,
                         isSelected: selection == filter,
                         tint: tint,
                         action: { select(filter) }
                     )
+                    // A pill that has lost its last item fades out; the rest
+                    // close the gap; one earning its place fades in last.
+                    .transition(change.itemTransition(
+                        exit: .scale(scale: 0.9).combined(with: .opacity),
+                        enter: .scale(scale: 0.9).combined(with: .opacity),
+                        reduceMotion: reduceMotion
+                    ))
                 }
             }
             .padding(.horizontal, horizontalInset)
+            .animation(change.shift(reduceMotion: reduceMotion), value: available)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -738,6 +819,7 @@ private struct LibraryContentFilterButton: View {
         }
         .buttonStyle(.plain)
         .fixedSize(horizontal: true, vertical: false)
+        .motionAware(NookMotion.interaction, value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

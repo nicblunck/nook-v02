@@ -212,6 +212,21 @@ extension MacSidebar {
         private var appliedFocusRequest = -1
         private var wantsKeyboard = false
 
+        /// Whether rows come and go in stages, over time. Off under Reduce
+        /// Motion, and off in tests, where the outline has to reflect the
+        /// model the moment it is applied.
+        var animatesChanges = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+
+        /// The latest state asked for while an earlier change is still
+        /// playing out. It is picked up the moment the stage is clear.
+        private var pendingSidebar: MacSidebar?
+        private var isChoreographing = false
+        /// The state the stages currently playing are bringing the outline to.
+        private var staged: (sidebar: MacSidebar, tree: [SidebarItem], removes: Bool)?
+        /// Rows that have been inserted but are still invisible, waiting for
+        /// the others to make room before they fade in.
+        private var arriving: Set<ObjectIdentifier> = []
+
         init(model: LibraryModel, onEditAppearance: @escaping (AppearanceTarget) -> Void) {
             self.model = model
             self.onEditAppearance = onEditAppearance
@@ -219,24 +234,154 @@ extension MacSidebar {
 
         // MARK: Bringing the outline into line
 
+        /// Rows come and go in stages, none of them over another: a row that
+        /// is leaving fades out first; the rows below it close up; then the
+        /// rows below a new one make room; and only then does the new row
+        /// fade in. A change that moves no rows — a count, a rename, a badge
+        /// — is applied at once.
         func apply(_ sidebar: MacSidebar) {
             guard let outline else { return }
-            isApplying = true
-            defer { isApplying = false }
 
-            let fresh = Self.tree(from: sidebar)
             if roots.isEmpty {
-                roots = fresh
+                isApplying = true
+                defer { isApplying = false }
+                roots = Self.tree(from: sidebar)
                 outline.reloadData()
                 for section in roots { outline.expandItem(section) }
-            } else {
-                outline.beginUpdates()
-                merge(fresh, into: nil, outline: outline)
-                outline.endUpdates()
+                settle(sidebar, outline: outline)
+                return
             }
 
+            pendingSidebar = sidebar
+            guard !isChoreographing else {
+                // Selection and the keyboard are not kept waiting on rows
+                // that are still on their way; whatever can be brought into
+                // line now is, and the rest follows once the stage is clear.
+                settle(sidebar, outline: outline, deselectingIfMissing: false)
+                return
+            }
+            choreograph()
+        }
+
+        private func choreograph() {
+            guard let outline, let sidebar = pendingSidebar else { return }
+            pendingSidebar = nil
+            let fresh = Self.tree(from: sidebar)
+
+            let plan = Self.plan(fresh, against: roots)
+            guard animatesChanges, plan.removes || plan.inserts else {
+                isApplying = true
+                defer { isApplying = false }
+                outline.beginUpdates()
+                merge(fresh, into: nil, outline: outline, stage: .everything)
+                outline.endUpdates()
+                settle(sidebar, outline: outline)
+                return
+            }
+
+            isChoreographing = true
+            staged = (sidebar, fresh, plan.removes)
+            settle(sidebar, outline: outline, deselectingIfMissing: false)
+            let leaving = plan.removedItems.flatMap { rowViews(of: $0, outline: outline) }
+            guard !leaving.isEmpty else {
+                closeUp()
+                return
+            }
+            // Stage one: whatever is leaving fades out where it stands.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = NookMotion.exitDuration
+                for rowView in leaving { rowView.animator().alphaValue = 0 }
+            }
+            after(NookMotion.exitDuration) { $0.closeUp() }
+        }
+
+        /// Stage two: the rows that were faded are taken out and the rows
+        /// below them slide up into the gap.
+        private func closeUp() {
+            guard let outline, let staged else { return }
+            guard staged.removes else {
+                makeRoom()
+                return
+            }
+            NSAnimationContext.runAnimationGroup { [self] context in
+                context.duration = NookMotion.shiftDuration
+                isApplying = true
+                defer { isApplying = false }
+                outline.beginUpdates()
+                merge(staged.tree, into: nil, outline: outline, stage: .removals)
+                outline.endUpdates()
+            }
+            after(NookMotion.shiftDuration) { $0.makeRoom() }
+        }
+
+        /// Stage three: new rows go in invisible, and the rows below them
+        /// slide down to make room.
+        private func makeRoom() {
+            guard let outline, let staged else { return }
+            NSAnimationContext.runAnimationGroup { [self] context in
+                context.duration = NookMotion.shiftDuration
+                isApplying = true
+                defer { isApplying = false }
+                outline.beginUpdates()
+                merge(staged.tree, into: nil, outline: outline, stage: .everything)
+                outline.endUpdates()
+            }
+            guard !arriving.isEmpty else {
+                finish()
+                return
+            }
+            after(NookMotion.shiftDuration) { $0.reveal() }
+        }
+
+        /// Stage four: the new rows fade in.
+        private func reveal() {
+            guard let outline else { return }
+            let arrived = arriving
+            arriving = []
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = NookMotion.enterDuration
+                for row in 0..<outline.numberOfRows {
+                    guard let item = outline.item(atRow: row) as? SidebarItem,
+                          arrived.contains(ObjectIdentifier(item)),
+                          let rowView = outline.rowView(atRow: row, makeIfNecessary: false)
+                    else { continue }
+                    rowView.animator().alphaValue = 1
+                }
+            }
+            after(NookMotion.enterDuration) { $0.finish() }
+        }
+
+        /// The stage is clear: bring the rest into line, and start on
+        /// whatever arrived while this was playing.
+        private func finish() {
+            guard let outline, let staged else { return }
+            self.staged = nil
+            isChoreographing = false
+            settle(pendingSidebar ?? staged.sidebar, outline: outline)
+            if pendingSidebar != nil { choreograph() }
+        }
+
+        /// Runs the next stage once this one has had its time. Paced by the
+        /// clock rather than by the animation's own completion, which fires
+        /// early for a stage in which nothing happens to be animating.
+        private func after(_ seconds: TimeInterval, _ next: @escaping @MainActor (Coordinator) -> Void) {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(seconds))
+                guard let self else { return }
+                next(self)
+            }
+        }
+
+        /// Expansion, selection and the keyboard, brought into line with the
+        /// model. With `deselectingIfMissing` off, a destination the outline
+        /// has no row for yet is left alone rather than deselected.
+        private func settle(_ sidebar: MacSidebar, outline: NSOutlineView, deselectingIfMissing: Bool = true) {
+            let wasApplying = isApplying
+            isApplying = true
+            defer { isApplying = wasApplying }
+
             syncExpansion(with: sidebar.expandedFolders, outline: outline)
-            select(sidebar.destination, outline: outline)
+            select(sidebar.destination, outline: outline, deselectingIfMissing: deselectingIfMissing)
 
             wantsKeyboard = sidebar.wantsKeyboard
             if sidebar.keyboardFocusRequest != appliedFocusRequest {
@@ -245,29 +390,84 @@ extension MacSidebar {
             }
         }
 
+        /// The visible row of an item and of everything open beneath it.
+        private func rowViews(of item: SidebarItem, outline: NSOutlineView) -> [NSTableRowView] {
+            var views: [NSTableRowView] = []
+            func collect(_ item: SidebarItem) {
+                let row = outline.row(forItem: item)
+                if row >= 0, let view = outline.rowView(atRow: row, makeIfNecessary: false) {
+                    views.append(view)
+                }
+                if outline.isItemExpanded(item) { item.children.forEach(collect) }
+            }
+            collect(item)
+            return views
+        }
+
+        private struct Plan {
+            var removedItems: [SidebarItem] = []
+            var inserts = false
+            var removes: Bool { !removedItems.isEmpty }
+        }
+
+        /// What bringing the tree into line would take out and put in,
+        /// worked out without touching anything.
+        private static func plan(_ fresh: [SidebarItem], against existing: [SidebarItem]) -> Plan {
+            var plan = Plan()
+            func walk(_ fresh: [SidebarItem], _ existing: [SidebarItem]) {
+                let byID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                let freshIDs = Set(fresh.map(\.id))
+                plan.removedItems += existing.filter { !freshIDs.contains($0.id) }
+                for item in fresh {
+                    if let kept = byID[item.id] {
+                        walk(item.children, kept.children)
+                    } else {
+                        plan.inserts = true
+                    }
+                }
+            }
+            walk(fresh, existing)
+            return plan
+        }
+
+        private enum MergeStage {
+            /// Only take out what has gone.
+            case removals
+            /// Take out what has gone, put in what is new, and bring what
+            /// stayed up to date.
+            case everything
+        }
+
         /// Reconciles one level of the tree: rows that are still there keep
         /// their objects and take their new contents, rows that have gone are
         /// removed, new ones inserted — so the outline animates the change
         /// rather than being rebuilt around it.
-        private func merge(_ fresh: [SidebarItem], into parent: SidebarItem?, outline: NSOutlineView) {
+        private func merge(_ fresh: [SidebarItem], into parent: SidebarItem?, outline: NSOutlineView, stage: MergeStage) {
             let existing = parent?.children ?? roots
             let byID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let freshIDs = Set(fresh.map(\.id))
 
             var merged: [SidebarItem] = []
             var changed: [SidebarItem] = []
-            for item in fresh {
-                if let kept = byID[item.id] {
-                    let wasExpandable = !kept.children.isEmpty
-                    if kept.row != item.row || wasExpandable != !item.children.isEmpty { changed.append(kept) }
-                    // The identity is kept for the outline's sake — its
-                    // expansion state and selection track this object — but
-                    // what it shows has to catch up, or a row whose content
-                    // changed without its position or children changing
-                    // would reload showing the same stale row it always had.
-                    kept.row = item.row
-                    merged.append(kept)
-                } else {
-                    merged.append(item)
+            switch stage {
+            case .removals:
+                merged = existing.filter { freshIDs.contains($0.id) }
+            case .everything:
+                for item in fresh {
+                    if let kept = byID[item.id] {
+                        let wasExpandable = !kept.children.isEmpty
+                        if kept.row != item.row || wasExpandable != !item.children.isEmpty { changed.append(kept) }
+                        // The identity is kept for the outline's sake — its
+                        // expansion state and selection track this object — but
+                        // what it shows has to catch up, or a row whose content
+                        // changed without its position or children changing
+                        // would reload showing the same stale row it always had.
+                        kept.row = item.row
+                        merged.append(kept)
+                    } else {
+                        merged.append(item)
+                        if animatesChanges { arriving.insert(ObjectIdentifier(item)) }
+                    }
                 }
             }
 
@@ -276,14 +476,20 @@ extension MacSidebar {
             let inserted = IndexSet(difference.insertions.compactMap { if case .insert(let offset, _, _) = $0 { offset } else { nil } })
 
             if let parent { parent.children = merged } else { roots = merged }
-            if !removed.isEmpty { outline.removeItems(at: removed, inParent: parent, withAnimation: .effectFade) }
-            if !inserted.isEmpty { outline.insertItems(at: inserted, inParent: parent, withAnimation: .effectFade) }
+            // Rows that fade first slide out of a gap that is already
+            // empty; rows that will fade in last slide into one made for
+            // them. Applied at once, the two fades are the outline's own.
+            let removal: NSTableView.AnimationOptions = animatesChanges ? .slideUp : .effectFade
+            let insertion: NSTableView.AnimationOptions = animatesChanges ? .slideDown : .effectFade
+            if !removed.isEmpty { outline.removeItems(at: removed, inParent: parent, withAnimation: removal) }
+            if !inserted.isEmpty { outline.insertItems(at: inserted, inParent: parent, withAnimation: insertion) }
             for item in changed { outline.reloadItem(item, reloadChildren: false) }
 
             // Children of kept rows are merged in turn; new rows arrived with
             // theirs already in place.
-            for (kept, item) in zip(merged, fresh) where byID[item.id] != nil {
-                merge(item.children, into: kept, outline: outline)
+            for item in fresh {
+                guard let kept = byID[item.id] else { continue }
+                merge(item.children, into: kept, outline: outline, stage: stage)
             }
 
             // A section that has just appeared — Tags, when the first tag is
@@ -308,9 +514,10 @@ extension MacSidebar {
             walk(roots)
         }
 
-        private func select(_ destination: LibraryDestination, outline: NSOutlineView) {
+        private func select(_ destination: LibraryDestination, outline: NSOutlineView,
+                            deselectingIfMissing: Bool = true) {
             guard let item = item(for: destination) else {
-                outline.deselectAll(nil)
+                if deselectingIfMissing { outline.deselectAll(nil) }
                 return
             }
             // A place inside a closed folder is opened up to, as the Finder
@@ -542,6 +749,14 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
 
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
         (item as? SidebarItem)?.row.destination != nil
+    }
+
+    /// A row view is reused, and one that faded out on its way out would
+    /// otherwise come back invisible. A row that is still waiting its turn
+    /// to fade in starts invisible on purpose.
+    func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
+        let item = outlineView.item(atRow: row) as? SidebarItem
+        rowView.alphaValue = item.map { arriving.contains(ObjectIdentifier($0)) } == true ? 0 : 1
     }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -822,6 +1037,8 @@ private final class SidebarSectionCell: NSTableCellView {
         addButton.target = self
         addButton.action = #selector(add)
         addButton.translatesAutoresizingMaskIntoConstraints = false
+        addButton.isHidden = true
+        addButton.alphaValue = 0
         addSubview(addButton)
 
         NSLayoutConstraint.activate([
@@ -910,8 +1127,26 @@ private final class SidebarSectionCell: NSTableCellView {
         updateAddButtonVisibility()
     }
 
+    /// The button fades in under the pointer and out again behind it,
+    /// rather than popping. It stays a hit target only while shown.
     private func updateAddButtonVisibility() {
-        addButton.isHidden = !hasAddAction || !isHovered
+        let shows = hasAddAction && isHovered
+        guard shows != !addButton.isHidden || addButton.alphaValue != (shows ? 1 : 0) else { return }
+        if shows {
+            addButton.isHidden = false
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = NookMotion.enterDuration
+                addButton.animator().alphaValue = 1
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup({ [addButton] context in
+                context.duration = NookMotion.exitDuration
+                addButton.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self, !(hasAddAction && isHovered) else { return }
+                addButton.isHidden = true
+            })
+        }
     }
 
     @objc private func add() {

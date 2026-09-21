@@ -369,6 +369,18 @@ private struct LastSyncedText: View {
 
 struct CloudSyncStatusView: View {
     @Bindable var model: LibraryModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// What the label is saying, so a change of state can be animated as one.
+    private enum State: Equatable {
+        case syncing, issue, synced(Date?)
+    }
+
+    private var state: State {
+        if model.isCloudSyncing { return .syncing }
+        if model.cloudSyncError != nil { return .issue }
+        return .synced(model.lastCloudSyncDate)
+    }
 
     var body: some View {
         Menu {
@@ -385,23 +397,34 @@ struct CloudSyncStatusView: View {
                 Text("Waiting for the first iCloud sync")
             }
         } label: {
-            HStack(spacing: 5) {
-                if model.isCloudSyncing {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Syncing")
-                } else if model.cloudSyncError != nil {
-                    Label("Sync issue", systemImage: "exclamationmark.icloud")
-                } else {
-                    Image(systemName: "checkmark.icloud")
-                    if let date = model.lastCloudSyncDate {
-                        LastSyncedText(date: date)
-                    } else {
-                        Text("iCloud")
+            // One state gives way to the next: "Syncing" fades out before
+            // "Last synced" fades in.
+            ZStack {
+                switch state {
+                case .syncing:
+                    HStack(spacing: 5) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Syncing")
                     }
+                    .transition(.staged(reduceMotion: reduceMotion))
+                case .issue:
+                    Label("Sync issue", systemImage: "exclamationmark.icloud")
+                        .transition(.staged(reduceMotion: reduceMotion))
+                case .synced(let date):
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.icloud")
+                        if let date {
+                            LastSyncedText(date: date)
+                        } else {
+                            Text("iCloud")
+                        }
+                    }
+                    .transition(.staged(reduceMotion: reduceMotion))
                 }
             }
             .font(.caption)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation, value: state)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)

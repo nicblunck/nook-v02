@@ -25,14 +25,9 @@ extension LibraryViewMode {
 
     /// Whether the cursor is drawn as a ring around the item.
     ///
-    /// The icon grid lights the item itself instead, the way the Finder does;
-    /// two highlights on one item would be one too many.
-    var drawsCursorRing: Bool { self != .grid }
-
-    /// How far outside the item the ring is drawn. A gap between the picture
-    /// and the ring keeps the two readable as separate things where the item
-    /// is a full-bleed photograph. Rows sit a hair apart, so they take none.
-    var ringOutset: CGFloat { self == .masonry ? 4 : 0 }
+    /// The icon grid and the masonry wall light the item itself instead, the
+    /// way the Finder does; two highlights on one item would be one too many.
+    var drawsCursorRing: Bool { self == .list }
 
     var itemCornerRadius: CGFloat {
         switch self {
@@ -78,25 +73,37 @@ struct GalleryLayout<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
+        // A change of arrangement is a change of container, and a grid
+        // cannot be moved into a wall tile by tile — so the arrangement that
+        // is leaving fades out, and only then does the new one fade in. The
+        // stack keeps the two in the same place while that happens rather
+        // than letting the incoming one queue up underneath.
+        ZStack(alignment: .top) {
             switch mode {
             case .grid:
                 LazyVGrid(columns: gridColumns, spacing: 14 * min(scale, 1.6)) {
                     content
                 }
+                .transition(arrangementTransition)
             case .masonry:
                 MasonryLayout(minimumColumnWidth: max(130, 168 * scale),
                               spacing: 20 * min(max(scale, 0.75), 1.5),
                               contentRevision: masonryCaptionDisplay.layoutRevision) {
                     content
                 }
+                .transition(arrangementTransition)
             case .list:
                 LazyVStack(spacing: 1) {
                     content
                 }
+                .transition(arrangementTransition)
             }
         }
         .animation(reduceMotion ? nil : NookMotion.reflow, value: mode)
+    }
+
+    private var arrangementTransition: AnyTransition {
+        .staged(reduceMotion: reduceMotion)
     }
 
     private var gridColumns: [GridItem] {
@@ -198,6 +205,8 @@ struct FolderItemView: View {
     var select: (EventModifiers) -> Void = { _ in }
     let onOpen: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Group {
             switch mode {
@@ -225,8 +234,15 @@ struct FolderItemView: View {
                     .padding(6)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
+                    .transition(.staged(
+                        exit: .scale(scale: 0.6).combined(with: .opacity),
+                        enter: .scale(scale: 0.6).combined(with: .opacity),
+                        enterDelay: 0,
+                        reduceMotion: reduceMotion
+                    ))
             }
         }
+        .motionAware(NookMotion.interaction, value: folder.isHidden)
     }
 }
 
@@ -275,7 +291,6 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
     let id: ID
     let isCursor: Bool
     let radius: CGFloat
-    let outset: CGFloat
     let showsRing: Bool
     let coordinateSpace: String
     let frames: GalleryFrames<ID>
@@ -283,12 +298,11 @@ private struct GalleryItemMarker<ID: Hashable & Sendable>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay {
-                // Selection is a fill in the list and a mat on the masonry
-                // wall; the cursor is this ring, and an item can carry both.
-                // The icon grid asks for none: it lights the item instead.
-                RoundedRectangle(cornerRadius: radius + outset)
+                // Selection is a fill in the list; the cursor is this ring,
+                // and a row can carry both. The icon grid and the masonry
+                // wall ask for none: they light the item instead.
+                RoundedRectangle(cornerRadius: radius)
                     .strokeBorder(Color.accentColor, lineWidth: 2.5)
-                    .padding(-outset)
                     .opacity(isCursor && showsRing ? 1 : 0)
                     .allowsHitTesting(false)
             }
@@ -309,7 +323,7 @@ extension View {
         frames: GalleryFrames<ID>
     ) -> some View {
         modifier(GalleryItemMarker(id: id, isCursor: isCursor,
-                                   radius: radius, outset: mode.ringOutset,
+                                   radius: radius,
                                    showsRing: mode.drawsCursorRing,
                                    coordinateSpace: coordinateSpace, frames: frames))
     }

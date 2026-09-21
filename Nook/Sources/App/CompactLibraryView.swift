@@ -194,7 +194,8 @@ struct CompactLibraryList: View {
                         }
                         .draggable(FolderTransfer(id: node.folder.id))
                         .plopIn(trigger: arrivalTrigger(for: node.folder.id),
-                                order: arrivalOrder(for: node.folder.id))
+                                order: arrivalOrder(for: node.folder.id),
+                                delay: model.sidebarChange.enterDelay(reduceMotion: reduceMotion))
                         .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
@@ -231,7 +232,8 @@ struct CompactLibraryList: View {
                             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
                         }
                         .plopIn(trigger: arrivalTrigger(for: collection.id),
-                                order: arrivalOrder(for: collection.id))
+                                order: arrivalOrder(for: collection.id),
+                                delay: model.sidebarChange.enterDelay(reduceMotion: reduceMotion))
                         .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
@@ -241,6 +243,7 @@ struct CompactLibraryList: View {
                         }
                     }
                 }
+                .transition(compactItemTransition)
             }
 
             if !model.mediaTypes.isEmpty {
@@ -249,8 +252,10 @@ struct CompactLibraryList: View {
                         row(scope: .kind(kind), title: kind.pluralDisplayName) {
                             Image(systemName: kind.symbolName)
                         }
+                        .transition(compactItemTransition)
                     }
                 }
+                .transition(compactItemTransition)
             }
 
             if !model.tags.isEmpty {
@@ -259,6 +264,7 @@ struct CompactLibraryList: View {
                         row(scope: .tag(tag.id), title: tag.name) {
                             EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
                         }
+                        .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
                             guard !ids.isEmpty else { return false }
@@ -267,6 +273,7 @@ struct CompactLibraryList: View {
                         }
                     }
                 }
+                .transition(compactItemTransition)
             }
 
             Section {
@@ -292,8 +299,12 @@ struct CompactLibraryList: View {
             await model.refreshAll()
         }
         .navigationTitle("Nook")
-        .animation(reduceMotion ? nil : NookMotion.reflow,
+        // Rows that stay close up behind one that has left, and only once
+        // it has gone.
+        .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
                    value: model.sidebarReflowRevision)
+        .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
+                   value: model.mediaTypes)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Settings", systemImage: "gear") { model.isSettingsPresented = true }
@@ -309,10 +320,14 @@ struct CompactLibraryList: View {
         }
     }
 
+    /// A place leaving shrinks away; one arriving waits until it has gone
+    /// and the rows have closed up, then fades in.
     private var compactItemTransition: AnyTransition {
-        let movement = AnyTransition.scale(scale: 0.94).combined(with: .opacity)
-        return .motionAware(movement, reduceMotion: reduceMotion)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.reflow)
+        model.sidebarChange.itemTransition(
+            exit: .scale(scale: 0.94).combined(with: .opacity),
+            enter: .scale(scale: 0.94).combined(with: .opacity),
+            reduceMotion: reduceMotion
+        )
     }
 
     private func arrivalTrigger(for id: FolderID) -> Int? {
@@ -366,6 +381,7 @@ struct CompactLibraryList: View {
                         .foregroundStyle(.tertiary)
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(count)))
+                        .motionAware(NookMotion.interaction, value: count)
                 }
             }
         } icon: { icon() }

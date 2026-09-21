@@ -20,9 +20,12 @@ struct ThumbnailView: View {
     var onAppearanceChange: ((ThumbnailAppearance?) -> Void)? = nil
 
     @Environment(\.thumbnailLoader) private var loader
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var image: Image?
     @State private var didAttempt = false
     @State private var cacheRevision = 0
+    /// Whether the picture was waited on, and so has a glyph to give way from.
+    @State private var wasWaitedOn = false
 
     @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 1
 
@@ -32,8 +35,10 @@ struct ThumbnailView: View {
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .transition(revealTransition)
             } else {
                 placeholder
+                    .transition(revealTransition)
             }
         }
         // Keyed on accessibility as well as identity: locking or unlocking
@@ -62,6 +67,15 @@ struct ThumbnailView: View {
                 .foregroundStyle(.secondary)
                 .opacity(didAttempt ? 1 : 0.55)
         }
+        .motionAware(NookMotion.interaction, value: didAttempt)
+    }
+
+    /// The glyph gives way to the picture: it fades out, then the picture
+    /// fades in over the space it left. A picture that was ready at once —
+    /// cached, and asked for again as the gallery scrolls its tile back into
+    /// view — is simply there.
+    private var revealTransition: AnyTransition {
+        wasWaitedOn ? .staged(reduceMotion: reduceMotion) : .identity
     }
 
     private struct TaskKey: Equatable {
@@ -73,11 +87,13 @@ struct ThumbnailView: View {
     private func load() async {
         image = nil
         didAttempt = false
+        let requested = ContinuousClock.now
         guard let data = await loader?.thumbnail(for: object, maximumSize: maximumSize) else {
             onAppearanceChange?(nil)
             didAttempt = true
             return
         }
+        wasWaitedOn = ContinuousClock.now - requested > .milliseconds(60)
         image = Image(platformData: data)
         if let onAspectRatioChange,
            let aspectRatio = displayAspectRatio(in: data) {

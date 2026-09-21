@@ -313,8 +313,14 @@ private struct AppearancePicker: View {
         AppearanceColorOption(id: "purple", name: "Purple", hex: "#AF52DE")
     ]
 
+    /// The grid draws from the query one update behind the field, so the
+    /// stages a change needs are worked out — from what was showing to what
+    /// is about to be — before the icons come and go.
+    @State private var shownQuery = ""
+    @State private var iconChange: MotionChoreography = .none
+
     private var groups: [AppearanceIconGroup] {
-        AppearanceIconCatalog.groups(matching: query)
+        AppearanceIconCatalog.groups(matching: shownQuery)
     }
 
     var body: some View {
@@ -331,8 +337,10 @@ private struct AppearancePicker: View {
                     .font(.caption)
                     .buttonStyle(.plain)
                     .foregroundStyle(.tint)
+                    .transition(.staged(enterDelay: 0, reduceMotion: reduceMotion))
                 }
             }
+            .motionAware(NookMotion.interaction, value: appearance != .system)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 10) {
                 ForEach(Self.palette) { option in
@@ -355,6 +363,9 @@ private struct AppearancePicker: View {
         .onAppear {
             emojiDraft = appearance.emoji ?? ""
             customColor = Color(hex: appearance.colorHex) ?? .accentColor
+        }
+        .onChange(of: query) { _, query in
+            showIcons(matching: query)
         }
         .onChange(of: isSearchFocused) { _, _ in
             syncFocus()
@@ -445,11 +456,18 @@ private struct AppearancePicker: View {
                 .labelStyle(.iconOnly)
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .transition(.staged(
+                    exit: .scale(scale: 0.8).combined(with: .opacity),
+                    enter: .scale(scale: 0.8).combined(with: .opacity),
+                    enterDelay: 0,
+                    reduceMotion: reduceMotion
+                ))
             }
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
         .background(Color.primary.opacity(0.06), in: Capsule())
+        .motionAware(NookMotion.interaction, value: query.isEmpty)
     }
 
     private var emojiField: some View {
@@ -472,6 +490,8 @@ private struct AppearancePicker: View {
         .background(Color.primary.opacity(0.06), in: Capsule())
     }
 
+    /// The grid gives way to the "no match" note and back in stages, and
+    /// the icons themselves come and go the same way as the search narrows.
     @ViewBuilder
     private var iconGrid: some View {
         if groups.isEmpty {
@@ -479,6 +499,7 @@ private struct AppearancePicker: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 120)
+                .transition(.staged(reduceMotion: reduceMotion))
         } else {
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7),
@@ -488,6 +509,7 @@ private struct AppearancePicker: View {
                     Section {
                         ForEach(group.options) { option in
                             iconButton(option.symbol)
+                                .transition(iconTransition)
                         }
                     } header: {
                         Text(group.name)
@@ -495,10 +517,28 @@ private struct AppearancePicker: View {
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 4)
+                            .transition(iconTransition)
                     }
                 }
             }
+            .animation(iconChange.shift(reduceMotion: reduceMotion), value: shownQuery)
+            .transition(.staged(reduceMotion: reduceMotion))
         }
+    }
+
+    private var iconTransition: AnyTransition {
+        iconChange.itemTransition(
+            exit: .scale(scale: 0.8).combined(with: .opacity),
+            enter: .scale(scale: 0.8).combined(with: .opacity),
+            reduceMotion: reduceMotion
+        )
+    }
+
+    private func showIcons(matching query: String) {
+        let shown = AppearanceIconCatalog.groups(matching: shownQuery).flatMap { $0.options.map(\.symbol) }
+        let next = AppearanceIconCatalog.groups(matching: query).flatMap { $0.options.map(\.symbol) }
+        iconChange = MotionChoreography(from: shown, to: next)
+        shownQuery = query
     }
 
     private func iconButton(_ symbol: String) -> some View {

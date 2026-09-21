@@ -250,9 +250,37 @@ final class LibraryModel {
     /// survives navigation but is never written to settings or the store.
     private(set) var contentFilter: LibraryContentFilter?
 
+    /// Which filter pills are worth showing for the current location.
+    ///
+    /// A pill for a type with nothing behind it just adds dead taps, so this
+    /// is recomputed on every refresh from what's actually here. The active
+    /// filter is kept in even at zero results, since that's the only way to
+    /// switch it back off.
+    private(set) var availableContentFilters: Set<LibraryContentFilter> = []
+
+    /// The stages the latest change to `availableContentFilters` needs.
+    private(set) var contentFilterChange: MotionChoreography = .none
+
     // MARK: Contents
 
     private(set) var contents: LocationContents = .empty
+
+    /// Where `contents` was fetched for. It trails `destination` by one
+    /// query: the canvas keeps showing the last place until the next one has
+    /// actually arrived, and this is what tells it the moment that happens —
+    /// so leaving for somewhere else reads as one place giving way to
+    /// another, while a search, a filter or a deletion within the same place
+    /// reads as items coming and going.
+    private(set) var contentsDestination: LibraryDestination?
+
+    /// Which stages the latest change to `contents` needs — whether anything
+    /// left, whether what stayed moved, whether anything arrived — so the
+    /// canvas can hold each stage back exactly as long as the ones before it
+    /// and no longer.
+    private(set) var contentsChange: MotionChoreography = .none
+
+    /// The same, for the places the sidebar names.
+    private(set) var sidebarChange: MotionChoreography = .none
     private(set) var breadcrumbs: [FolderSnapshot] = []
     private(set) var folderTree: [FolderNode] = []
     private(set) var collections: [CollectionSnapshot] = []
@@ -568,9 +596,14 @@ final class LibraryModel {
         let access = accessContext
         async let collections = service.collections(in: access)
         async let tags = service.tags(in: access)
-        self.folderTree = await loadFolderTree(under: nil)
-        self.collections = await collections
-        self.tags = await tags
+        let folderTree = await loadFolderTree(under: nil)
+        let loadedCollections = await collections
+        let loadedTags = await tags
+        let previousPlaces = sidebarPlaceIDs
+        self.folderTree = folderTree
+        self.collections = loadedCollections
+        self.tags = loadedTags
+        sidebarChange = MotionChoreography(from: previousPlaces, to: sidebarPlaceIDs)
         if isReflowPending { sidebarReflowRevision += 1 }
         await refreshCounts()
         pruneHistory()
@@ -598,19 +631,20 @@ final class LibraryModel {
         contentsRefreshGeneration += 1
         let generation = contentsRefreshGeneration
         let access = accessContext
-        let objects: [ObjectSnapshot]
         let filter = contentFilter
 
-        if filter == .folders {
+        // Fetched unfiltered so the pill bar can tell which kinds actually
+        // sit at this location — the kind filter below is applied locally.
+        let query = ObjectQuery(scope: effectiveScope, searchText: searchText, sort: sort)
+        let unfilteredObjects = await service.objects(matching: query, in: access)
+
+        let objects: [ObjectSnapshot]
+        if let filter, filter != .folders {
+            objects = unfilteredObjects.filter { filter.objectKinds.contains($0.kind) }
+        } else if filter == .folders {
             objects = []
         } else {
-            let query = ObjectQuery(
-                scope: effectiveScope,
-                searchText: searchText,
-                kinds: filter?.objectKinds ?? [],
-                sort: sort
-            )
-            objects = await service.objects(matching: query, in: access)
+            objects = unfilteredObjects
         }
 
         let locationFolders: [FolderSnapshot]
@@ -630,14 +664,14 @@ final class LibraryModel {
             breadcrumbs = []
         }
 
-        let folders: [FolderSnapshot]
-        if let filter, filter != .folders {
-            folders = []
-        } else if filter == .folders, !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            folders = locationFolders.filter { folderMatchesSearch($0, text: searchText) }
+        let searchedFolders: [FolderSnapshot]
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            searchedFolders = locationFolders
         } else {
-            folders = locationFolders
+            searchedFolders = locationFolders.filter { folderMatchesSearch($0, text: searchText) }
         }
+
+        let folders: [FolderSnapshot] = (filter == nil || filter == .folders) ? searchedFolders : []
 
         var peeks: [FolderID: [ObjectSnapshot]] = [:]
         for folder in folders where folder.visibility == .full {
@@ -646,8 +680,32 @@ final class LibraryModel {
             )
         }
         guard generation == contentsRefreshGeneration, !Task.isCancelled else { return }
+        let arrived = LocationContents(folders: folders, objects: objects)
+        // Worked out against what the canvas was showing, when that was the
+        // same place. A change of place animates as a whole rather than item
+        // by item, so it has no stages of its own.
+        contentsChange = contentsDestination == destination
+            ? MotionChoreography(from: contents.itemIDs, to: arrived.itemIDs)
+            : .none
         folderPeeks = peeks
-        contents = LocationContents(folders: folders, objects: objects)
+        contents = arrived
+        contentsDestination = destination
+
+        let presentKinds = Set(unfilteredObjects.map(\.kind))
+        var available = Set(LibraryContentFilter.allCases.filter { candidate in
+            candidate != .folders && !candidate.objectKinds.isDisjoint(with: presentKinds)
+        })
+        if !searchedFolders.isEmpty { available.insert(.folders) }
+        // Keeps the active pill on screen even if it stops matching anything
+        // (e.g. the last image in a folder gets moved out) — it's still the
+        // only way to switch the filter back off.
+        if let filter { available.insert(filter) }
+        contentFilterChange = MotionChoreography(
+            from: LibraryContentFilter.allCases.filter(availableContentFilters.contains),
+            to: LibraryContentFilter.allCases.filter(available.contains)
+        )
+        availableContentFilters = available
+
         publishPendingReflow()
         // A deletion, a move or an arriving import can take whatever the
         // cursor was resting on out from under it.
@@ -1654,6 +1712,14 @@ final class LibraryModel {
         return flatten(folderTree, depth: 0)
     }
 
+    /// The places the sidebar names, in the order it names them, as one
+    /// sequence — what a change to the sidebar is choreographed against.
+    private var sidebarPlaceIDs: [LibraryReference] {
+        allFolders.map { .folder($0.folder.id) }
+            + collections.map { .collection($0.id) }
+            + tags.map { .tag($0.id) }
+    }
+
     /// Builds the sidebar's folder tree. Depth is capped so a cycle introduced
     /// by a bad sync can never hang the sidebar.
     private func loadFolderTree(under parent: FolderID?, depth: Int = 0) async -> [FolderNode] {
@@ -1728,6 +1794,14 @@ enum CanvasItemID: Hashable, Sendable {
     var objectID: ObjectID? {
         if case .object(let id) = self { return id }
         return nil
+    }
+}
+
+extension LocationContents {
+    /// Everything here, folders ahead of objects, as one sequence of
+    /// identities — what a change to the canvas is choreographed against.
+    var itemIDs: [CanvasItemID] {
+        folders.map { .folder($0.id) } + objects.map { .object($0.id) }
     }
 }
 

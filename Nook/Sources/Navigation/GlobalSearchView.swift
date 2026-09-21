@@ -14,6 +14,8 @@ struct GlobalSearchView: View {
     @State private var text = ""
     @State private var kinds: Set<ObjectKind> = []
     @State private var results: [ObjectSnapshot] = []
+    /// The stages the latest change to `results` needs.
+    @State private var resultsChange: MotionChoreography = .none
     @State private var highlighted: ObjectID?
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isFieldFocused: Bool
@@ -58,10 +60,17 @@ struct GlobalSearchView: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .foregroundStyle(.tertiary)
+                    .transition(.staged(
+                        exit: .scale(scale: 0.8).combined(with: .opacity),
+                        enter: .scale(scale: 0.8).combined(with: .opacity),
+                        enterDelay: 0,
+                        reduceMotion: reduceMotion
+                    ))
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .motionAware(NookMotion.interaction, value: text.isEmpty)
     }
 
     private var filters: some View {
@@ -91,38 +100,50 @@ struct GlobalSearchView: View {
         .scrollIndicators(.hidden)
     }
 
-    @ViewBuilder
     private var resultsList: some View {
-        if text.isEmpty {
-            ContentUnavailableView("Search Everything", systemImage: "magnifyingglass",
-                                   description: Text("Titles, filenames, notes, tags, folders, collections and links."))
-        } else if results.isEmpty {
-            ContentUnavailableView.search(text: text)
-        } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(results) { object in
-                            resultRow(object)
-                                .id(object.id)
-                                .transition(.motionAware(
-                                    .scale(scale: 0.98).combined(with: .opacity),
-                                    reduceMotion: reduceMotion
-                                ))
-                        }
+        ZStack {
+            if text.isEmpty {
+                ContentUnavailableView("Search Everything", systemImage: "magnifyingglass",
+                                       description: Text("Titles, filenames, notes, tags, folders, collections and links."))
+                    .transition(.staged(reduceMotion: reduceMotion))
+            } else if results.isEmpty {
+                ContentUnavailableView.search(text: text)
+                    .transition(.staged(reduceMotion: reduceMotion))
+            } else {
+                resultRows
+                    .transition(.staged(reduceMotion: reduceMotion))
+            }
+        }
+    }
+
+    private var resultRows: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(results) { object in
+                        resultRow(object)
+                            .id(object.id)
+                            // A result that no longer matches fades out; the
+                            // rest close up; a new match fades in once they
+                            // have.
+                            .transition(resultsChange.itemTransition(
+                                exit: .scale(scale: 0.98).combined(with: .opacity),
+                                enter: .scale(scale: 0.98).combined(with: .opacity),
+                                reduceMotion: reduceMotion
+                            ))
                     }
-                    .padding(8)
-                    .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
-                               value: results.map(\.id))
                 }
-                .onChange(of: highlighted) {
-                    guard let highlighted else { return }
-                    // Arrow-keying through results still has to bring the row
-                    // into view; Reduce Motion only asks that it not scroll
-                    // there.
-                    withAnimation(reduceMotion ? nil : .default) {
-                        proxy.scrollTo(highlighted, anchor: .center)
-                    }
+                .padding(8)
+                .animation(resultsChange.shift(reduceMotion: reduceMotion),
+                           value: results.map(\.id))
+            }
+            .onChange(of: highlighted) {
+                guard let highlighted else { return }
+                // Arrow-keying through results still has to bring the row
+                // into view; Reduce Motion only asks that it not scroll
+                // there.
+                withAnimation(reduceMotion ? nil : .default) {
+                    proxy.scrollTo(highlighted, anchor: .center)
                 }
             }
         }
@@ -169,7 +190,7 @@ struct GlobalSearchView: View {
         let query = text
         let kindFilter = kinds
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
-            results = []
+            show([])
             highlighted = nil
             return
         }
@@ -181,9 +202,16 @@ struct GlobalSearchView: View {
                 in: model.accessContext
             )
             guard !Task.isCancelled else { return }
-            results = found
+            show(found)
             highlighted = found.first?.id
         }
+    }
+
+    /// Works out the stages the change needs before showing it, so the rows
+    /// read them off the same update.
+    private func show(_ found: [ObjectSnapshot]) {
+        resultsChange = MotionChoreography(from: results.map(\.id), to: found.map(\.id))
+        results = found
     }
 
     private func move(_ offset: Int) {

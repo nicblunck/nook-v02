@@ -13,20 +13,28 @@ struct InfoPanel: View {
     @State private var tagDraft = ""
     @State private var editingID: ObjectID?
     @FocusState private var isEditingText: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var object: ObjectSnapshot? {
         model.previewedObject ?? model.selectedObjects.first
     }
 
+    /// The panel shows one of three things, and moves between them the way
+    /// the canvas moves between places: the old one fades out, then the new
+    /// one fades in.
     var body: some View {
-        Group {
+        ZStack {
             if model.selectedObjects.count > 1 {
                 multipleSelection
+                    .transition(swapTransition)
             } else if let object {
                 details(for: object)
+                    .id(object.id)
+                    .transition(swapTransition)
             } else {
                 ContentUnavailableView("No Selection", systemImage: "info.circle",
                                        description: Text("Select an item to see its details."))
+                    .transition(swapTransition)
             }
         }
         .task(id: object?.id) { loadDrafts() }
@@ -35,6 +43,10 @@ struct InfoPanel: View {
     }
 
     // MARK: States
+
+    private var swapTransition: AnyTransition {
+        .staged(reduceMotion: reduceMotion)
+    }
 
     private var multipleSelection: some View {
         let objects = model.selectedObjects
@@ -78,9 +90,21 @@ struct InfoPanel: View {
                                         Task { await model.removeTag(tag.id, from: [object.id]) }
                                     }
                                 )
+                                // Tags are added one at a time, at the end,
+                                // and removed one at a time: a new one has
+                                // nothing to wait for, and the rest close up
+                                // behind a removed one once it has gone.
+                                .transition(.staged(
+                                    exit: .scale(scale: 0.9).combined(with: .opacity),
+                                    enter: .scale(scale: 0.9).combined(with: .opacity),
+                                    enterDelay: 0,
+                                    reduceMotion: reduceMotion
+                                ))
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .animation(MotionChoreography(removes: true).shift(reduceMotion: reduceMotion),
+                                   value: object.tags.map(\.id))
                     }
                     TextField("Add a tag", text: $tagDraft)
                         .focused($isEditingText)

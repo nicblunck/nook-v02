@@ -17,12 +17,13 @@ struct ObjectPreviewView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        content
-            .transition(.opacity)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                       value: object.id)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
-                       value: resolvedURL)
+        ZStack {
+            content
+        }
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
+                   value: object.id)
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
+                   value: resolvedURL)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background.secondary)
             #if os(macOS)
@@ -65,26 +66,39 @@ struct ObjectPreviewView: View {
 
     // MARK: Content
 
+    /// Whichever of these is showing gives way to the next in stages — the
+    /// spinner fades out before the file fades in, and so on — the same way
+    /// the canvas gives way to this view.
     @ViewBuilder
     private var content: some View {
         if object.kind == .link {
             #if os(iOS)
             LinkPreviewView(model: model, object: object, onStep: step, onTap: toggleChrome)
+                .transition(swapTransition)
             #else
             LinkPreviewView(model: model, object: object)
+                .transition(swapTransition)
             #endif
         } else if let loadFailure {
             ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
                                    description: Text(loadFailure))
+                .transition(swapTransition)
         } else if let resolvedURL {
             #if os(iOS)
             FilePreview(object: object, url: resolvedURL, onStep: step, onTap: toggleChrome)
+                .transition(swapTransition)
             #else
             FilePreview(object: object, url: resolvedURL)
+                .transition(swapTransition)
             #endif
         } else {
             ProgressView().controlSize(.large)
+                .transition(swapTransition)
         }
+    }
+
+    private var swapTransition: AnyTransition {
+        .staged(reduceMotion: reduceMotion)
     }
 
     #if os(iOS)
