@@ -67,10 +67,11 @@ struct GalleryLayout<Content: View>: View {
     var scale: Double = 1
     var masonryCaptionDisplay: MasonryCaptionDisplay = .automatic
     /// Replaces the grid's own adaptive column resolution with an exact
-    /// count and width, computed by the caller from a measured width. Lets
-    /// something drawn outside the grid — the Folders First shelf — line up
-    /// with these columns instead of guessing at what the grid would have
-    /// chosen on its own.
+    /// count, computed by the caller from a measured width. Lets something
+    /// drawn outside the grid — the Folders First shelf — line up with these
+    /// columns instead of guessing at what the grid would have chosen on its
+    /// own. The `width` is the caller's to draw that something at; the grid
+    /// gets there by sharing its own width equally.
     var fixedColumns: GalleryMetrics.Columns? = nil
     @ViewBuilder let content: Content
 
@@ -100,7 +101,15 @@ struct GalleryLayout<Content: View>: View {
 
     private var gridColumns: [GridItem] {
         if let fixedColumns {
-            return Array(repeating: GridItem(.fixed(fixedColumns.width), spacing: GalleryMetrics.columnSpacing),
+            // The count is what is pinned; the columns themselves stay
+            // flexible so the grid is always exactly as wide as it is
+            // offered. Equal shares of that width come out at the caller's
+            // `width`, so nothing is lost — and a column that could not give
+            // way would hold the grid at its old width when the window is
+            // dragged narrower. The width the caller measures would then be
+            // that same old width, the count would never come down, and the
+            // canvas would be stuck wider than the window for good.
+            return Array(repeating: GridItem(.flexible(minimum: 0), spacing: GalleryMetrics.columnSpacing),
                          count: fixedColumns.count)
         }
         let range = GalleryMetrics.cellWidthRange(scale: scale)
