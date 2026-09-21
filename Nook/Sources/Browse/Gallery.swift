@@ -1,5 +1,8 @@
 import SwiftUI
 import NookLibrary
+#if os(macOS)
+import AppKit
+#endif
 
 /// The parts every gallery in the app is made of.
 ///
@@ -471,80 +474,243 @@ struct GalleryDropIndicator: View {
 }
 
 #if os(macOS)
-/// The library's primary add action: a split button sized to match the
-/// window's other toolbar-style controls. The plus opens the system importer
-/// directly, while the attached chevron reveals the rest. iOS reaches the
-/// same actions through the compact shell's own bottom toolbar instead.
-struct LibraryFloatingActionButton: View {
+/// A dock icon, either an SF Symbol or a full-color custom asset from
+/// Assets.xcassets. Custom assets need an explicit size since, unlike SF
+/// Symbols, they don't scale with the surrounding font.
+private enum ToolbarIcon {
+    case system(String)
+    case custom(String)
+
+    @ViewBuilder
+    func image(size: CGFloat) -> some View {
+        switch self {
+        case .system(let name):
+            Image(systemName: name)
+                .font(.system(size: size, weight: .medium))
+        case .custom(let name):
+            Image(name)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+/// The library's add-content dock. It borrows the immediacy of the compact
+/// iOS bottom toolbar without stretching phone chrome across a Mac window:
+/// each common import route remains one click away in a small glass cluster.
+struct MacAddContentToolbar: View {
     let model: LibraryModel
 
     var body: some View {
-        // `Menu(label:primaryAction:)` renders on macOS as a native
-        // NSComboButton-style split control whose height AppKit fixes
-        // internally — no SwiftUI frame on the label reaches it. So this is
-        // built from two plain, independently-sized glass buttons instead:
-        // a real Button for the plus, and a custom-drawn chevron visual
-        // layered over an invisible Menu that supplies the actual dropdown.
-        // One `.glassEffect()` wraps both segments so they share a single
-        // pill sized to hug their combined content, instead of each segment
-        // drawing its own separate shape. The glyphs are white, matching the
-        // system convention for icons on a colored Liquid Glass fill (e.g.
-        // the checkmark on the blue "Done" button).
         HStack(spacing: 0) {
-            Button {
-                model.isImporterPresented = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
+            MacDocumentPopoverButton(model: model)
+
+            MacAddContentButton(
+                title: "Add Photo…",
+                icon: .custom("ToolbarGalleryIcon")
+            ) {
+                model.isPhotosPickerPresented = true
             }
-            .buttonStyle(.plain)
 
-            Rectangle()
-                .fill(Color.white.opacity(0.25))
-                .frame(width: 1, height: 18)
-
-            ZStack {
-                Menu {
-                    Button("Add File…", systemImage: "folder") {
-                        model.isImporterPresented = true
-                    }
-                    Button("Add from Photos…", systemImage: "photo.on.rectangle") {
-                        model.isPhotosPickerPresented = true
-                    }
-                    Button("Add URL…", systemImage: "link.badge.plus") {
-                        model.isAddURLPresented = true
-                    }
-                    Divider()
-                    Button("New Folder…", systemImage: "folder.badge.plus") {
-                        model.editingAppearance = .newFolder(parent: model.currentFolderID)
-                    }
-                    Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                        model.editingAppearance = .newCollection(adding: [])
-                    }
-                    Button("New Tag…", systemImage: "tag") {
-                        model.editingAppearance = .newTag()
-                    }
-                } label: {
-                    Color.clear
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-
-                // Drawn on top so the Menu above stays purely functional —
-                // its own native size is irrelevant since it never paints.
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .allowsHitTesting(false)
+            MacAddContentButton(
+                title: "Paste",
+                icon: .custom("ToolbarClipboardIcon")
+            ) {
+                Task { await model.importPasteboard() }
             }
-            .frame(width: 36, height: 36)
+
+            MacFolderPopoverButton(model: model)
         }
-        .glassEffect(.regular.tint(.accentColor).interactive())
-        .help("Add content")
-        .accessibilityLabel("Add content")
-        .accessibilityHint("Opens the Finder to import files. Use the arrow for more options.")
+        .background(.regularMaterial, in: .capsule)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct MacDocumentPopoverButton: View {
+    let model: LibraryModel
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            ToolbarIcon.custom("ToolbarFileIcon").image(size: 25)
+        }
+        .buttonStyle(MacAddContentButtonStyle())
+        .help("Add Document")
+        .accessibilityLabel(Text("Add Document"))
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                MacAddContentPopoverRow(
+                    title: "Add from Files…",
+                    icon: .custom("ToolbarFolderIcon")
+                ) {
+                    isPresented = false
+                    model.isImporterPresented = true
+                }
+                MacAddContentPopoverRow(
+                    title: "Scan Document…",
+                    icon: .custom("ToolbarScanIcon")
+                ) {
+                    scanDocument()
+                }
+            }
+            .padding(8)
+            .frame(width: 224)
+        }
+    }
+
+    private func scanDocument() {
+        isPresented = false
+        Task { @MainActor in
+            // Let the popover dismiss before asking the command in the File
+            // menu to begin its Continuity Camera handoff.
+            await Task.yield()
+            guard ContinuityCameraScanner.start() else {
+                model.alert = LibraryAlert(
+                    title: "No document scanner available",
+                    message: "Bring a Continuity Camera-capable iPhone or iPad nearby, then try again."
+                )
+                return
+            }
+        }
+    }
+}
+
+private struct MacFolderPopoverButton: View {
+    let model: LibraryModel
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            ToolbarIcon.custom("ToolbarFolderIcon").image(size: 25)
+        }
+        .buttonStyle(MacAddContentButtonStyle())
+        .help("Add Folder, Collection, or Tag")
+        .accessibilityLabel(Text("Add Folder"))
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                MacAddContentPopoverRow(
+                    title: "Add Folder…",
+                    icon: .custom("ToolbarFolderIcon")
+                ) {
+                    isPresented = false
+                    model.editingAppearance = .newFolder(parent: model.currentFolderID)
+                }
+                MacAddContentPopoverRow(
+                    title: "Add Collection…",
+                    icon: .custom("ToolbarCollectionIcon")
+                ) {
+                    isPresented = false
+                    model.editingAppearance = .newCollection(adding: [])
+                }
+                MacAddContentPopoverRow(
+                    title: "Add Tag…",
+                    icon: .custom("ToolbarTagIcon")
+                ) {
+                    isPresented = false
+                    model.editingAppearance = .newTag()
+                }
+            }
+            .padding(8)
+            .frame(width: 224)
+        }
+    }
+}
+
+private struct MacAddContentPopoverRow: View {
+    let title: LocalizedStringKey
+    let icon: ToolbarIcon
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                icon.image(size: 20)
+                Text(title)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .frame(height: 36)
+    }
+}
+
+private struct MacAddContentButton: View {
+    let title: LocalizedStringKey
+    let icon: ToolbarIcon
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            icon.image(size: 25)
+        }
+        .buttonStyle(MacAddContentButtonStyle())
+        .help(Text(title))
+        .accessibilityLabel(Text(title))
+    }
+}
+
+private struct MacAddContentButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16, weight: .medium))
+            .frame(width: 48, height: 36)
+            .contentShape(.rect)
+            .background(
+                Color.primary.opacity(configuration.isPressed ? 0.12 : 0),
+                in: .circle
+            )
+    }
+}
+
+/// Finds the scan command contributed by `ImportFromDevicesCommands` and
+/// performs that exact system action. Its result still arrives through the
+/// window's `importsItemProviders` modifier.
+@MainActor
+private enum ContinuityCameraScanner {
+    static func start() -> Bool {
+        guard let mainMenu = NSApp.mainMenu,
+              let importCommand = firstItem(
+                in: mainMenu,
+                where: { $0.identifier == NSMenuItem.importFromDeviceIdentifier }
+              )
+        else { return false }
+
+        importCommand.submenu?.update()
+        guard let submenu = importCommand.submenu,
+              let scanCommand = firstItem(in: submenu, where: isScanCommand),
+              let action = scanCommand.action
+        else { return false }
+
+        return NSApp.sendAction(action, to: scanCommand.target, from: scanCommand)
+    }
+
+    private static func firstItem(
+        in menu: NSMenu,
+        where matches: (NSMenuItem) -> Bool
+    ) -> NSMenuItem? {
+        menu.update()
+        for item in menu.items {
+            if matches(item) { return item }
+            if let submenu = item.submenu,
+               let match = firstItem(in: submenu, where: matches) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    private static func isScanCommand(_ item: NSMenuItem) -> Bool {
+        let titleMatches = item.title.localizedCaseInsensitiveContains("scan")
+        let actionMatches = item.action.map(NSStringFromSelector)?
+            .localizedCaseInsensitiveContains("scan") ?? false
+        return titleMatches || actionMatches
     }
 }
 #endif
@@ -679,6 +845,10 @@ private struct GalleryViewOptionsButton: View {
     let model: LibraryModel
     @State private var isPresented = false
 
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+
     var body: some View {
         #if os(iOS)
         // The ellipsis stands for "view and sort options" the same way it
@@ -727,30 +897,37 @@ private struct GalleryViewOptionsButton: View {
             // do not control and cannot anchor. Greying out an irrelevant
             // row keeps the popover a constant size, which sidesteps the
             // resize (and the jump) entirely.
-            Group {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Size")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.grid.3x3.fill").imageScale(.small)
-                        Slider(value: itemScaleBinding,
-                               in: LocationViewPreferences.itemScaleRange) { isEditing in
-                            // One write when the drag ends, rather than one a
-                            // frame while it is under way.
-                            if !isEditing { Task { await model.commitItemScale() } }
+            //
+            // On iPhone the row drops out entirely rather than greying out:
+            // horizontalSizeClass doesn't change for the life of the
+            // popover, so there's no resize to sidestep, and the narrower
+            // bar has no room to spare for a control iPhone doesn't get.
+            if showsSizeSlider {
+                Group {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Size")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.grid.3x3.fill").imageScale(.small)
+                            Slider(value: itemScaleBinding,
+                                   in: LocationViewPreferences.itemScaleRange) { isEditing in
+                                // One write when the drag ends, rather than one a
+                                // frame while it is under way.
+                                if !isEditing { Task { await model.commitItemScale() } }
+                            }
+                            .labelsHidden()
+                            Image(systemName: "square.fill").imageScale(.medium)
                         }
-                        .labelsHidden()
-                        Image(systemName: "square.fill").imageScale(.medium)
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
-                }
 
-                Divider()
+                    Divider()
+                }
+                .disabled(!model.viewMode.resizesItems)
+                .opacity(model.viewMode.resizesItems ? 1 : 0.35)
+                .motionAware(NookMotion.interaction, value: model.viewMode)
             }
-            .disabled(!model.viewMode.resizesItems)
-            .opacity(model.viewMode.resizesItems ? 1 : 0.35)
-            .motionAware(NookMotion.interaction, value: model.viewMode)
 
             Group {
                 MasonryCaptionOption(display: masonryCaptionDisplayBinding)
@@ -788,6 +965,7 @@ private struct GalleryViewOptionsButton: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .fixedSize()
             }
             HStack {
                 Text("Folders First")
@@ -803,10 +981,10 @@ private struct GalleryViewOptionsButton: View {
             // location quietly acquires a permanent exception.
             if model.canRememberLocation {
                 HStack {
-                    Text("Remember for This Location")
+                    Text("Lock View")
                         .accessibilityHidden(true)
                     Spacer()
-                    Toggle("Remember for This Location", isOn: rememberBinding)
+                    Toggle("Lock View", isOn: rememberBinding)
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }
@@ -824,6 +1002,14 @@ private struct GalleryViewOptionsButton: View {
         .frame(width: 268)
         #endif
     }
+
+    #if os(iOS)
+    /// On iPhone the slider drops out of the popover; iPad keeps it, matching
+    /// how `InfoToolbarButton` draws the same line between the two.
+    private var showsSizeSlider: Bool { horizontalSizeClass != .compact }
+    #else
+    private var showsSizeSlider: Bool { true }
+    #endif
 
     // MARK: Bindings
 

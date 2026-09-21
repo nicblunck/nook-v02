@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NookLibrary
+#if os(iOS)
+import UIKit
+#endif
 
 /// One explicit batch of things that have just entered the library.
 ///
@@ -28,6 +31,77 @@ struct LibraryToast: Equatable, Identifiable {
     let id: Int
     let message: LocalizedStringResource
     let systemImage: String
+    let tint: LibraryToastTint
+}
+
+/// Semantic colors used to distinguish toast actions at a glance.
+enum LibraryToastTint: Equatable {
+    case green
+    case blue
+    case yellow
+    case purple
+    case orange
+    case red
+}
+
+/// A transient, single-select lens over the current library location.
+///
+/// These broad categories deliberately sit above `ObjectKind`: a screenshot
+/// is still an image to someone browsing, while PDFs and otherwise-generic
+/// files both belong under Documents. `nil` on the model means no lens at all.
+enum LibraryContentFilter: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case images
+    case documents
+    case audio
+    case video
+    case links
+    case folders
+
+    var id: Self { self }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .images: "Images"
+        case .documents: "Documents"
+        case .audio: "Audio"
+        case .video: "Video"
+        case .links: "Links"
+        case .folders: "Folders"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .images: "photo"
+        case .documents: "doc"
+        case .audio: "waveform"
+        case .video: "film"
+        case .links: "link"
+        case .folders: "folder"
+        }
+    }
+
+    var objectKinds: Set<ObjectKind> {
+        switch self {
+        case .images: [.image, .screenshot]
+        case .documents: [.pdf, .file]
+        case .audio: [.audio]
+        case .video: [.video]
+        case .links: [.link]
+        case .folders: []
+        }
+    }
+
+    var emptyTitle: LocalizedStringResource {
+        switch self {
+        case .images: "No Images"
+        case .documents: "No Documents"
+        case .audio: "No Audio"
+        case .video: "No Video"
+        case .links: "No Links"
+        case .folders: "No Folders"
+        }
+    }
 }
 
 /// The app's view state over a library.
@@ -172,6 +246,10 @@ final class LibraryModel {
     /// to the whole library; it is not a separate search.
     var searchTokens: [SearchScopeToken] = []
 
+    /// The quick filter applied inside the current location. It intentionally
+    /// survives navigation but is never written to settings or the store.
+    private(set) var contentFilter: LibraryContentFilter?
+
     // MARK: Contents
 
     private(set) var contents: LocationContents = .empty
@@ -255,11 +333,15 @@ final class LibraryModel {
     var foldersFirst: Bool { preferences.foldersFirst }
     var masonryCaptionDisplay: MasonryCaptionDisplay { preferences.masonryCaptionDisplay }
     var showsMasonryTypeLabels: Bool { preferences.showsMasonryTypeLabels }
-    // On iOS, item size is decided by the adaptive grid rather than the
+    // On iPhone, item size is decided by the adaptive grid rather than the
     // user, so this always reads as the neutral size regardless of whatever
-    // scale a synced macOS preference carries.
+    // scale a synced macOS preference carries. iPad has room for the size
+    // slider in the view options popover, so it reads the real preference
+    // like macOS does.
     #if os(iOS)
-    var itemScale: Double { 1 }
+    var itemScale: Double {
+        UIDevice.current.userInterfaceIdiom == .pad ? preferences.itemScale : 1
+    }
     #else
     var itemScale: Double { preferences.itemScale }
     #endif
@@ -517,25 +599,44 @@ final class LibraryModel {
         let generation = contentsRefreshGeneration
         let access = accessContext
         let objects: [ObjectSnapshot]
-        let folders: [FolderSnapshot]
+        let filter = contentFilter
 
-        let query = ObjectQuery(scope: effectiveScope, searchText: searchText, sort: sort)
-        objects = await service.objects(matching: query, in: access)
+        if filter == .folders {
+            objects = []
+        } else {
+            let query = ObjectQuery(
+                scope: effectiveScope,
+                searchText: searchText,
+                kinds: filter?.objectKinds ?? [],
+                sort: sort
+            )
+            objects = await service.objects(matching: query, in: access)
+        }
 
+        let locationFolders: [FolderSnapshot]
         if isShowingHome {
-            folders = await service.rootFolders(in: access)
+            locationFolders = await service.rootFolders(in: access)
             breadcrumbs = []
         } else if case .folder(let id) = effectiveScope {
-            folders = await service.subfolders(of: id, in: access)
+            locationFolders = await service.subfolders(of: id, in: access)
             breadcrumbs = await service.folderPath(to: id, in: access)
         } else if effectiveScope == .hidden {
             // Hidden holds folders as well as objects, which is what makes it
             // a place rather than a list of loose things.
-            folders = await service.hiddenFolders(in: access)
+            locationFolders = await service.hiddenFolders(in: access)
             breadcrumbs = []
         } else {
-            folders = []
+            locationFolders = []
             breadcrumbs = []
+        }
+
+        let folders: [FolderSnapshot]
+        if let filter, filter != .folders {
+            folders = []
+        } else if filter == .folders, !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            folders = locationFolders.filter { folderMatchesSearch($0, text: searchText) }
+        } else {
+            folders = locationFolders
         }
 
         var peeks: [FolderID: [ObjectSnapshot]] = [:]
@@ -553,6 +654,19 @@ final class LibraryModel {
         let present = Set(canvasItems.map(\.itemID))
         if let current = cursor, !present.contains(current) { cursor = nil }
         pruneSelection()
+    }
+
+    /// Folder queries are intentionally local to the location being shown:
+    /// the storage query searches objects, while this is the small sibling
+    /// list already fetched for the current folder. Every typed term must
+    /// occur in the name, matching the conjunctive object-search behavior.
+    private func folderMatchesSearch(_ folder: FolderSnapshot, text: String) -> Bool {
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+        let foldedName = folder.name.folding(options: options, locale: .current)
+        let terms = text
+            .split(whereSeparator: \.isWhitespace)
+            .map { String($0).folding(options: options, locale: .current) }
+        return terms.allSatisfy(foldedName.contains)
     }
 
     /// Drops any selection that no longer names a visible object.
@@ -623,6 +737,14 @@ final class LibraryModel {
             guard !Task.isCancelled else { return }
             await refreshContents()
         }
+    }
+
+    /// Selecting the active category again removes it. Refreshing changes
+    /// only what the current destination displays; navigation state and saved
+    /// location preferences are deliberately untouched.
+    func toggleContentFilter(_ filter: LibraryContentFilter) async {
+        contentFilter = contentFilter == filter ? nil : filter
+        await refreshContents()
     }
 
     // MARK: History
@@ -804,7 +926,7 @@ final class LibraryModel {
             let message: LocalizedStringResource = count == 1
                 ? "Added one item to Nook"
                 : "Added \(count) items to Nook"
-            showToast(message, systemImage: "plus.circle.fill")
+            showToast(message, systemImage: "plus.circle.fill", tint: .green)
         }
 
         if report.hasFailures {
@@ -1066,7 +1188,7 @@ final class LibraryModel {
             let message: LocalizedStringResource = exportedCount == 1
                 ? "Exported one item"
                 : "Exported \(exportedCount) items"
-            showToast(message, systemImage: "square.and.arrow.up.fill")
+            showToast(message, systemImage: "square.and.arrow.up.fill", tint: .blue)
         }
 
         guard !failures.isEmpty else { return }
@@ -1127,7 +1249,8 @@ final class LibraryModel {
     ) async {
         await perform(
             successToast: "Created folder “\(name)”",
-            systemImage: "folder.badge.plus"
+            systemImage: "folder.badge.plus",
+            tint: .green
         ) {
             let created = try await self.library.service.createFolder(
                 named: name,
@@ -1141,21 +1264,22 @@ final class LibraryModel {
     func rename(folder id: FolderID, to name: String) async {
         await perform(
             successToast: "Renamed folder to “\(name)”",
-            systemImage: "pencil.circle.fill"
+            systemImage: "pencil.circle.fill",
+            tint: .blue
         ) {
             try await self.library.service.renameFolder(id, to: name)
         }
     }
 
     func moveFolder(_ id: FolderID, to parent: FolderID?) async {
-        await perform(successToast: "Moved folder", systemImage: "folder.fill") {
+        await perform(successToast: "Moved folder", systemImage: "folder.fill", tint: .blue) {
             try await self.library.service.moveFolder(id, to: parent)
         }
     }
 
     func deleteFolder(_ id: FolderID) async {
         if case .folder(id) = scope { scope = .inbox }
-        await perform(successToast: "Deleted folder", systemImage: "trash.fill") {
+        await perform(successToast: "Deleted folder", systemImage: "trash.fill", tint: .red) {
             try await self.library.service.deleteFolder(id)
         }
     }
@@ -1165,7 +1289,7 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Moved item"
             : "Moved \(ids.count) items"
-        await perform(successToast: message, systemImage: "folder.fill") {
+        await perform(successToast: message, systemImage: "folder.fill", tint: .blue) {
             try await self.library.service.moveObjects(ids, to: destination)
         }
     }
@@ -1180,7 +1304,11 @@ final class LibraryModel {
                 ? "Added \(ids.count) items to Favorites"
                 : "Removed \(ids.count) items from Favorites"
         }
-        await perform(successToast: message, systemImage: isFavorite ? "star.fill" : "star.slash") {
+        await perform(
+            successToast: message,
+            systemImage: isFavorite ? "star.fill" : "star.slash",
+            tint: isFavorite ? .yellow : .orange
+        ) {
             try await self.library.service.setFavorite(isFavorite, for: ids)
         }
     }
@@ -1191,7 +1319,7 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Moved to Recently Deleted"
             : "Moved \(ids.count) items to Recently Deleted"
-        await perform(successToast: message, systemImage: "trash.fill") {
+        await perform(successToast: message, systemImage: "trash.fill", tint: .red) {
             try await self.library.service.delete(ids)
         }
     }
@@ -1201,7 +1329,11 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Restored item"
             : "Restored \(ids.count) items"
-        await perform(successToast: message, systemImage: "arrow.uturn.backward.circle.fill") {
+        await perform(
+            successToast: message,
+            systemImage: "arrow.uturn.backward.circle.fill",
+            tint: .green
+        ) {
             try await self.library.service.restore(ids)
         }
     }
@@ -1211,13 +1343,17 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Deleted item permanently"
             : "Deleted \(ids.count) items permanently"
-        await perform(successToast: message, systemImage: "trash.slash") {
+        await perform(successToast: message, systemImage: "trash.slash", tint: .red) {
             try await self.library.service.permanentlyDelete(ids)
         }
     }
 
     func update(_ id: ObjectID, title: String? = nil, notes: String? = nil) async {
-        await perform(successToast: "Changes saved", systemImage: "checkmark.circle.fill") {
+        await perform(
+            successToast: "Changes saved",
+            systemImage: "checkmark.circle.fill",
+            tint: .green
+        ) {
             try await self.library.service.updateObject(id, title: title, notes: notes)
         }
     }
@@ -1231,7 +1367,8 @@ final class LibraryModel {
     ) async {
         await perform(
             successToast: "Created collection “\(name)”",
-            systemImage: "rectangle.stack.badge.plus"
+            systemImage: "rectangle.stack.badge.plus",
+            tint: .purple
         ) {
             let created = try await self.library.service.createCollection(
                 named: name,
@@ -1249,7 +1386,11 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Added to collection"
             : "Added \(ids.count) items to collection"
-        await perform(successToast: message, systemImage: "rectangle.stack.badge.plus") {
+        await perform(
+            successToast: message,
+            systemImage: "rectangle.stack.badge.plus",
+            tint: .purple
+        ) {
             try await self.library.service.addObjects(ids, toCollection: collection)
         }
     }
@@ -1260,7 +1401,7 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Removed from collection"
             : "Removed \(ids.count) items from collection"
-        await perform(successToast: message, systemImage: "minus.circle.fill") {
+        await perform(successToast: message, systemImage: "minus.circle.fill", tint: .orange) {
             try await self.library.service.removeObjects(ids, fromCollection: collection)
         }
     }
@@ -1268,7 +1409,8 @@ final class LibraryModel {
     func renameCollection(_ id: CollectionID, to name: String) async {
         await perform(
             successToast: "Renamed collection to “\(name)”",
-            systemImage: "pencil.circle.fill"
+            systemImage: "pencil.circle.fill",
+            tint: .purple
         ) {
             try await self.library.service.renameCollection(id, to: name)
         }
@@ -1276,7 +1418,7 @@ final class LibraryModel {
 
     func deleteCollection(_ id: CollectionID) async {
         if case .collection(id) = scope { scope = .inbox }
-        await perform(successToast: "Deleted collection", systemImage: "trash.fill") {
+        await perform(successToast: "Deleted collection", systemImage: "trash.fill", tint: .red) {
             try await self.library.service.deleteCollection(id)
         }
     }
@@ -1288,7 +1430,11 @@ final class LibraryModel {
         name: String,
         appearance: EntityAppearance
     ) async {
-        await perform(successToast: "Changes saved", systemImage: "checkmark.circle.fill") {
+        await perform(
+            successToast: "Changes saved",
+            systemImage: "checkmark.circle.fill",
+            tint: .green
+        ) {
             switch reference {
             case .folder(let id):
                 try await self.library.service.updateFolder(id, name: name, appearance: appearance)
@@ -1303,7 +1449,11 @@ final class LibraryModel {
     }
 
     func setAppearance(_ appearance: EntityAppearance, for reference: LibraryReference) async {
-        await perform(successToast: "Appearance updated", systemImage: "paintpalette.fill") {
+        await perform(
+            successToast: "Appearance updated",
+            systemImage: "paintpalette.fill",
+            tint: .purple
+        ) {
             switch reference {
             case .folder(let id):
                 try await self.library.service.setAppearance(appearance, forFolder: id)
@@ -1326,7 +1476,8 @@ final class LibraryModel {
     ) async {
         await perform(
             successToast: "Created tag “\(name)”",
-            systemImage: "tag.fill"
+            systemImage: "tag.fill",
+            tint: .purple
         ) {
             let created = try await self.library.service.createTag(named: name, appearance: appearance)
             if !ids.isEmpty {
@@ -1338,7 +1489,8 @@ final class LibraryModel {
     func renameTag(_ id: TagID, to name: String) async {
         await perform(
             successToast: "Renamed tag to “\(name)”",
-            systemImage: "pencil.circle.fill"
+            systemImage: "pencil.circle.fill",
+            tint: .purple
         ) {
             try await self.library.service.renameTag(id, to: name)
         }
@@ -1346,7 +1498,7 @@ final class LibraryModel {
 
     func deleteTag(_ id: TagID) async {
         if case .tag(id) = scope { scope = .inbox }
-        await perform(successToast: "Deleted tag", systemImage: "trash.fill") {
+        await perform(successToast: "Deleted tag", systemImage: "trash.fill", tint: .red) {
             try await self.library.service.deleteTag(id)
         }
     }
@@ -1356,7 +1508,7 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Tagged with “\(name)”"
             : "Tagged \(ids.count) items with “\(name)”"
-        await perform(successToast: message, systemImage: "tag.fill") {
+        await perform(successToast: message, systemImage: "tag.fill", tint: .purple) {
             try await self.library.service.addTag(named: name, to: ids)
         }
     }
@@ -1366,7 +1518,7 @@ final class LibraryModel {
         let message: LocalizedStringResource = ids.count == 1
             ? "Removed tag"
             : "Removed tag from \(ids.count) items"
-        await perform(successToast: message, systemImage: "minus.circle.fill") {
+        await perform(successToast: message, systemImage: "minus.circle.fill", tint: .orange) {
             try await self.library.service.removeTag(id, from: ids)
         }
     }
@@ -1374,6 +1526,7 @@ final class LibraryModel {
     func perform(
         successToast: LocalizedStringResource? = nil,
         systemImage: String = "checkmark.circle.fill",
+        tint: LibraryToastTint = .green,
         _ work: @escaping () async throws -> Void
     ) async {
         isReflowPending = true
@@ -1381,17 +1534,28 @@ final class LibraryModel {
             try await work()
             NotificationCenter.default.post(name: Self.libraryDidChange, object: nil)
             await refreshAll()
-            if let successToast { showToast(successToast, systemImage: systemImage) }
+            if let successToast {
+                showToast(successToast, systemImage: systemImage, tint: tint)
+            }
         } catch {
             isReflowPending = false
             alert = LibraryAlert(title: "Something went wrong", message: error.localizedDescription)
         }
     }
 
-    private func showToast(_ message: LocalizedStringResource, systemImage: String) {
+    private func showToast(
+        _ message: LocalizedStringResource,
+        systemImage: String,
+        tint: LibraryToastTint
+    ) {
         toastRevision += 1
         let revision = toastRevision
-        toast = LibraryToast(id: revision, message: message, systemImage: systemImage)
+        toast = LibraryToast(
+            id: revision,
+            message: message,
+            systemImage: systemImage,
+            tint: tint
+        )
 
         clearToastTask?.cancel()
         clearToastTask = Task { [weak self] in

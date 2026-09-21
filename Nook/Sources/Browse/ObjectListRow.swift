@@ -311,7 +311,7 @@ private struct ObjectMasonryCaption: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(object.title)
-                .font(.callout)
+                .font(.callout.weight(.semibold))
                 .lineLimit(2)
                 .truncationMode(.tail)
             Text(Format.caption(for: object))

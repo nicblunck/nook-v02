@@ -11,6 +11,9 @@ struct ObjectPreviewView: View {
 
     @State private var resolvedURL: URL?
     @State private var loadFailure: String?
+    #if os(iOS)
+    @State private var isChromeHidden = false
+    #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -27,6 +30,14 @@ struct ObjectPreviewView: View {
             #endif
             #if os(iOS)
             .gesture(swipeGesture)
+            // Only ever reaches content that isn't already an embedded Quick
+            // Look, PDFKit or web view — those install their own tap
+            // recognizer directly so a tap still toggles the chrome even
+            // while the UIKit view underneath owns the touch.
+            .onTapGesture(perform: toggleChrome)
+            .toolbarVisibility(isChromeHidden ? .hidden : .visible, for: .navigationBar, .bottomBar)
+            .statusBarHidden(isChromeHidden)
+            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction, value: isChromeHidden)
             #endif
             .toolbar { toolbarContent }
             .task(id: object.id) { await resolve() }
@@ -56,15 +67,33 @@ struct ObjectPreviewView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let loadFailure {
+        if object.kind == .link {
+            #if os(iOS)
+            LinkPreviewView(model: model, object: object, onStep: step, onTap: toggleChrome)
+            #else
+            LinkPreviewView(model: model, object: object)
+            #endif
+        } else if let loadFailure {
             ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
                                    description: Text(loadFailure))
         } else if let resolvedURL {
+            #if os(iOS)
+            FilePreview(object: object, url: resolvedURL, onStep: step, onTap: toggleChrome)
+            #else
             FilePreview(object: object, url: resolvedURL)
+            #endif
         } else {
             ProgressView().controlSize(.large)
         }
     }
+
+    #if os(iOS)
+    private func toggleChrome() {
+        withAnimation(reduceMotion ? nil : NookMotion.interaction) {
+            isChromeHidden.toggle()
+        }
+    }
+    #endif
 
     // MARK: Chrome
 
@@ -123,6 +152,13 @@ struct ObjectPreviewView: View {
     /// `previewItem` changes.
     private func resolve() async {
         loadFailure = nil
+        // A link has no blob of its own — the page is the content, and
+        // `LinkPreviewView` reads `object.sourceURL` directly rather than
+        // waiting on a file that was never stored.
+        guard object.kind != .link else {
+            resolvedURL = nil
+            return
+        }
         do {
             guard let url = try await model.library.service.originalURL(for: object.id,
                                                                         in: model.accessContext) else {
@@ -138,14 +174,29 @@ struct ObjectPreviewView: View {
     }
 }
 
-/// All stored files use the system's interactive Quick Look viewer.
+/// A PDF gets PDFKit's own continuous scroll through every page; everything
+/// else stored uses the system's interactive Quick Look viewer.
 private struct FilePreview: View {
     let object: ObjectSnapshot
     let url: URL
+    #if os(iOS)
+    var onStep: ((Int) -> Void)? = nil
+    var onTap: (() -> Void)? = nil
+    #endif
 
     var body: some View {
-        if canPreview {
+        if object.kind == .pdf {
+            #if os(iOS)
+            PDFKitPreview(url: url, onStep: onStep, onTap: onTap)
+            #else
+            PDFKitPreview(url: url)
+            #endif
+        } else if canPreview {
+            #if os(iOS)
+            QuickLookPreview(url: url, onStep: onStep, onTap: onTap)
+            #else
             QuickLookPreview(url: url)
+            #endif
         } else {
             ContentUnavailableView {
                 Label(object.title, systemImage: object.kind.symbolName)

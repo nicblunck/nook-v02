@@ -18,8 +18,8 @@ public enum LibraryViewMode: String, Codable, Sendable, CaseIterable, Identifiab
     public var displayName: String {
         switch self {
         case .list: "List"
-        case .grid: "Icon Grid"
-        case .masonry: "Masonry Grid"
+        case .grid: "Gallery"
+        case .masonry: "Masonry"
         }
     }
 

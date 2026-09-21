@@ -36,6 +36,8 @@ import UIKit
 
 struct QuickLookPreview: UIViewControllerRepresentable {
     let url: URL
+    var onStep: ((Int) -> Void)? = nil
+    var onTap: (() -> Void)? = nil
 
     static func canPreview(_ url: URL) -> Bool {
         QLPreviewController.canPreview(url as NSURL)
@@ -46,17 +48,22 @@ struct QuickLookPreview: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> QLPreviewController {
         let controller = QLPreviewController()
         controller.dataSource = context.coordinator
+        context.coordinator.installer.install(on: controller.view)
         return controller
     }
 
     func updateUIViewController(_ controller: QLPreviewController, context: Context) {
+        context.coordinator.installer.onStep = onStep
+        context.coordinator.installer.onTap = onTap
         guard context.coordinator.url != url else { return }
         context.coordinator.url = url
         controller.reloadData()
     }
 
+    @MainActor
     final class Coordinator: NSObject, QLPreviewControllerDataSource {
         var url: URL
+        let installer = PreviewGestureInstaller()
 
         init(url: URL) { self.url = url }
 

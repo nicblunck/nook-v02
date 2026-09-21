@@ -66,7 +66,11 @@ extension LibraryModel {
         await refreshSidebar()
         if case .folder(let id) = scope,
            !allFolders.contains(where: { $0.folder.id == id }) {
-            await leave(.folder(id))
+            // This folder was only reachable through Hidden, so it vanishes
+            // along with everything else in there. Landing back on Hidden
+            // itself — rather than out in the ordinary library — keeps the
+            // door shut in front of the user instead of stepping them past it.
+            await leave(.folder(id), returningTo: .hidden)
         }
         await refreshContents()
     }
@@ -200,7 +204,11 @@ extension LibraryModel {
         } else {
             message = isHidden ? "Hidden \(ids.count) items" : "Unhidden \(ids.count) items"
         }
-        await perform(successToast: message, systemImage: isHidden ? "eye.slash.fill" : "eye.fill") {
+        await perform(
+            successToast: message,
+            systemImage: isHidden ? "eye.slash.fill" : "eye.fill",
+            tint: isHidden ? .orange : .green
+        ) {
             try await self.library.service.setHidden(isHidden, forObjects: ids)
         }
     }
@@ -215,7 +223,11 @@ extension LibraryModel {
         } else {
             message = isHidden ? "Hidden \(ids.count) items" : "Unhidden \(ids.count) items"
         }
-        await perform(successToast: message, systemImage: isHidden ? "eye.slash.fill" : "eye.fill") {
+        await perform(
+            successToast: message,
+            systemImage: isHidden ? "eye.slash.fill" : "eye.fill",
+            tint: isHidden ? .orange : .green
+        ) {
             try await self.library.service.setHidden(isHidden, forObjects: ids)
         }
     }
@@ -231,7 +243,8 @@ extension LibraryModel {
         if isHidden, !isShowingHiddenContent { await leave(.folder(id)) }
         await perform(
             successToast: isHidden ? "Hidden folder" : "Unhidden folder",
-            systemImage: isHidden ? "eye.slash.fill" : "eye.fill"
+            systemImage: isHidden ? "eye.slash.fill" : "eye.fill",
+            tint: isHidden ? .orange : .green
         ) {
             try await self.library.service.setHidden(isHidden, forFolder: id)
         }
@@ -241,7 +254,8 @@ extension LibraryModel {
         guard await authenticate(reason: "\(isLocked ? "Lock" : "Unlock") “\(folder.name)”.") else { return }
         await perform(
             successToast: isLocked ? "Locked folder" : "Unlocked folder",
-            systemImage: isLocked ? "lock.fill" : "lock.open.fill"
+            systemImage: isLocked ? "lock.fill" : "lock.open.fill",
+            tint: isLocked ? .orange : .green
         ) {
             try await self.library.service.setLocked(isLocked, forFolder: folder.id)
         }
@@ -251,7 +265,8 @@ extension LibraryModel {
         if isHidden, !isShowingHiddenContent { await leave(.collection(collection.id)) }
         await perform(
             successToast: isHidden ? "Hidden collection" : "Unhidden collection",
-            systemImage: isHidden ? "eye.slash.fill" : "eye.fill"
+            systemImage: isHidden ? "eye.slash.fill" : "eye.fill",
+            tint: isHidden ? .orange : .green
         ) {
             try await self.library.service.setHidden(isHidden, forCollection: collection.id)
         }
@@ -275,8 +290,8 @@ extension LibraryModel {
 
     /// Steps out of a location that is about to become unreachable, so the
     /// canvas is never left pointing at somewhere the user may no longer see.
-    private func leave(_ location: LibraryScope) async {
+    private func leave(_ location: LibraryScope, returningTo fallback: LibraryScope = .inbox) async {
         guard scope == location else { return }
-        scope = .inbox
+        scope = fallback
     }
 }

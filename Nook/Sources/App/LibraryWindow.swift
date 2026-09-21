@@ -458,8 +458,7 @@ struct LibraryToastView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: toast.systemImage)
-                .foregroundStyle(.tint)
+            ToastIcon(systemImage: toast.systemImage, tint: toast.tint.color)
             Text(toast.message)
                 .lineLimit(2)
         }
@@ -475,6 +474,38 @@ struct LibraryToastView: View {
         .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         .accessibilityElement(children: .combine)
         .allowsHitTesting(false)
+    }
+}
+
+private struct ToastIcon: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(tint.opacity(0.3))
+                .frame(width: 24, height: 24)
+                .blur(radius: 5)
+
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .shadow(color: tint.opacity(0.9), radius: 5)
+        }
+        .frame(width: 24, height: 24)
+    }
+}
+
+private extension LibraryToastTint {
+    var color: Color {
+        switch self {
+        case .green: .green
+        case .blue: .blue
+        case .yellow: .yellow
+        case .purple: .purple
+        case .orange: .orange
+        case .red: .red
+        }
     }
 }
 

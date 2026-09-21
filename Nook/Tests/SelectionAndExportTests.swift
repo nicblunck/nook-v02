@@ -100,6 +100,7 @@ struct ExportTests {
         #expect(model.alert == nil)
         #expect(model.toast?.message == LocalizedStringResource("Exported one item"))
         #expect(model.toast?.systemImage == "square.and.arrow.up.fill")
+        #expect(model.toast?.tint == .blue)
     }
 
     /// Objects share stored files and can repeat an original filename, so an
@@ -157,13 +158,16 @@ struct ActionConfirmationTests {
 
         let object = try #require(try await harness.importFile(named: "toast.txt"))
         #expect(model.toast?.message == LocalizedStringResource("Added one item to Nook"))
+        #expect(model.toast?.tint == .green)
 
         await model.setFavorite(true, for: [object.id])
         #expect(model.toast?.message == LocalizedStringResource("Added to Favorites"))
         #expect(model.toast?.systemImage == "star.fill")
+        #expect(model.toast?.tint == .yellow)
 
         await model.delete([object.id])
         #expect(model.toast?.message == LocalizedStringResource("Moved to Recently Deleted"))
         #expect(model.toast?.systemImage == "trash.fill")
+        #expect(model.toast?.tint == .red)
     }
 }

@@ -531,6 +531,11 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
         !items(under: item).isEmpty
     }
 
+    func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        if let item = item as? SidebarItem, case .section = item.id { return true }
+        return false
+    }
+
     func outlineView(_ outlineView: NSOutlineView, shouldShowOutlineCellForItem item: Any) -> Bool {
         !items(under: item).isEmpty
     }
@@ -766,6 +771,20 @@ final class SidebarOutlineView: NSOutlineView {
         let point = convert(event.locationInWindow, from: nil)
         return menuProvider?(row(at: point))
     }
+
+    // A group row's own disclosure control sits on top of the row, in the
+    // same trailing corner as a section's add button, and wins the outline's
+    // internal hit-testing before it ever reaches our cell. Checking the add
+    // button here, ahead of that, is what lets it still be clicked.
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let row = row(at: point)
+        if row >= 0, let cell = view(atColumn: 0, row: row, makeIfNecessary: false) as? SidebarSectionCell {
+            let local = cell.convert(point, from: self)
+            if cell.performAdd(at: local) { return }
+        }
+        super.mouseDown(with: event)
+    }
 }
 
 // MARK: - Cells
@@ -773,8 +792,9 @@ final class SidebarOutlineView: NSOutlineView {
 /// A native source-list section header with one adjacent creation action.
 ///
 /// AppKit continues to own and operate the disclosure caret. The add button's
-/// hit is handled by the cell so the button never becomes a separate hover
-/// surface that can make AppKit hide its caret.
+/// hit is handled by the cell — and, ahead of AppKit's own group-row hit
+/// testing, by `SidebarOutlineView.mouseDown(with:)` — so the button never
+/// becomes a separate hover surface that can make AppKit hide its caret.
 private final class SidebarSectionCell: NSTableCellView {
     private let name = NSTextField(labelWithString: "")
     private let addButton = NSButton()

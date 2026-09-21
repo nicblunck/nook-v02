@@ -35,11 +35,28 @@ struct CompactLibraryView: View {
     }
 }
 
+/// A toolbar icon, either an SF Symbol or a full-color custom asset from
+/// Assets.xcassets.
+private enum CompactToolbarIcon {
+    case system(String)
+    case custom(String)
+
+    @ViewBuilder
+    func label(_ title: LocalizedStringKey) -> some View {
+        switch self {
+        case .system(let name):
+            Label(title, systemImage: name)
+        case .custom(let name):
+            Label(title, image: name)
+        }
+    }
+}
+
 /// Every way to bring content in that's worth a thumb's reach, laid out
-/// where a long-press used to hide most of them. Adding a document also
-/// covers scanning one — its own rare enough action to live one tap in
-/// rather than take a slot of its own — and organizing (a new folder,
-/// collection or tag) sits behind the trailing button the same way.
+/// where a long-press used to hide most of them. One button hides them all
+/// behind a popover, the same way the Mac's document and folder buttons
+/// already do — rather than several separate icons competing for space in
+/// a bottom bar that has no way to tighten their spacing.
 ///
 /// Shared between the landing list and every scope pushed from it, so the
 /// bar reads as one continuous piece of chrome rather than something that
@@ -47,46 +64,87 @@ struct CompactLibraryView: View {
 /// open in detail — there is nothing here to add content to at that point.
 struct CompactAddContentToolbar: ToolbarContent {
     let model: LibraryModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var isAddPresented = false
 
     @ToolbarContentBuilder
     var body: some ToolbarContent {
-        // No `Spacer()` between these: one separates adjacent bottom-bar
-        // items into their own floating glass pills, and the point here is
-        // one connected group, not five.
+        // A `Spacer()` after Home is what splits it into its own floating
+        // glass pill, apart from Add.
         ToolbarItemGroup(placement: .bottomBar) {
-            Menu {
-                Button("Add File…", systemImage: "doc.badge.plus") {
-                    model.isImporterPresented = true
-                }
-                Button("Scan Document…", systemImage: "doc.viewfinder") {
-                    model.isDocumentScannerPresented = true
-                }
+            // Pops back to the root list (All, Inbox, Recent, Favorites, …).
+            // A no-op when already there, since there's nothing to dismiss.
+            Button {
+                dismiss()
             } label: {
-                Label("Add Document", systemImage: "doc.badge.plus")
+                CompactToolbarIcon.system("house").label("Home")
             }
-            Button("Add Image", systemImage: "photo.badge.plus") {
-                model.isPhotosPickerPresented = true
-            }
-            Button("Take Photo", systemImage: "camera") {
-                model.isCameraPresented = true
-            }
-            Button("Paste", systemImage: "doc.on.clipboard") {
-                Task { await model.importPasteboard() }
-            }
-            Menu {
-                Button("New Folder…", systemImage: "folder.badge.plus") {
-                    model.editingAppearance = .newFolder(parent: model.currentFolderID)
-                }
-                Button("New Collection…", systemImage: "rectangle.stack.badge.plus") {
-                    model.editingAppearance = .newCollection(adding: [])
-                }
-                Button("New Tag…", systemImage: "tag") {
-                    model.editingAppearance = .newTag()
-                }
+            Spacer()
+            Button {
+                isAddPresented = true
             } label: {
-                Label("New Folder, Collection, or Tag", systemImage: "folder.badge.plus")
+                CompactToolbarIcon.system("plus").label("Add")
+            }
+            .popover(isPresented: $isAddPresented) {
+                CompactAddContentMenu(model: model, isPresented: $isAddPresented)
             }
         }
+    }
+}
+
+/// The popover behind the Add button: every way to bring content in or
+/// organize the library, in one list.
+private struct CompactAddContentMenu: View {
+    let model: LibraryModel
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            row("New Folder…", icon: .custom("ToolbarFolderIcon")) {
+                model.editingAppearance = .newFolder(parent: model.currentFolderID)
+            }
+            row("New Collection…", icon: .custom("ToolbarCollectionIcon")) {
+                model.editingAppearance = .newCollection(adding: [])
+            }
+            row("New Tag…", icon: .custom("ToolbarTagIcon")) {
+                model.editingAppearance = .newTag()
+            }
+            Divider()
+            row("Add File…", icon: .custom("ToolbarFileIcon")) {
+                model.isImporterPresented = true
+            }
+            row("Scan Document…", icon: .custom("ToolbarScanIcon")) {
+                model.isDocumentScannerPresented = true
+            }
+            row("Paste", icon: .custom("ToolbarClipboardIcon")) {
+                Task { await model.importPasteboard() }
+            }
+            row("Add Photo…", icon: .custom("ToolbarGalleryIcon")) {
+                model.isPhotosPickerPresented = true
+            }
+            row("Take Photo…", icon: .custom("ToolbarCameraIcon")) {
+                model.isCameraPresented = true
+            }
+        }
+        .padding(12)
+        .frame(width: 240)
+        .presentationCompactAdaptation(.popover)
+    }
+
+    private func row(_ title: LocalizedStringKey, icon: CompactToolbarIcon, action: @escaping () -> Void) -> some View {
+        Button {
+            isPresented = false
+            action()
+        } label: {
+            icon.label(title)
+                .labelStyle(.titleAndIcon)
+                .fontWeight(.regular)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .frame(height: 44)
     }
 }
 
@@ -240,7 +298,14 @@ struct CompactLibraryList: View {
             ToolbarItem(placement: .primaryAction) {
                 Button("Settings", systemImage: "gear") { model.isSettingsPresented = true }
             }
-            CompactAddContentToolbar(model: model)
+            // `.bottomBar` items are inherited down the navigation stack
+            // rather than replaced by a pushed screen's own, so this one
+            // declaration is what stays docked beneath every scope pushed
+            // from this list — `BrowseView` doesn't redeclare it. Hidden
+            // during preview the same way `GalleryToolbar` stands down.
+            if model.previewedObjectID == nil {
+                CompactAddContentToolbar(model: model)
+            }
         }
     }
 

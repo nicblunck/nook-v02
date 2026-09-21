@@ -6,12 +6,30 @@
   "fill-specializations" : [
     {
       "value" : {
-        "solid" : "extended-gray:1.00000,1.00000"
+        "linear-gradient" : [
+          "extended-gray:1.00000,1.00000",
+          "srgb:0.65668,0.83978,1.00000,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 1
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0
+          }
+        }
       }
     },
     {
       "appearance" : "dark",
-      "value" : "automatic"
+      "value" : {
+        "linear-gradient" : [
+          "srgb:0.00000,0.18620,0.34912,1.00000",
+          "extended-gray:0.00000,1.00000"
+        ]
+      }
     }
   ],
   "groups" : [
@@ -30,61 +48,6 @@
         }
       ],
       "layers" : [
-        {
-          "blend-mode-specializations" : [
-            {
-              "value" : "plus-darker"
-            },
-            {
-              "appearance" : "tinted",
-              "value" : "normal"
-            }
-          ],
-          "fill-specializations" : [
-            {
-              "value" : {
-                "solid" : "extended-gray:0.50000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "extended-gray:0.50000,1.00000"
-              }
-            },
-            {
-              "appearance" : "tinted",
-              "value" : {
-                "solid" : "extended-gray:0.00000,1.00000"
-              }
-            }
-          ],
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "Quote 3.svg",
-          "name" : "Face",
-          "position-specializations" : [
-            {
-              "value" : {
-                "scale" : 0.81,
-                "translation-in-points" : [
-                  -3.3979414576270983,
-                  74.03809999999999
-                ]
-              }
-            },
-            {
-              "idiom" : "watchOS",
-              "value" : {
-                "scale" : 0.6800000000000059,
-                "translation-in-points" : [
-                  -3.3979414576270983,
-                  74.03809999999999
-                ]
-              }
-            }
-          ]
-        },
         {
           "fill" : {
             "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
@@ -178,123 +141,28 @@
       "hidden" : false,
       "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "solid" : "srgb:0.84556,0.94529,1.00000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "srgb:0.84452,0.94492,1.00000,1.00000"
-              }
-            }
-          ],
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "Page Left.svg",
-          "name" : "Page Left",
-          "opacity" : 1,
+          "fill" : {
+            "automatic-gradient" : "extended-gray:1.00000,1.00000"
+          },
+          "image-name" : "Front 3.svg",
+          "name" : "Front",
           "position-specializations" : [
             {
               "value" : {
-                "scale" : 1,
-                "translation-in-points" : [
-                  -49.54612032879332,
-                  6.258234343786114
-                ]
-              }
-            },
-            {
-              "idiom" : "watchOS",
-              "value" : {
-                "scale" : 0.870000000000006,
-                "translation-in-points" : [
-                  -49.54612032879332,
-                  6.258234343786114
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "solid" : "srgb:0.84556,0.94529,1.00000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "srgb:0.84452,0.94492,1.00000,1.00000"
-              }
-            }
-          ],
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "Page Middle.svg",
-          "name" : "Page Middle",
-          "opacity" : 1,
-          "position-specializations" : [
-            {
-              "value" : {
-                "scale" : 1,
+                "scale" : 0.93,
                 "translation-in-points" : [
                   0,
-                  -7.760722666634507
+                  27
                 ]
               }
             },
             {
               "idiom" : "watchOS",
               "value" : {
-                "scale" : 0.870000000000006,
+                "scale" : 1.640000000000006,
                 "translation-in-points" : [
                   0,
-                  -7.760722666634507
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "solid" : "srgb:0.84556,0.94529,1.00000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "srgb:0.84452,0.94492,1.00000,1.00000"
-              }
-            }
-          ],
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "Page Right.svg",
-          "name" : "Page Right",
-          "opacity" : 1,
-          "position-specializations" : [
-            {
-              "value" : {
-                "scale" : 1,
-                "translation-in-points" : [
-                  50.36558559098842,
-                  7.832105903599626
-                ]
-              }
-            },
-            {
-              "idiom" : "watchOS",
-              "value" : {
-                "scale" : 0.870000000000006,
-                "translation-in-points" : [
-                  50.36558559098842,
-                  7.832105903599626
+                  79.7
                 ]
               }
             }

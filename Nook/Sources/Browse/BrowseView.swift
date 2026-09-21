@@ -26,6 +26,7 @@ struct BrowseView: View {
     /// it animate between two concrete numbers instead of to or from
     /// whatever "natural size" resolves to, which does not interpolate.
     @State private var measuredFolderShelfHeight: CGFloat = 0
+    @State private var isSearchPresented = false
     @FocusState private var isSearchFocused: Bool
     @FocusState private var isCanvasFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,34 +35,25 @@ struct BrowseView: View {
     #endif
 
     var body: some View {
-        searchableContent
+        content
+            #if os(iOS)
+            // The preview's own Back closes it and returns to the canvas
+            // rather than popping the stack — the system's automatic back
+            // button means something different (leaving this screen
+            // entirely) and would otherwise sit right beside it.
+            .navigationBarBackButtonHidden(model.previewedObjectID != nil)
+            #endif
     }
 
-    /// Search has no home in the compact iPhone layout yet — the field is
-    /// suppressed there rather than resurfacing on every pushed screen — so
-    /// this is the one place that decides whether it's worth attaching at
-    /// all.
-    @ViewBuilder
-    private var searchableContent: some View {
-        if isSearchEnabled {
-            content
-                .searchable(text: $model.searchText, tokens: $model.searchTokens, prompt: searchPrompt) { token in
-                    Label(token.name, systemImage: token.symbolName)
-                }
-                .searchFocused($isSearchFocused)
-                .onChange(of: model.searchFieldFocusRequests) { isSearchFocused = true }
-                .onChange(of: isSearchFocused) { _, focused in model.isTextEntryFocused = focused }
-        } else {
-            content
+    private func presentSearch() {
+        isSearchPresented = true
+        isSearchFocused = true
+    }
+
+    private func selectContentFilter(_ filter: LibraryContentFilter) {
+        Task {
+            await model.toggleContentFilter(filter)
         }
-    }
-
-    private var isSearchEnabled: Bool {
-        #if os(iOS)
-        horizontalSizeClass != .compact
-        #else
-        true
-        #endif
     }
 
     private var content: some View {
@@ -70,15 +62,46 @@ struct BrowseView: View {
                 ObjectPreviewView(model: model, object: previewed)
                     .transition(previewTransition)
             } else {
+                // Search only makes sense while browsing, and scoping it to
+                // the canvas rather than the shared container is what keeps
+                // it out of the detail view entirely — there's nothing here
+                // to search once an object is open.
                 canvas
+                    .searchable(
+                        text: $model.searchText,
+                        tokens: $model.searchTokens,
+                        isPresented: $isSearchPresented,
+                        prompt: searchPrompt
+                    ) { token in
+                        Label(token.name, systemImage: token.symbolName)
+                    }
+                    // Keep the system search field out of the toolbar until
+                    // Search or Command-F explicitly asks for it. Passing nil
+                    // restores the same default item without branching the
+                    // view and losing its identity.
+                    .toolbar(removing: isSearchPresented ? nil : .search)
+                    .searchFocused($isSearchFocused)
+                    .onChange(of: model.searchFieldFocusRequests) { presentSearch() }
+                    .onChange(of: isSearchFocused) { _, focused in
+                        model.isTextEntryFocused = focused
+                    }
+                    .onChange(of: isSearchPresented) { wasPresented, presented in
+                        guard wasPresented, !presented else { return }
+                        isSearchFocused = false
+                        model.searchText = ""
+                    }
                     .transition(previewTransition)
             }
 
             #if os(macOS)
             if model.previewedObjectID == nil {
-                LibraryFloatingActionButton(model: model)
-                    .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                MacAddContentToolbar(model: model)
+                    .padding(.bottom, 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .transition(.motionAware(
+                        .move(edge: .bottom).combined(with: .opacity),
+                        reduceMotion: reduceMotion
+                    ))
             }
             #endif
         }
@@ -92,12 +115,9 @@ struct BrowseView: View {
         .toolbar {
             GalleryToolbar(model: model, showsHistoryControls: showsHistoryControls)
             #if os(iOS)
-            // The same bar the compact landing list shows, so it reads as
-            // one continuous piece of chrome across every library view
-            // rather than something that comes and goes per screen. It
-            // drops out once an object is open in detail — nothing here to
-            // add content to at that point — the same way `GalleryToolbar`
-            // stands down above.
+            // Without its own `.bottomBar` content, this screen's automatic
+            // search integration docks the search field there instead — so
+            // this still needs its own copy, not just the root list's.
             if horizontalSizeClass == .compact, model.previewedObjectID == nil {
                 CompactAddContentToolbar(model: model)
             }
@@ -107,7 +127,10 @@ struct BrowseView: View {
         // it, and the search field is what AppKit hands the keyboard to when
         // nothing else claims it during that rebuild.
         .onChange(of: model.previewedObjectID) { _, previewed in
-            if previewed != nil { isSearchFocused = false }
+            if previewed != nil {
+                isSearchPresented = false
+                isSearchFocused = false
+            }
         }
         .overlay(alignment: .bottom) {
             if let toast = model.toast {
@@ -146,8 +169,6 @@ struct BrowseView: View {
                 hiddenDoor
             } else if let locked = model.lockedLocation {
                 lockedState(locked)
-            } else if model.contents.isEmpty {
-                emptyState
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -209,28 +230,68 @@ struct BrowseView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            LinearGradient(
+                colors: [galleryAccentColor.opacity(0.3), galleryAccentColor.opacity(0)],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .ignoresSafeArea()
+        }
         .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
                    value: model.contents.isEmpty)
         .modifier(GalleryDropTarget(model: model))
     }
+
+    private var galleryAccentColor: Color {
+        model.settings.accentColor ?? .accentColor
+    }
+
+    /// The gap above the filter bar and between it and whatever follows
+    /// (the folder shelf or the grid). Tighter than the gallery's own
+    /// column inset — the filter bar reads as chrome sitting close under
+    /// the toolbar, not as another row of gallery content.
+    private var filterBarGap: CGFloat { 12 }
 
     /// One arrangement for all three view modes: what differs between a grid,
     /// a masonry wall and a list is the layout and the card, and both of those
     /// are decided in `Gallery`.
     private var items: some View {
         VStack(spacing: 0) {
-            if showsFolderShelf {
-                folderShelfSection
-                    .padding(.bottom, 20)
+            LibraryContentFilterBar(
+                selection: model.contentFilter,
+                tint: galleryAccentColor,
+                horizontalInset: model.viewMode.contentInsets.leading,
+                select: selectContentFilter
+            )
+
+            if model.contents.isEmpty {
+                emptyState
+                    .frame(maxWidth: .infinity)
+                    .containerRelativeFrame(.vertical, alignment: .center) { length, _ in
+                        max(240, length - 44)
+                    }
+                    .padding(.horizontal, model.viewMode.contentInsets.leading)
+            } else {
+                VStack(spacing: 0) {
+                    if showsFolderShelf {
+                        folderShelfSection
+                            .padding(.bottom, model.viewMode.contentInsets.top)
+                    }
+                    canvasGrid
+                    CloudSyncStatusView(model: model)
+                }
+                // Cards retain the gallery column inset. The filter scroller
+                // above deliberately sits outside this padding so its clipping
+                // boundary reaches both viewport edges.
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridContentWidth = $0 }
+                .padding(.horizontal, model.viewMode.contentInsets.leading)
+                .padding(.top, filterBarGap)
             }
-            canvasGrid
-            CloudSyncStatusView(model: model)
         }
-        // Measured before the inset padding below is applied, so this is the
-        // same width the grid's own columns resolve against — which is what
-        // lets the shelf's columns match them exactly rather than guess.
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridContentWidth = $0 }
-        .padding(model.viewMode.contentInsets)
+        .padding(.top, filterBarGap)
+        .padding(.bottom, model.viewMode.contentInsets.bottom)
         .animation(reduceMotion ? nil : NookMotion.reflow,
                    value: model.reflowRevision)
     }
@@ -266,23 +327,11 @@ struct BrowseView: View {
                 .fill(Color.primary.opacity(0.035))
         }
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        // Bleeds the whole shelf — background, rounded corners, and the
-        // folder row's own scroll clip inside it — 12pt past its column on
-        // each side. Bleeding only the background (as this once did) leaves
-        // the corner clip above sized to the narrower, unbled column, which
-        // clips the row straight back down to it — a folder scrolled to the
-        // row's edge then stops short of the box with a bare gap in between
-        // instead of being cut off flush with it.
-        .padding(.horizontal, -12)
     }
 
     /// The drawer's handle: always present, so there is always something
     /// there to name what is inside and to open it back up. The caret just
-    /// points the way the drawer is about to move. The shelf around this
-    /// bleeds 12pt past its column on each side, so this needs its own
-    /// 12pt horizontal inset to land back where it was — flush with the
-    /// column, with the caret centered in the box's actual corner rather
-    /// than the wider, bled one.
+    /// points the way the drawer is about to move.
     private var folderShelfHeader: some View {
         Button {
             withAnimation(reduceMotion ? nil : NookMotion.reflow) {
@@ -322,11 +371,6 @@ struct BrowseView: View {
                         .frame(width: folderShelfItemWidth)
                 }
             }
-            // The shelf around this scroll view bleeds 12pt past its column
-            // on each side; padding the row in by the same amount keeps a
-            // folder at rest aligned with the grid column beneath it, while
-            // still leaving room to scroll out to the shelf's true, bled edge.
-            .padding(.horizontal, 12)
             .padding(.bottom, 12)
             // Measured on the content itself, before the frame below locks
             // the scroll view to its last-known height — otherwise, once a
@@ -526,8 +570,12 @@ struct BrowseView: View {
         var parts: [String]
 
         if model.searchText.isEmpty {
-            parts = [inflectedString("^[\(itemCount) item](inflect: true)")]
-            if folderCount > 0 {
+            if model.contentFilter == .folders {
+                parts = [inflectedString("^[\(folderCount) folder](inflect: true)")]
+            } else {
+                parts = [inflectedString("^[\(itemCount) item](inflect: true)")]
+            }
+            if model.contentFilter != .folders, folderCount > 0 {
                 parts.append(inflectedString("^[\(folderCount) folder](inflect: true)"))
             }
         } else {
@@ -598,8 +646,9 @@ struct BrowseView: View {
         }
     }
 
-    private var emptyTitle: String {
+    private var emptyTitle: LocalizedStringResource {
         if !model.searchText.isEmpty { return "No Results" }
+        if let filter = model.contentFilter { return filter.emptyTitle }
         if model.isShowingHome { return "Your Library Is Empty" }
         switch model.scope {
         case .inbox: return "Inbox Zero"
@@ -613,6 +662,7 @@ struct BrowseView: View {
 
     private var emptySymbol: String {
         if !model.searchText.isEmpty { return "magnifyingglass" }
+        if let filter = model.contentFilter { return filter.systemImage }
         if model.isShowingHome { return "tray" }
         switch model.scope {
         case .inbox: return "tray"
@@ -624,6 +674,72 @@ struct BrowseView: View {
         }
     }
 
+}
+
+/// An edge-to-edge horizontal scroller at the top of the gallery content.
+/// Its own clipping boundary reaches the viewport edges; the small inset lives
+/// inside the scroll content, so pills can travel all the way across without
+/// being cut off by the gallery's card-column padding.
+private struct LibraryContentFilterBar: View {
+    let selection: LibraryContentFilter?
+    let tint: Color
+    /// Matches the gallery's own column inset, so the first pill's leading
+    /// edge lines up with the folder shelf and the grid beneath it instead
+    /// of sitting closer to the viewport edge than they do.
+    var horizontalInset: CGFloat = 20
+    let select: (LibraryContentFilter) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(LibraryContentFilter.allCases) { filter in
+                    LibraryContentFilterButton(
+                        filter: filter,
+                        isSelected: selection == filter,
+                        tint: tint,
+                        action: { select(filter) }
+                    )
+                }
+            }
+            .padding(.horizontal, horizontalInset)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibraryContentFilterButton: View {
+    let filter: LibraryContentFilter
+    let isSelected: Bool
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label {
+                Text(filter.title)
+            } icon: {
+                Image(systemName: filter.systemImage)
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .foregroundStyle(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(.secondary))
+            .background(
+                isSelected
+                    ? AnyShapeStyle(tint.opacity(0.18))
+                    : AnyShapeStyle(.quaternary.opacity(0.5)),
+                in: .capsule
+            )
+            // The capsule hugs its label; the surrounding frame keeps the
+            // control's hit target comfortably accessible.
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
 }
 
 /// The open folder and Inbox are real storage destinations. Dropping on empty
