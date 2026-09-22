@@ -40,10 +40,11 @@ public extension LibraryService {
     func importLink(_ url: URL,
                     into destination: ImportDestination,
                     metadata: LinkMetadata? = nil) throws -> ObjectID {
+        let pageTitle = LinkNaming.normalized(metadata?.title)
         let object = LibraryObject(kind: .link,
-                                   title: metadata?.title ?? url.host() ?? url.absoluteString)
+                                   title: LinkNaming.title(pageTitle: pageTitle, url: url))
         object.sourceURL = url
-        object.linkPageTitle = metadata?.title
+        object.linkPageTitle = pageTitle
         object.linkDescription = metadata?.summary
         object.linkPreviewImageURLString = metadata?.previewImageURL?.absoluteString
         object.linkFaviconURLString = metadata?.faviconURL?.absoluteString
@@ -79,6 +80,35 @@ public extension LibraryService {
             .map(\.id)
     }
 
+    /// Renames links still shown under a stand-in taken from their URL even
+    /// though the page's own title is already recorded.
+    ///
+    /// Those are links saved before the naming order settled — the page title
+    /// arrived and was stored, but the name on the card stayed as the domain or
+    /// the raw address. A name the person chose is left alone: only Nook's own
+    /// stand-ins are replaced.
+    @discardableResult
+    func renameLinksStillNamedAfterTheirURL() throws -> [ObjectID] {
+        let linkKind = ObjectKind.link.rawValue
+        let descriptor = FetchDescriptor<LibraryObject>(
+            predicate: #Predicate { $0.kindRaw == linkKind && $0.deletedAt == nil }
+        )
+
+        var renamed: [ObjectID] = []
+        for object in (try? context.fetch(descriptor)) ?? [] {
+            guard let pageTitle = LinkNaming.normalized(object.linkPageTitle),
+                  LinkNaming.isPlaceholder(object.title, for: object.sourceURL),
+                  object.title != pageTitle
+            else { continue }
+            object.title = pageTitle
+            renamed.append(object.id)
+        }
+
+        guard !renamed.isEmpty else { return [] }
+        try didMutate()
+        return renamed
+    }
+
     /// Links whose saved metadata says the page offers a representative
     /// picture. The picture itself is derived, device-local data, so every
     /// device uses this list to rebuild any preview absent from its cache.
@@ -95,15 +125,15 @@ public extension LibraryService {
     }
 
     /// Applies fetched page metadata. The title is only replaced while it is
-    /// still the placeholder taken from the URL, so a title the user has
-    /// edited is never overwritten by a later fetch.
+    /// still the stand-in taken from the URL, so a title the user has edited is
+    /// never overwritten by a later fetch.
     func applyLinkMetadata(_ metadata: LinkMetadata, to id: ObjectID) throws {
         guard let object = object(withIdentifier: id.uuid) else {
             throw LibraryError.objectNotFound(id)
         }
-        let placeholder = object.sourceURL?.host() ?? object.sourceURLString ?? ""
+        let pageTitle = LinkNaming.normalized(metadata.title)
 
-        object.linkPageTitle = metadata.title
+        object.linkPageTitle = pageTitle
         object.linkDescription = metadata.summary
         object.linkPreviewImageURLString = metadata.previewImageURL?.absoluteString
         object.linkFaviconURLString = metadata.faviconURL?.absoluteString
@@ -114,8 +144,8 @@ public extension LibraryService {
             object.pixelHeight = height
         }
 
-        if let title = metadata.title, !title.isEmpty, object.title == placeholder {
-            object.title = title
+        if let pageTitle, LinkNaming.isPlaceholder(object.title, for: object.sourceURL) {
+            object.title = pageTitle
         }
         try didMutate()
     }
@@ -226,7 +256,7 @@ extension LibraryService {
         switch item {
         case .file(let url, _): url.lastPathComponent
         case .data(_, let type, let name): name ?? defaultFilename(for: type)
-        case .link(let url): url.absoluteString
+        case .link(let url): LinkNaming.siteName(for: url)
         }
     }
 

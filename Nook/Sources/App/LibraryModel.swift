@@ -1114,12 +1114,22 @@ final class LibraryModel {
             guard let self else { return }
             let service = library.service
             let thumbnails = library.thumbnails
+
+            // Links whose page title is already known but which are still shown
+            // under the domain they came from are named first: that costs no
+            // network and settles the oldest saves.
+            var didChange = !((try? await service.renameLinksStillNamedAfterTheirURL()) ?? []).isEmpty
+
             let metadataPending = await service.linksAwaitingMetadata()
             let previewCandidates = await service.linksAdvertisingPreviewImage()
             let pending = metadataPending + previewCandidates.filter { !metadataPending.contains($0) }
-            guard !pending.isEmpty else { return }
-
-            var didChange = false
+            guard !pending.isEmpty else {
+                if didChange {
+                    NotificationCenter.default.post(name: Self.libraryDidChange, object: nil)
+                    await refreshAll()
+                }
+                return
+            }
 
             for id in pending {
                 guard let object = await service.object(id, in: accessContext),

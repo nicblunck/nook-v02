@@ -14,10 +14,17 @@ final class ShareViewController: UIViewController {
         super.viewDidLoad()
 
         let items = extensionContext?.inputItems.compactMap { $0 as? NSExtensionItem } ?? []
-        let providers = items.flatMap { $0.attachments ?? [] }
+        // The title the host app put on the extension item is what the share
+        // sheet itself showed for this item, so it is carried alongside each
+        // attachment rather than dropped here.
+        let attachments = items.flatMap { item in
+            (item.attachments ?? []).map {
+                SharedAttachment(provider: $0, sharedTitle: item.attributedTitle?.string)
+            }
+        }
 
         let view = ShareView(
-            providers: providers,
+            attachments: attachments,
             onFinish: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
             },

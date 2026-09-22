@@ -3,7 +3,7 @@ import NookLibrary
 
 /// Review what is being shared, choose where it belongs, then save it.
 struct MacShareView: View {
-    let providers: [NSItemProvider]
+    let attachments: [SharedAttachment]
     let onFinish: () -> Void
     let onCancel: () -> Void
 
@@ -345,10 +345,19 @@ struct MacShareView: View {
 
     private func buildPreviewItems() async -> [SharePreviewItem] {
         var result: [SharePreviewItem] = []
-        for (index, provider) in providers.enumerated() {
+        for (index, attachment) in attachments.enumerated() {
+            let provider = attachment.provider
             guard let resolved = await ShareItemResolver.resolve(provider) else { continue }
             let fallbackName = ShareItemResolver.displayName(for: provider)
-            result.append(await SharePreview.makeItem(id: index, resolved: resolved, fallbackName: fallbackName))
+            result.append(
+                await SharePreview.makeItem(
+                    id: index,
+                    resolved: resolved,
+                    fallbackName: fallbackName,
+                    attachedMetadata: await LinkMetadataFetcher.attachedMetadataData(from: provider),
+                    sharedTitle: attachment.sharedTitle
+                )
+            )
         }
         return result
     }

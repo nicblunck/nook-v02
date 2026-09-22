@@ -7,6 +7,20 @@ import AppKit
 import SwiftUI
 import NookLibrary
 
+/// One attachment, together with what the app it came from called the thing
+/// being shared. The share sheet names an item from exactly these two — the
+/// rich link the app had already resolved, and the title on the extension item
+/// — before it works anything out for itself.
+struct SharedAttachment {
+    let provider: NSItemProvider
+    let sharedTitle: String?
+
+    init(provider: NSItemProvider, sharedTitle: String? = nil) {
+        self.provider = provider
+        self.sharedTitle = sharedTitle
+    }
+}
+
 /// One shared item, resolved and ready to show as a card before it is saved.
 ///
 /// The resolver already copied whatever bytes the system handed over into a
@@ -31,22 +45,24 @@ enum SharePreview {
     /// Builds a card's contents: a readable title guessed from whatever the
     /// item carries, and a thumbnail where one can be drawn without importing
     /// the item first.
-    static func makeItem(id: Int, resolved: ResolvedShareItem, fallbackName: String) async -> SharePreviewItem {
+    static func makeItem(id: Int,
+                         resolved: ResolvedShareItem,
+                         fallbackName: String,
+                         attachedMetadata: Data? = nil,
+                         sharedTitle: String? = nil) async -> SharePreviewItem {
         switch resolved.importItem {
         case .link(let url):
-            let placeholderTitle = url.host() ?? url.absoluteString
-            guard let result = await LinkMetadataFetcher.fetch(for: url) else {
-                return SharePreviewItem(id: id, resolved: resolved, kind: .link,
-                                         source: url.absoluteString,
-                                         title: placeholderTitle)
-            }
-            let fetchedTitle = result.metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let (image, aspectRatio) = imageAndAspectRatio(from: result.previewImageData)
+            let known = await LinkMetadataFetcher.metadata(
+                for: url,
+                attachedMetadata: attachedMetadata,
+                sharedTitle: sharedTitle
+            )
+            let (image, aspectRatio) = imageAndAspectRatio(from: known?.previewImageData)
             return SharePreviewItem(id: id, resolved: resolved, kind: .link,
                                      source: url.absoluteString,
-                                     title: (fetchedTitle?.isEmpty == false ? fetchedTitle! : placeholderTitle),
+                                     title: LinkNaming.title(pageTitle: known?.metadata.title, url: url),
                                      image: image, aspectRatio: aspectRatio,
-                                     linkMetadata: result)
+                                     linkMetadata: known)
 
         case .data(_, let contentType, let suggestedName):
             let kind = ObjectKind(contentType: contentType)
