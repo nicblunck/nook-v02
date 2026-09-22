@@ -1,115 +1,233 @@
 import SwiftUI
 import NookLibrary
 
-/// A dense row for the list view: enough metadata to scan a large mixed
-/// library without opening anything.
-struct ObjectListRow: View {
-    let object: ObjectSnapshot
+// MARK: The list card
+
+/// The metrics every list row is built to, object and folder alike, so a
+/// mixed list sits on one rhythm rather than on two.
+private enum ListCard {
+    static let cornerRadius: CGFloat = 14
+    static let thumbnailRadius: CGFloat = 8
+    static let padding: CGFloat = 10
+    static let contentSpacing: CGFloat = 12
+}
+
+/// The card every list row is drawn on.
+///
+/// A list of these is a stack of cards rather than a table: each row carries
+/// its own surface, which is what lets the thumbnail, the name and the
+/// metadata sit in one block that stays whole at a phone's width instead of
+/// spreading into columns that squeeze the name to nothing.
+///
+/// Selection tints the surface; the keyboard cursor is the ring the gallery
+/// draws around it, so a row can show both at once.
+private struct ListCardBackground: View {
     let isSelected: Bool
 
-    /// The metadata columns are sized to their content, so they have to grow
-    /// with the reader's type size or the text inside them truncates first.
-    @ScaledMetric(relativeTo: .body) private var thumbnailSize: CGFloat = 38
-    @ScaledMetric(relativeTo: .caption) private var kindWidth: CGFloat = 74
-    @ScaledMetric(relativeTo: .caption) private var sizeWidth: CGFloat = 68
-    @ScaledMetric(relativeTo: .caption) private var dateWidth: CGFloat = 84
-
     var body: some View {
-        HStack(spacing: 12) {
-            ThumbnailView(object: object, maximumSize: 128)
-                .frame(width: thumbnailSize, height: thumbnailSize)
-                .clipShape(.rect(cornerRadius: 5))
-
-            VStack(alignment: .leading, spacing: 1) {
-                titleText
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if let filename = object.originalFilename, filename != object.title {
-                    Text(filename)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            Text(object.kind.displayName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: kindWidth, alignment: .leading)
-
-            Text(Format.bytes(object.byteSize) ?? "—")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: sizeWidth, alignment: .trailing)
-
-            Text(object.dateAdded.formatted(date: .numeric, time: .omitted))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: dateWidth, alignment: .trailing)
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(0.18)) : AnyShapeStyle(.clear))
-        }
-        .contentShape(.rect)
-        .motionAware(NookMotion.interaction, value: isSelected)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(object.title)
-        .accessibilityValue(Format.spokenCaption(for: object))
-        // Selection is drawn as a tinted background, which is not something
-        // VoiceOver can see.
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    }
-
-    /// Privacy and Favorite ride along with the name rather than sitting in
-    /// their own column, so they read as properties of the item, not as
-    /// another piece of metadata alongside kind, size, and date. Objects
-    /// can't be locked in their own right, so there is no lock glyph here —
-    /// only a folder shows that.
-    private var titleText: Text {
-        switch (object.isHidden, object.isFavorite) {
-        case (true, true):
-            Text("\(object.title) \(Image(systemName: "eye.slash")) \(Image(systemName: "star.fill"))")
-        case (true, false):
-            Text("\(object.title) \(Image(systemName: "eye.slash"))")
-        case (false, true):
-            Text("\(object.title) \(Image(systemName: "star.fill"))")
-        case (false, false):
-            Text(object.title)
+        ZStack {
+            RoundedRectangle(cornerRadius: ListCard.cornerRadius)
+                .fill(.background.secondary)
+            RoundedRectangle(cornerRadius: ListCard.cornerRadius)
+                .fill(Color.accentColor)
+                .opacity(isSelected ? 0.18 : 0)
         }
     }
 }
 
+/// A small circular mark on the metadata line: the object's type, and
+/// whatever state it is in.
+///
+/// Filled rather than material, because a material circle laid on the card's
+/// own fill would all but disappear — unlike the badges over a masonry
+/// picture, which have a photograph to stand out against.
+private struct ListRowBadge: View {
+    let symbolName: String
+    var tint: Color?
+
+    @ScaledMetric(relativeTo: .caption) private var diameter: CGFloat = 20
+    /// How far the badge's centre sits above the line's baseline — about
+    /// half a capital's height, so a circle carrying no text of its own
+    /// still rides the line the way the words beside it do.
+    @ScaledMetric(relativeTo: .subheadline) private var baselineRise: CGFloat = 5
+
+    var body: some View {
+        Image(systemName: symbolName)
+            .font(.system(size: diameter * 0.5, weight: .semibold))
+            .foregroundStyle(tint ?? .secondary)
+            .frame(width: diameter, height: diameter)
+            .background((tint ?? .secondary).opacity(0.16), in: .circle)
+            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + baselineRise }
+    }
+}
+
+/// The tags on a row, as many of them as the width in hand will take.
+///
+/// Rather than pick a number for the phone and another for the Mac, every
+/// arrangement is offered in turn and the widest one that fits is used — so
+/// the same row shows three tags in a wide window, one and a count in a
+/// narrow one, and a bare count on a phone, without measuring anything.
+private struct ListRowTags: View {
+    let tags: [TagSnapshot]
+
+    var body: some View {
+        if !tags.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                ForEach(candidateCounts, id: \.self) { shown in
+                    strip(showing: shown)
+                }
+                overflow(count: tags.count)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// Every count from all of them down to one, so the fit is found by
+    /// giving up one tag at a time.
+    private var candidateCounts: [Int] {
+        Array(stride(from: min(tags.count, 3), through: 1, by: -1))
+    }
+
+    @ViewBuilder
+    private func strip(showing shown: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            ForEach(tags.prefix(shown)) { tag in
+                TagPill(tag: tag)
+            }
+            if tags.count > shown {
+                overflow(count: tags.count - shown)
+            }
+        }
+        .fixedSize()
+    }
+
+    private func overflow(count: Int) -> some View {
+        Text("+\(count)")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.quaternary, in: Capsule())
+            .fixedSize()
+    }
+}
+
+// MARK: Rows
+
+/// A row in the list view: a horizontal card carrying the picture, the name,
+/// what the object is and what it is tagged with.
+///
+/// The metadata that used to sit in fixed columns to the right now runs
+/// underneath the name, where it can be as long or as short as the object
+/// requires. Nothing in the row has a width of its own any more, so the name
+/// keeps whatever the card has left rather than what three columns allow.
+struct ObjectListRow: View {
+    let object: ObjectSnapshot
+    let isSelected: Bool
+
+    @ScaledMetric(relativeTo: .body) private var thumbnailSize: CGFloat = 56
+
+    var body: some View {
+        HStack(spacing: ListCard.contentSpacing) {
+            ThumbnailView(object: object, maximumSize: 256)
+                .frame(width: thumbnailSize, height: thumbnailSize)
+                .clipShape(.rect(cornerRadius: ListCard.thumbnailRadius))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(object.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                // One baseline runs the whole width of this line: the
+                // metadata, the marks after it and the tags at the end all
+                // sit on it, so the line reads as a sentence about the
+                // object rather than as three things stacked side by side.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(Format.listSubtitle(for: object))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    ListRowBadge(symbolName: object.kind.symbolName)
+                    if object.isFavorite {
+                        ListRowBadge(symbolName: "star.fill", tint: .yellow)
+                    }
+                    if object.isHidden {
+                        ListRowBadge(symbolName: "eye.slash")
+                    }
+
+                    Spacer(minLength: 8)
+
+                    ListRowTags(tags: object.tags)
+                }
+            }
+        }
+        .padding(ListCard.padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { ListCardBackground(isSelected: isSelected) }
+        .contentShape(.rect(cornerRadius: ListCard.cornerRadius))
+        .motionAware(NookMotion.interaction, value: isSelected)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(object.title)
+        .accessibilityValue(Format.spokenListRow(for: object))
+        // Selection is drawn as a tinted background, which is not something
+        // VoiceOver can see.
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
 /// A folder row in the list view.
+///
+/// Built to the same card as an object's so a list of both reads as one
+/// list. What a photograph gives to its thumbnail, a folder gives to its own
+/// icon and colour — drawn in a tinted well of the same size, so the names
+/// below still start on one line down the left edge.
 struct FolderListRow: View {
     let folder: FolderSnapshot
     let isSelected: Bool
 
-    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 38
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 56
+
+    private var tint: Color { Color(hex: folder.appearance.colorHex) ?? .accentColor }
 
     var body: some View {
-        HStack(spacing: 12) {
-            EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 20)
+        HStack(spacing: ListCard.contentSpacing) {
+            EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 26)
                 .frame(width: iconSize, height: iconSize)
+                .background(tint.opacity(0.18), in: .rect(cornerRadius: ListCard.thumbnailRadius))
 
-            Text(folder.name).lineLimit(1)
-            Spacer(minLength: 8)
-            Text(Format.caption(for: folder))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(folder.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(Format.caption(for: folder))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    // No badge for being a folder: the coloured well beside
+                    // this line has already said so. Only the states the
+                    // well cannot show get a mark of their own.
+                    if folder.isLocked {
+                        ListRowBadge(symbolName: "lock.fill", tint: tint)
+                    }
+                    if folder.isHidden {
+                        ListRowBadge(symbolName: "eye.slash")
+                    }
+
+                    Spacer(minLength: 8)
+                }
+            }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(0.18)) : AnyShapeStyle(.clear))
-        }
-        .contentShape(.rect)
+        .padding(ListCard.padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { ListCardBackground(isSelected: isSelected) }
+        .contentShape(.rect(cornerRadius: ListCard.cornerRadius))
         .motionAware(NookMotion.interaction, value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
