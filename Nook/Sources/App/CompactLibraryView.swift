@@ -47,7 +47,18 @@ private enum CompactToolbarIcon {
         case .system(let name):
             Label(title, systemImage: name)
         case .custom(let name):
-            Label(title, image: name)
+            // The assets are single 256px exports with no scale variants, so
+            // left to its natural size the image draws at 256pt. Pin it to
+            // the size a symbol takes in the same row.
+            Label {
+                Text(title)
+            } icon: {
+                Image(name)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+            }
         }
     }
 }
@@ -97,6 +108,12 @@ struct CompactAddContentToolbar: ToolbarContent {
 private struct CompactAddContentMenu: View {
     let model: LibraryModel
     @Binding var isPresented: Bool
+    /// The row's action, held until the popover has finished leaving. Every
+    /// action presents something from the window's root, and UIKit refuses to
+    /// present while the popover is still on screen — the request is dropped,
+    /// its flag stays set, and the Add button can no longer bring the popover
+    /// back.
+    @State private var pendingAction: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -129,12 +146,17 @@ private struct CompactAddContentMenu: View {
         .padding(12)
         .frame(width: 240)
         .presentationCompactAdaptation(.popover)
+        .onDisappear {
+            let action = pendingAction
+            pendingAction = nil
+            action?()
+        }
     }
 
     private func row(_ title: LocalizedStringKey, icon: CompactToolbarIcon, action: @escaping () -> Void) -> some View {
         Button {
+            pendingAction = action
             isPresented = false
-            action()
         } label: {
             icon.label(title)
                 .labelStyle(.titleAndIcon)
