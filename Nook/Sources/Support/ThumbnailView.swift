@@ -41,12 +41,16 @@ struct ThumbnailView: View {
                     .transition(revealTransition)
             }
         }
-        // Keyed on accessibility as well as identity: locking or unlocking
-        // leaves the id unchanged, and a task keyed on id alone would never
-        // rerun to drop or refetch the picture.
+        // Keyed on accessibility and on whether the original is here, not on
+        // identity alone: locking or unlocking leaves the id unchanged, and so
+        // does an original finishing its download. A task keyed on id alone
+        // would give up once and never look again — which is why a thumbnail
+        // saved on another device used to appear only after the tile happened
+        // to be scrolled out of view and rebuilt.
         .task(id: TaskKey(
             id: object.id,
             isContentAccessible: object.isContentAccessible,
+            blobAvailability: object.blobAvailability,
             cacheRevision: cacheRevision
         )) { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .nookThumbnailDidChange)) { notification in
@@ -81,6 +85,7 @@ struct ThumbnailView: View {
     private struct TaskKey: Equatable {
         let id: ObjectID
         let isContentAccessible: Bool
+        let blobAvailability: BlobAvailability?
         let cacheRevision: Int
     }
 

@@ -40,11 +40,16 @@ public struct Library: Sendable {
             isCloudBacked: locations.cloudRoot != nil
         )
         let thumbnails = try ThumbnailStore(directory: locations.thumbnailsURL)
+        let service = LibraryService(modelContainer: container, blobStore: blobStore)
         await thumbnails.attach(blobStore: blobStore)
+        await thumbnails.attach(syncedThumbnailProvider: { [weak service] id in
+            guard let service else { return nil }
+            return try? await service.syncedThumbnailData(for: id)
+        })
 
         return Library(
             locations: locations,
-            service: LibraryService(modelContainer: container, blobStore: blobStore),
+            service: service,
             blobStore: blobStore,
             thumbnails: thumbnails
         )
@@ -60,11 +65,16 @@ public struct Library: Sendable {
 
         let blobStore = try LocalBlobStore(directory: locations.blobsURL)
         let thumbnails = try ThumbnailStore(directory: locations.thumbnailsURL)
+        let service = LibraryService(modelContainer: container, blobStore: blobStore)
         await thumbnails.attach(blobStore: blobStore)
+        await thumbnails.attach(syncedThumbnailProvider: { [weak service] id in
+            guard let service else { return nil }
+            return try? await service.syncedThumbnailData(for: id)
+        })
 
         return Library(
             locations: locations,
-            service: LibraryService(modelContainer: container, blobStore: blobStore),
+            service: service,
             blobStore: blobStore,
             thumbnails: thumbnails
         )

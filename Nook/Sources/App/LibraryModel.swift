@@ -434,6 +434,7 @@ final class LibraryModel {
                 await refreshAll()
                 extractPendingContent()
                 fetchPendingLinkMetadata()
+                generatePendingSyncedThumbnails()
             }
         } else {
             cloudSyncError = error ?? "iCloud couldn't complete the sync."
@@ -978,6 +979,7 @@ final class LibraryModel {
         await refreshAll()
         extractPendingContent()
         fetchPendingLinkMetadata()
+        generatePendingSyncedThumbnails()
 
         if !report.importedIDs.isEmpty {
             let count = report.importedIDs.count
@@ -1094,6 +1096,19 @@ final class LibraryModel {
     func extractPendingContent() {
         Task.detached(priority: .background) { [service = library.service] in
             await service.extractPendingText()
+        }
+    }
+
+    /// Makes the small rendering that travels to the other devices with an
+    /// object's metadata.
+    ///
+    /// Run wherever new records appear, on whichever device holds the
+    /// original. Something on screen *does* wait on this — not here, but on
+    /// the Mac a moment later, which has no other way to draw the item until
+    /// the original itself finishes downloading.
+    func generatePendingSyncedThumbnails() {
+        Task.detached(priority: .utility) { [library] in
+            await library.service.generatePendingSyncedThumbnails(using: library.thumbnails)
         }
     }
 
