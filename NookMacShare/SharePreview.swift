@@ -16,7 +16,9 @@ struct SharePreviewItem: Identifiable {
     let id: Int
     let resolved: ResolvedShareItem
     let kind: ObjectKind
+    let source: String
     var title: String
+    var notes: String = ""
     var image: Image?
     var aspectRatio: Double?
     /// Page metadata fetched for a link, carried through to save time so it
@@ -35,11 +37,13 @@ enum SharePreview {
             let placeholderTitle = url.host() ?? url.absoluteString
             guard let result = await LinkMetadataFetcher.fetch(for: url) else {
                 return SharePreviewItem(id: id, resolved: resolved, kind: .link,
+                                         source: url.absoluteString,
                                          title: placeholderTitle)
             }
             let fetchedTitle = result.metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines)
             let (image, aspectRatio) = imageAndAspectRatio(from: result.previewImageData)
             return SharePreviewItem(id: id, resolved: resolved, kind: .link,
+                                     source: url.absoluteString,
                                      title: (fetchedTitle?.isEmpty == false ? fetchedTitle! : placeholderTitle),
                                      image: image, aspectRatio: aspectRatio,
                                      linkMetadata: result)
@@ -47,7 +51,9 @@ enum SharePreview {
         case .data(_, let contentType, let suggestedName):
             let kind = ObjectKind(contentType: contentType)
             let title = suggestedName.map(titleFromFilename) ?? fallbackName
-            return SharePreviewItem(id: id, resolved: resolved, kind: kind, title: title)
+            return SharePreviewItem(id: id, resolved: resolved, kind: kind,
+                                    source: suggestedName ?? fallbackName,
+                                    title: title)
 
         case .file(let url, let declaredType):
             let contentType = declaredType
@@ -57,6 +63,7 @@ enum SharePreview {
             let title = titleFromFilename(url.lastPathComponent)
             let (image, aspectRatio) = await thumbnail(for: url, kind: kind)
             return SharePreviewItem(id: id, resolved: resolved, kind: kind,
+                                     source: url.lastPathComponent,
                                      title: title, image: image, aspectRatio: aspectRatio)
         }
     }

@@ -1,13 +1,7 @@
 import SwiftUI
 import NookLibrary
 
-/// Choose where it goes, then save it.
-///
-/// The destination picker is the point of the sheet: import is context-aware
-/// everywhere else in the app, and the share sheet is the one place with no
-/// context to infer, so it asks. The card above it previews the item the way
-/// it will actually sit on the wall in Nook, rather than a bare file name,
-/// because the wall — not a Files-style list — is what the user is saving into.
+/// Review what is being shared, choose where it belongs, then save it.
 struct MacShareView: View {
     let providers: [NSItemProvider]
     let onFinish: () -> Void
@@ -25,6 +19,7 @@ struct MacShareView: View {
     @State private var tags: [String] = []
     @State private var tagDraft = ""
     @State private var existingTags: [TagSnapshot] = []
+    @State private var isTagsExpanded = false
 
     @State private var state: SaveState = .ready
     @FocusState private var isTagFieldFocused: Bool
@@ -50,9 +45,7 @@ struct MacShareView: View {
             header
 
             ScrollView {
-                VStack(spacing: 18) {
-                    previewCards
-
+                VStack(alignment: .leading, spacing: 24) {
                     if case .failed(let message) = state {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.footnote)
@@ -60,10 +53,12 @@ struct MacShareView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    quickPickers
-                    tagsEditor
+                    itemDetails
+                    saveToSection
+                    previews
                 }
-                .padding(16)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
             }
         }
         .background(.background)
@@ -121,65 +116,95 @@ struct MacShareView: View {
         .padding(.bottom, 10)
     }
 
-    // MARK: Preview
+    // MARK: Item details
 
     @ViewBuilder
-    private var previewCards: some View {
+    private var itemDetails: some View {
         if isLoading {
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 20)
                 .fill(.quaternary.opacity(0.5))
-                .frame(height: 200)
+                .frame(height: 174)
                 .overlay { ProgressView() }
         } else if items.isEmpty {
             Label("Nothing here could be saved.", systemImage: "questionmark.folder")
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 120)
         } else {
-            ForEach($items) { $item in
-                SharePreviewCard(item: $item)
+            VStack(spacing: 12) {
+                ForEach($items) { $item in
+                    ShareItemDetailsCard(item: $item)
+                }
             }
         }
     }
 
-    // MARK: Destination & collection
+    // MARK: Save to
 
-    private var quickPickers: some View {
-        VStack(spacing: 10) {
-            Menu {
-                Button { destination = .inbox } label: {
-                    Label("Inbox", systemImage: "tray")
-                }
-                ForEach(folders, id: \.folder.id) { entry in
-                    Button {
-                        destination = .folder(entry.folder.id)
-                    } label: {
-                        Text(String(repeating: "  ", count: entry.depth) + entry.folder.name)
-                    }
-                }
-                Divider()
-                Button { destination = .hidden } label: {
-                    Label("Hidden", systemImage: "eye.slash")
-                }
-            } label: {
-                QuickPickerLabel(systemImage: destinationSystemImage, title: "Folder", value: destinationName)
-            }
-            .menuStyle(.borderlessButton)
+    private var saveToSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeading("Save to")
 
-            Menu {
-                Button { collectionID = nil } label: {
-                    Text("None")
-                }
-                ForEach(collections) { collection in
-                    Button {
-                        collectionID = collection.id
-                    } label: {
-                        Text(collection.name)
+            VStack(spacing: 0) {
+                Menu {
+                    Button { destination = .inbox } label: {
+                        Label("Inbox", systemImage: "tray")
                     }
+                    ForEach(folders, id: \.folder.id) { entry in
+                        Button {
+                            destination = .folder(entry.folder.id)
+                        } label: {
+                            Text(String(repeating: "  ", count: entry.depth) + entry.folder.name)
+                        }
+                    }
+                    Divider()
+                    Button { destination = .hidden } label: {
+                        Label("Hidden", systemImage: "eye.slash")
+                    }
+                } label: {
+                    DestinationRow(systemImage: destinationSystemImage, title: "Folder", value: destinationName)
                 }
-            } label: {
-                QuickPickerLabel(systemImage: "rectangle.stack.fill", title: "Collection", value: collectionName)
+                .buttonStyle(.plain)
+
+                ShareDivider()
+
+                Menu {
+                    Button { collectionID = nil } label: {
+                        Text("None")
+                    }
+                    ForEach(collections) { collection in
+                        Button {
+                            collectionID = collection.id
+                        } label: {
+                            Text(collection.name)
+                        }
+                    }
+                } label: {
+                    DestinationRow(systemImage: "rectangle.stack", title: "Collection", value: collectionName)
+                }
+                .buttonStyle(.plain)
+
+                ShareDivider()
+
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        isTagsExpanded.toggle()
+                    }
+                } label: {
+                    DestinationRow(
+                        systemImage: "tag",
+                        title: "Tags",
+                        value: tags.isEmpty ? "None" : "\(tags.count)",
+                        isExpanded: isTagsExpanded
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            .menuStyle(.borderlessButton)
+            .background(.regularMaterial, in: .rect(cornerRadius: 20))
+
+            if isTagsExpanded {
+                tagsEditor
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 
@@ -192,7 +217,7 @@ struct MacShareView: View {
     }
 
     private var destinationSystemImage: String {
-        destination == .hidden ? "eye.slash" : "folder.fill"
+        destination == .hidden ? "eye.slash" : "folder"
     }
 
     /// Hidden isn't a folder to import into — the item lands in the root and
@@ -213,10 +238,6 @@ struct MacShareView: View {
 
     private var tagsEditor: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Tags", systemImage: "tag.fill")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-
             if !tags.isEmpty {
                 ShareTagFlow(spacing: 6) {
                     ForEach(tags, id: \.self) { tag in
@@ -252,7 +273,22 @@ struct MacShareView: View {
             }
         }
         .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: Preview
+
+    @ViewBuilder
+    private var previews: some View {
+        if !isLoading, !items.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeading(items.count == 1 ? "Preview" : "Previews")
+
+                ForEach(items) { item in
+                    ShareThumbnailCard(item: item)
+                }
+            }
+        }
     }
 
     /// Existing tags not already added, narrowed to what has been typed so far
@@ -322,6 +358,14 @@ struct MacShareView: View {
     private func save() async {
         guard state != .saving, !items.isEmpty else { return }
         state = .saving
+
+        let pendingTag = tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var tagsToSave = tags
+        if !pendingTag.isEmpty,
+           !tagsToSave.contains(where: { $0.caseInsensitiveCompare(pendingTag) == .orderedSame }) {
+            tagsToSave.append(pendingTag)
+        }
+
         do {
             let library = try await SharedLibrary.shared.current()
             defer {
@@ -338,8 +382,13 @@ struct MacShareView: View {
                 guard let objectID = result.objectID else { continue }
                 importedIDs.append(objectID)
                 let title = items[index].title.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !title.isEmpty {
-                    try? await library.service.updateObject(objectID, title: title)
+                let notes = items[index].notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !title.isEmpty || !notes.isEmpty {
+                    try? await library.service.updateObject(
+                        objectID,
+                        title: title.isEmpty ? nil : title,
+                        notes: notes.isEmpty ? nil : notes
+                    )
                 }
 
                 // Metadata fetched while the sheet was open is applied now, so
@@ -361,7 +410,7 @@ struct MacShareView: View {
                 try? await library.service.setHidden(true, forObjects: importedIDs)
             }
 
-            for tag in tags {
+            for tag in tagsToSave {
                 try? await library.service.addTag(named: tag, to: importedIDs)
             }
             if let collectionID {
@@ -375,15 +424,62 @@ struct MacShareView: View {
     }
 }
 
-// MARK: - Preview card
+// MARK: - Item details
 
-/// One item as it will sit on the wall: the picture at its own proportions,
-/// with the name it will be saved under editable right on the card instead of
-/// off in a separate field, since it is what the card is captioned with.
-private struct SharePreviewCard: View {
+private struct ShareItemDetailsCard: View {
     @Binding var item: SharePreviewItem
 
-    private let radius: CGFloat = 16
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DetailField(label: item.kind == .link ? "URL" : "Source") {
+                Text(item.source)
+                    .font(.body)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+
+            Divider()
+
+            DetailField(label: "Title") {
+                TextField("Title", text: $item.title, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...3)
+            }
+
+            Divider()
+
+            TextField("Note", text: $item.notes, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...5)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+        }
+        .background(.regularMaterial, in: .rect(cornerRadius: 20))
+        .clipShape(.rect(cornerRadius: 20))
+    }
+}
+
+private struct DetailField<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Preview card
+
+private struct ShareThumbnailCard: View {
+    let item: SharePreviewItem
 
     var body: some View {
         Group {
@@ -395,60 +491,70 @@ private struct SharePreviewCard: View {
                 ZStack {
                     Rectangle().fill(.quaternary.opacity(0.5))
                     Image(systemName: item.kind.symbolName)
-                        .font(.system(size: 36, weight: .light))
+                        .font(.system(size: 40, weight: .light))
                         .foregroundStyle(.secondary)
                 }
-                .aspectRatio(item.aspectRatio ?? 4.0 / 3.0, contentMode: .fit)
+                .aspectRatio(item.aspectRatio ?? 16.0 / 9.0, contentMode: .fit)
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(maxHeight: 280)
-        .overlay(alignment: .bottom) { titleField }
-        .clipShape(.rect(cornerRadius: radius))
-        .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-    }
-
-    private var titleField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: item.kind.symbolName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("Title", text: $item.title)
-                .font(.callout.weight(.medium))
-                .textFieldStyle(.plain)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
+        .frame(maxHeight: 320)
+        .clipShape(.rect(cornerRadius: 20))
     }
 }
 
-// MARK: - Quick picker
+// MARK: - Destination
 
-private struct QuickPickerLabel: View {
+private struct DestinationRow: View {
     let systemImage: String
     let title: String
     let value: String
+    var isExpanded = false
 
     var body: some View {
-        HStack {
-            Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 19))
+                .foregroundStyle(.tint)
+                .frame(width: 24)
+
+            Text(title)
+
             Spacer()
+
             Text(value)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.caption2.weight(.semibold))
+
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .contentShape(.rect)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 56)
+    }
+}
+
+private struct ShareDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 52)
+    }
+}
+
+private struct SectionHeading: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
     }
 }
 
