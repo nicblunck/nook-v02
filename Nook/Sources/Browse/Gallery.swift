@@ -504,19 +504,40 @@ private enum ToolbarIcon {
     case system(String)
     case custom(String)
 
-    @ViewBuilder
     func image(size: CGFloat) -> some View {
-        switch self {
+        ToolbarIconView(icon: self, size: size)
+    }
+}
+
+/// Draws a `ToolbarIcon` at `size`, multiplied by whatever hover scale the
+/// enclosing dock button has set. Growing the frame rather than applying a
+/// `scaleEffect` matters for the custom assets: a scale effect stretches the
+/// bitmap SwiftUI already rasterised at the smaller size, whereas a larger
+/// frame has it drawn fresh from the 2x/3x source.
+private struct ToolbarIconView: View {
+    let icon: ToolbarIcon
+    let size: CGFloat
+    @Environment(\.dockIconScale) private var scale
+
+    var body: some View {
+        let scaled = size * scale
+        switch icon {
         case .system(let name):
             Image(systemName: name)
-                .font(.system(size: size, weight: .medium))
+                .font(.system(size: scaled, weight: .medium))
         case .custom(let name):
             Image(name)
                 .resizable()
+                .interpolation(.high)
                 .scaledToFit()
-                .frame(width: size, height: size)
+                .frame(width: scaled, height: scaled)
         }
     }
+}
+
+extension EnvironmentValues {
+    /// How much a dock button is currently magnifying its icon.
+    @Entry fileprivate var dockIconScale: CGFloat = 1
 }
 
 /// The library's add-content dock. It borrows the immediacy of the compact
@@ -526,7 +547,7 @@ struct MacAddContentToolbar: View {
     let model: LibraryModel
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: MacAddContentDock.gutter) {
             MacDocumentPopoverButton(model: model)
 
             MacAddContentButton(
@@ -545,9 +566,25 @@ struct MacAddContentToolbar: View {
 
             MacFolderPopoverButton(model: model)
         }
-        .background(.regularMaterial, in: .capsule)
+        .padding(MacAddContentDock.gutter)
+        // The glass sits beneath the buttons rather than around them: a
+        // view wrapped in `glassEffect` is composited into the glass layer
+        // so the system can tint it, and that pass softens the full-colour
+        // icons, which gain nothing from tinting anyway.
+        .background {
+            Color.clear.glassEffect(.regular, in: .capsule)
+        }
         .accessibilityElement(children: .contain)
     }
+}
+
+/// The dock's geometry, shared between the pill and its buttons so the
+/// pressed wash lands the same distance from every edge as from its
+/// neighbours: a capsule the height of the item, concentric with the pill.
+private enum MacAddContentDock {
+    static let gutter: CGFloat = 4
+    static let itemSize = CGSize(width: 44, height: 32)
+    static let hoverScale: CGFloat = 1.15
 }
 
 private struct MacDocumentPopoverButton: View {
@@ -681,14 +718,36 @@ private struct MacAddContentButton: View {
 
 private struct MacAddContentButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        MacAddContentButtonBody(configuration: configuration)
+    }
+}
+
+/// The dock button's chrome. A button style cannot watch the pointer
+/// itself, so the hover state lives in this view: the icon grows a little
+/// under the cursor and settles back when pressed, the cluster's glass
+/// staying put beneath it.
+private struct MacAddContentButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var isHovering = false
+
+    private var scale: CGFloat {
+        if configuration.isPressed { return 1 }
+        return isHovering ? MacAddContentDock.hoverScale : 1
+    }
+
+    var body: some View {
         configuration.label
             .font(.system(size: 16, weight: .medium))
-            .frame(width: 48, height: 36)
-            .contentShape(.rect)
+            .environment(\.dockIconScale, scale)
+            .frame(width: MacAddContentDock.itemSize.width,
+                   height: MacAddContentDock.itemSize.height)
+            .contentShape(.capsule)
             .background(
                 Color.primary.opacity(configuration.isPressed ? 0.12 : 0),
-                in: .circle
+                in: .capsule
             )
+            .onHover { isHovering = $0 }
+            .motionAware(NookMotion.interaction, value: scale)
     }
 }
 
