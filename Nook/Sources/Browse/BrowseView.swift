@@ -303,13 +303,23 @@ struct BrowseView: View {
         model.foldersFirst && !model.contents.folders.isEmpty
     }
 
-    /// The grid's own columns, resolved from the same width the grid itself
-    /// lays out against. Only meaningful in Grid mode — a masonry wall packs
-    /// by height and a list is one column, so neither has columns for the
-    /// shelf to line up with.
-    private var alignedGridColumns: GalleryMetrics.Columns? {
-        guard showsFolderShelf, model.viewMode == .grid else { return nil }
+    /// The columns a Gallery grid would resolve at this width, whatever view
+    /// is actually showing. The shelf is drawn in these in every mode, so a
+    /// folder is the same size, and the row the same rhythm, in List and
+    /// Masonry as in Gallery — switching views must not make the folders
+    /// jump. Only the grid itself is also laid out in them; see
+    /// `gridFixedColumns`.
+    private var shelfColumns: GalleryMetrics.Columns? {
+        guard showsFolderShelf else { return nil }
         return GalleryMetrics.resolvedColumns(for: gridContentWidth, scale: model.itemScale)
+    }
+
+    /// The shelf's columns, handed to the grid so the objects underneath
+    /// line up with the folders above. Only in Grid mode — a masonry wall
+    /// packs by height and a list is one column, so neither has columns to
+    /// pin.
+    private var gridFixedColumns: GalleryMetrics.Columns? {
+        model.viewMode == .grid ? shelfColumns : nil
     }
 
     /// A drawer: a header that always shows "Folders" and a caret, and
@@ -394,8 +404,11 @@ struct BrowseView: View {
         return measuredFolderShelfHeight > 0 ? measuredFolderShelfHeight : nil
     }
 
+    /// The fallback only covers the first layout pass, before the width has
+    /// been measured; it is the grid's minimum cell width, so it is as close
+    /// to what the measured answer will be as an unmeasured guess can get.
     private var folderShelfItemWidth: CGFloat {
-        alignedGridColumns?.width ?? max(84, 96 * model.itemScale)
+        shelfColumns?.width ?? GalleryMetrics.cellWidthRange(scale: model.itemScale).lowerBound
     }
 
     /// What the grid itself draws. With Folders First on, folders have
@@ -408,7 +421,7 @@ struct BrowseView: View {
         GalleryLayout(mode: model.viewMode,
                       scale: model.itemScale,
                       masonryCaptionDisplay: model.masonryCaptionDisplay,
-                      fixedColumns: alignedGridColumns) {
+                      fixedColumns: gridFixedColumns) {
             ForEach(canvasGridItems) { item in canvasItem(item, mode: model.viewMode, scale: model.itemScale) }
         }
     }

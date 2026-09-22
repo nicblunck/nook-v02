@@ -55,6 +55,28 @@ struct GalleryResizeTests {
         #expect(widest <= 600.5, "canvas content reaches \(widest)pt in a 600pt window")
     }
 
+    @Test("A size chosen in a location following the default survives a change of view")
+    func itemScaleSurvivesSwitchingViews() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        _ = try await harness.importFile(named: "photo.png", as: .png)
+        await model.setViewMode(.grid)
+        await model.refreshAll()
+        #expect(!model.isRememberingLocation)
+
+        model.setItemScale(2)
+        await model.commitItemScale()
+        #expect(model.itemScale == 2)
+
+        // Switching views rewrites the global default, and a location
+        // following it reloads from there — which is where the size used
+        // to be lost.
+        await model.setViewMode(.list)
+        await model.loadPreferences()
+        #expect(model.itemScale == 2, "size fell back to \(model.itemScale) after switching views")
+    }
+
     // MARK: Hosting
 
     /// The canvas at a width the test dictates. The app's window sets its
