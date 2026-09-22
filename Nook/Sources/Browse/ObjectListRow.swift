@@ -196,9 +196,12 @@ struct ObjectMasonryCard: View {
     #endif
 
     private let radius: CGFloat = 14
-    /// How far the mat reaches past the picture. Wider than the cursor ring's
-    /// standoff, so the ring lands on the mat rather than beyond it.
+    /// How far the mat reaches past the picture.
     private let selectionInset: CGFloat = 8
+
+    /// The mat is the wall's only highlight: it shows where the keyboard is
+    /// resting as well as what is selected, the way the icon grid does.
+    private var isHighlighted: Bool { isSelected || isCursor }
 
     var body: some View {
         MasonryCaptionLayout(
@@ -225,14 +228,14 @@ struct ObjectMasonryCard: View {
         .background {
             RoundedRectangle(cornerRadius: radius + selectionInset)
                 .fill(.secondary)
-                .opacity(isSelected ? 0.35 : 0)
+                .opacity(isHighlighted ? 0.35 : 0)
                 .padding(-selectionInset)
         }
         .contentShape(.rect(cornerRadius: radius))
         .onHover { isHovering = $0 }
         .motionAware(.smooth(duration: 0.16), value: isHovering || isCursor)
         .motionAware(NookMotion.reflow, value: captionDisplay)
-        .motionAware(.smooth(duration: 0.16), value: isSelected)
+        .motionAware(.smooth(duration: 0.16), value: isHighlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
         // macOS only draws the caption where the pointer or keyboard is,
@@ -413,6 +416,9 @@ struct FolderMasonryCard: View {
     private let radius: CGFloat = 14
     private let selectionInset: CGFloat = 8
 
+    /// The mat is the wall's only highlight, so it marks the cursor too.
+    private var isHighlighted: Bool { isSelected || isCursor }
+
     var body: some View {
         MasonryCaptionLayout(
             presentation: captionDisplay.masonryPresentation,
@@ -428,7 +434,7 @@ struct FolderMasonryCard: View {
         .background {
             RoundedRectangle(cornerRadius: radius + selectionInset)
                 .fill(.secondary)
-                .opacity(isSelected ? 0.35 : 0)
+                .opacity(isHighlighted ? 0.35 : 0)
                 .padding(-selectionInset)
         }
         .contentShape(.rect(cornerRadius: radius))
@@ -436,7 +442,7 @@ struct FolderMasonryCard: View {
         .itemClick(select: select, open: onOpen)
         .motionAware(.smooth(duration: 0.16), value: isOpen)
         .motionAware(NookMotion.reflow, value: captionDisplay)
-        .motionAware(.smooth(duration: 0.16), value: isSelected)
+        .motionAware(.smooth(duration: 0.16), value: isHighlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")
         .accessibilityValue(Format.spokenCaption(for: folder))
