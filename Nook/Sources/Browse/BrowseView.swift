@@ -641,7 +641,7 @@ struct BrowseView: View {
 
     private var navigationSubtitle: String {
         if let object = model.previewedObject {
-            return metadataParts(for: object, includesKind: true).joined(separator: " · ")
+            return metadataParts(for: object).joined(separator: " · ")
         }
 
         let itemCount = model.contents.objects.count
@@ -662,32 +662,15 @@ struct BrowseView: View {
             parts = [inflectedString("^[\(resultCount) result](inflect: true)")]
         }
 
-        let selectedObjects = model.contents.objects.filter { model.selection.contains($0.id) }
-        if !model.selection.isEmpty {
-            parts.append(inflectedString("^[\(model.selection.count) item](inflect: true) selected"))
-        }
-
-        if selectedObjects.count == 1, let object = selectedObjects.first {
-            parts.append(contentsOf: metadataParts(for: object, includesKind: false))
-        } else if selectedObjects.count > 1 {
-            let sizes = selectedObjects.compactMap(\.byteSize)
-            if sizes.count == selectedObjects.count,
-               let totalSize = Format.bytes(sizes.reduce(0, +)) {
-                parts.append(totalSize)
-            }
-        }
-
         return parts.joined(separator: " · ")
     }
 
-    private func metadataParts(for object: ObjectSnapshot, includesKind: Bool) -> [String] {
-        var parts: [String] = includesKind ? [object.kind.displayName] : []
+    private func metadataParts(for object: ObjectSnapshot) -> [String] {
+        var parts = [object.kind.displayName]
 
         if let fileExtension = fileExtension(for: object),
-           !parts.contains(where: { $0.caseInsensitiveCompare(fileExtension) == .orderedSame }) {
+           fileExtension.caseInsensitiveCompare(object.kind.displayName) != .orderedSame {
             parts.append(fileExtension)
-        } else if parts.isEmpty {
-            parts.append(object.kind.displayName)
         }
 
         if let size = Format.bytes(object.byteSize) { parts.append(size) }
