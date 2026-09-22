@@ -33,7 +33,7 @@ extension LibraryViewMode {
         switch self {
         case .grid: 10
         case .masonry: 14
-        case .list: 6
+        case .list: 14
         }
     }
 }
@@ -93,7 +93,9 @@ struct GalleryLayout<Content: View>: View {
                 }
                 .transition(arrangementTransition)
             case .list:
-                LazyVStack(spacing: 1) {
+                // Cards, not table rows: they need air between them to read
+                // as separate surfaces rather than as one ruled block.
+                LazyVStack(spacing: 8) {
                     content
                 }
                 .transition(arrangementTransition)
