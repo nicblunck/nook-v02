@@ -534,8 +534,18 @@ final class LibraryModel {
 
     /// Called once the control is let go, so a drag across the whole range
     /// writes one arrangement rather than a hundred.
+    ///
+    /// A location following the global default writes the size into that
+    /// default, the way changing the view mode does — otherwise the next
+    /// change to the default (switching views, say) reloads it and the size
+    /// snaps back to whatever it was before the drag.
     func commitItemScale() async {
-        guard isRememberingLocation else { return }
+        guard isRememberingLocation else {
+            if settings.defaultPreferences.itemScale != preferences.itemScale {
+                settings.defaultPreferences.itemScale = preferences.itemScale
+            }
+            return
+        }
         // Home keeps its arrangement beside the global default rather than on
         // a folder, so that is where its size is written too.
         if isShowingHome {
