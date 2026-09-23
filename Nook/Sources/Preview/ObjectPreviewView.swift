@@ -8,6 +8,8 @@ import NookLibrary
 struct ObjectPreviewView: View {
     let model: LibraryModel
     let object: ObjectSnapshot
+    /// Off on a page of the iOS navigation stack, which has the system's own.
+    var showsBackButton = true
 
     @State private var resolvedURL: URL?
     @State private var loadFailure: String?
@@ -113,8 +115,10 @@ struct ObjectPreviewView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button("Back", systemImage: "chevron.backward") { close() }
+        if showsBackButton {
+            ToolbarItem(placement: .navigation) {
+                Button("Back", systemImage: "chevron.backward") { close() }
+            }
         }
         #if os(iOS)
         // Info and Favorite are the two things worth a thumb's reach on a

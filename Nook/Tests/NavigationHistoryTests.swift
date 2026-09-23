@@ -152,4 +152,161 @@ struct NavigationHistoryTests {
         model.goBack()
         #expect(model.destination != .scope(.folder(child.id)))
     }
+
+    // MARK: Pages
+
+    private func destinations(_ model: LibraryModel) -> [LibraryDestination] {
+        model.pages.map(\.destination)
+    }
+
+    @Test("Each step is a page, and popping one steps back once")
+    func eachStepIsAPage() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.startPagesIfNeeded()
+        model.navigate(to: .scope(.inbox))
+        model.navigate(to: .scope(.favorites))
+        #expect(destinations(model) == [.home, .scope(.inbox), .scope(.favorites)])
+
+        // The edge swipe off Favorites.
+        model.popPages(to: Array(model.pages.prefix(2)))
+        #expect(model.destination == .scope(.inbox))
+        #expect(model.canGoForward)
+
+        // Back from the keyboard goes the same way.
+        model.goBack()
+        #expect(model.destination == .home)
+        #expect(destinations(model) == [.home])
+        #expect(!model.canGoBack)
+    }
+
+    @Test("Opening a folder on the canvas pushes a page")
+    func canvasFolderIsAPage() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Papers", in: nil)
+        let papers = try #require(model.folderTree.first?.folder)
+
+        model.startPagesIfNeeded()
+        await model.openFolder(papers.id)
+        #expect(destinations(model) == [.home, .scope(.folder(papers.id))])
+
+        // Setting the scope directly is a step too.
+        model.scope = .inbox
+        #expect(destinations(model) == [.home, .scope(.folder(papers.id)), .scope(.inbox)])
+    }
+
+    @Test("A preview is a page on top, and swiping it away closes the preview")
+    func previewIsAPage() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.startPagesIfNeeded()
+        model.navigate(to: .scope(.inbox))
+        let first = ObjectID(), second = ObjectID()
+        model.previewedObjectID = first
+        #expect(model.pages.count == 3)
+        #expect(model.pages.last?.previewedObjectID == first)
+        let previewPage = try #require(model.pages.last)
+        // The canvas beneath stays live while the preview is up.
+        #expect(model.livePageID == model.pages[1].id)
+
+        // Stepping to the next item keeps the same page.
+        model.previewedObjectID = second
+        #expect(model.pages.count == 3)
+        #expect(model.pages.last?.id == previewPage.id)
+        #expect(model.pages.last?.previewedObjectID == second)
+
+        model.popPages(to: Array(model.pages.prefix(2)))
+        #expect(model.previewedObjectID == nil)
+        #expect(model.destination == .scope(.inbox))
+        // Leaving a preview is not a change of place.
+        #expect(!model.canGoForward)
+    }
+
+    @Test("Closing a preview any other way takes its page with it")
+    func closingPreviewPopsItsPage() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.startPagesIfNeeded()
+        model.previewedObjectID = ObjectID()
+        model.goBack()
+        #expect(model.pages.count == 1)
+        #expect(model.pages.last?.previewedObjectID == nil)
+    }
+
+    @Test("Going somewhere from a preview replaces the preview's page")
+    func navigatingFromPreview() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.startPagesIfNeeded()
+        model.navigate(to: .scope(.inbox))
+        model.previewedObjectID = ObjectID()
+        model.navigate(to: .scope(.favorites))
+        #expect(destinations(model) == [.home, .scope(.inbox), .scope(.favorites)])
+        #expect(model.pages.allSatisfy { $0.previewedObjectID == nil })
+    }
+
+    @Test("A place picked in the sidebar starts the stack over")
+    func sidebarRestartsTheStack() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.startPagesIfNeeded()
+        model.navigate(to: .scope(.inbox))
+        model.navigate(to: .scope(.favorites))
+        model.navigate(to: .scope(.recent), startingPageStack: true)
+        #expect(destinations(model) == [.scope(.recent)])
+
+        // Picking the place already showing still starts over.
+        model.navigate(to: .scope(.inbox))
+        model.navigate(to: .scope(.inbox), startingPageStack: true)
+        #expect(destinations(model) == [.scope(.inbox)])
+    }
+
+    @Test("A row in the iPhone list is one page, and Home pops back to the list")
+    func listRowIsOnePage() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.beginPages(with: LibraryPage(destination: .scope(.inbox)))
+        model.navigate(to: .scope(.inbox))
+        #expect(destinations(model) == [.scope(.inbox)])
+
+        model.navigate(to: .scope(.favorites))
+        model.popPages(to: [])
+        #expect(model.pages.isEmpty)
+        // Nothing pushes while the list is showing.
+        model.navigate(to: .scope(.recent))
+        #expect(model.pages.isEmpty)
+    }
+
+    @Test("A deleted folder's page is taken out of the stack")
+    func deletedFolderPageIsPruned() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Scratch", in: nil)
+        let scratch = try #require(model.folderTree.first?.folder)
+
+        model.startPagesIfNeeded()
+        model.navigate(to: .scope(.folder(scratch.id)))
+        model.navigate(to: .scope(.favorites))
+        await model.deleteFolder(scratch.id)
+
+        #expect(!destinations(model).contains(.scope(.folder(scratch.id))))
+        #expect(model.pages.last?.destination == .scope(.favorites))
+    }
 }

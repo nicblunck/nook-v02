@@ -22,13 +22,13 @@ extension LibraryModel {
     /// of turning the whole library transparent. Unhiding something puts it
     /// back in the folder it came from — or in the Inbox, if that folder is
     /// gone by the time it comes back.
-    func openHidden() async {
+    func openHidden(startingPageStack: Bool = false) async {
         if !isShowingHiddenContent {
             guard await authenticate(reason: "Show your hidden items.") else { return }
             accessContext = accessContext.enteringHiddenContext()
             scheduleRehide()
         }
-        navigate(to: .scope(.hidden))
+        navigate(to: .scope(.hidden), startingPageStack: startingPageStack)
         await refreshAll()
     }
 
@@ -150,7 +150,7 @@ extension LibraryModel {
     /// so the canvas lands straight on its contents rather than showing the
     /// door and waiting for a separate Unlock click. Declining authentication
     /// opens nothing; the browsed location stays exactly where it was.
-    func openFolder(_ id: FolderID) async {
+    func openFolder(_ id: FolderID, startingPageStack: Bool = false) async {
         if let folder = await library.service.folder(id, in: accessContext), folder.visibility.isRedacted {
             guard await unlock(folder, named: folder.name, refreshing: false) else { return }
             // The sidebar shows this folder's own lock badge as open the
@@ -158,7 +158,7 @@ extension LibraryModel {
             // the navigation below happens to refresh.
             await refreshSidebar()
         }
-        navigate(to: .scope(.folder(id)))
+        navigate(to: .scope(.folder(id)), startingPageStack: startingPageStack)
     }
 
     /// Opens the lock on the folder currently being browsed.
