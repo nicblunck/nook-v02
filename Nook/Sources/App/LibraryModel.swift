@@ -135,7 +135,7 @@ final class LibraryModel {
     /// whichever element an unordered set happens to yield first.
     var selectionAnchor: ObjectID?
 
-    var previewedObjectID: ObjectID?
+    var previewedObjectID: ObjectID? { didSet { previewDidChange(from: oldValue) } }
     var isInspectorPresented = false
 
     /// Shows or hides the metadata panel.
@@ -767,6 +767,7 @@ final class LibraryModel {
         // a step in its own right. A step made through `navigate(to:)`, or by
         // going back, is refused by `pushHistory` while it is being applied.
         pushHistory(.scope(previous))
+        if !isTraversingHistory { pushPage() }
         selection = []
         selectionAnchor = nil
         cursor = nil
@@ -838,7 +839,11 @@ final class LibraryModel {
     /// The way the interface changes destination. Going through here is what
     /// keeps Back honest when leaving Home for a scope, which is two property
     /// changes for one step the user took.
-    func navigate(to destination: LibraryDestination) {
+    ///
+    /// `startingPageStack` is for the sidebar: a place picked there replaces
+    /// the page stack rather than being pushed onto it.
+    func navigate(to destination: LibraryDestination, startingPageStack: Bool = false) {
+        defer { if startingPageStack { restartPages() } }
         let previous = self.destination
         guard previous != destination else {
             // Re-activating the current place means returning to its canvas,
@@ -848,6 +853,7 @@ final class LibraryModel {
         }
         pushHistory(previous)
         apply(destination)
+        if !startingPageStack { pushPage() }
     }
 
     func goBack() {
@@ -860,12 +866,14 @@ final class LibraryModel {
         guard let target = backStack.popLast() else { return }
         forwardStack.append(destination)
         apply(target)
+        popPage()
     }
 
     func goForward() {
         guard let target = forwardStack.popLast() else { return }
         backStack.append(destination)
         apply(target)
+        pushPage()
     }
 
     private func apply(_ destination: LibraryDestination) {
@@ -905,6 +913,148 @@ final class LibraryModel {
         if backStack.count > 64 { backStack.removeFirst() }
     }
 
+    // MARK: Pages
+    //
+    // On iOS and iPadOS each step Back can undo is a page of its own on a
+    // navigation stack, so the system back button and the edge swipe retrace
+    // the same path Back does instead of leaving the canvas altogether. A
+    // preview is a page too, and only ever the top one: going anywhere from
+    // it closes it first, the same way history treats it.
+    //
+    // The stack starts over wherever the sidebar or the iPhone's Library list
+    // sends the canvas, and grows with every step taken from there. Empty
+    // means nothing is pushed — on iPhone, the Library list is showing; on
+    // the Mac, always.
+
+    private(set) var pages: [LibraryPage] = []
+
+    /// Raised while the stack is telling the model where it has landed, so
+    /// the model's own changes on the way there are not taken as new steps.
+    private var isApplyingPages = false
+
+    /// The page the live canvas belongs to: the top one, or the one beneath
+    /// a preview. Every other page is drawn as it was left.
+    var livePageID: LibraryPage.ID? {
+        pages.last { $0.previewedObjectID == nil }?.id
+    }
+
+    /// Starts a stack at wherever the canvas is now — the iPad's detail
+    /// column, which always has a page to show.
+    func startPagesIfNeeded() {
+        guard pages.isEmpty else { return }
+        pages = [LibraryPage(destination: destination, previewedObjectID: previewedObjectID)]
+    }
+
+    /// Pushes a page the iPhone's Library list asked for, before the canvas
+    /// has got there, so the push is not held up by loading or Face ID.
+    func beginPages(with page: LibraryPage) {
+        pages = [page]
+    }
+
+    /// The system popped pages: the back button, the edge swipe, or a pick
+    /// from the back button's menu. The model follows to wherever it landed.
+    func popPages(to remaining: [LibraryPage]) {
+        guard remaining.count < pages.count else { return }
+        var walking = pages
+        while walking.count > remaining.count {
+            let leaving = walking.removeLast()
+            // Leaving a preview is not a change of place.
+            guard leaving.previewedObjectID == nil, let under = walking.last else { continue }
+            if backStack.last == under.destination { backStack.removeLast() }
+            forwardStack.append(leaving.destination)
+        }
+
+        isApplyingPages = true
+        defer { isApplyingPages = false }
+        pages = remaining
+        guard let landing = remaining.last else {
+            previewedObjectID = nil
+            return
+        }
+        if landing.destination != destination { apply(landing.destination) }
+        previewedObjectID = landing.previewedObjectID
+    }
+
+    /// A place picked in the sidebar is a new root, not a step deeper, and it
+    /// replaces the column's contents in place rather than sliding over them.
+    private func restartPages() {
+        guard !pages.isEmpty else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            pages = [LibraryPage(destination: destination)]
+        }
+    }
+
+    private func pushPage() {
+        guard !pages.isEmpty, !isApplyingPages,
+              pages.last?.destination != destination
+        else { return }
+        pages.append(LibraryPage(destination: destination))
+    }
+
+    /// Back was asked for from the keyboard or a menu rather than by the
+    /// stack itself.
+    private func popPage() {
+        guard !pages.isEmpty, !isApplyingPages else { return }
+        if pages.count > 1 { pages.removeLast() }
+        // History reaches further back than the stack: stepping past its
+        // first page makes wherever Back landed the new first page.
+        if pages.last?.destination != destination {
+            pages[pages.count - 1] = LibraryPage(destination: destination)
+        }
+    }
+
+    private func previewDidChange(from previous: ObjectID?) {
+        guard !pages.isEmpty, !isApplyingPages, previous != previewedObjectID else { return }
+        let top = pages.count - 1
+        switch (pages[top].previewedObjectID, previewedObjectID) {
+        case (nil, let opened?):
+            pages.append(LibraryPage(destination: destination, previewedObjectID: opened))
+        case (_?, let stepped?):
+            // Stepping to the next item stays on the same page.
+            pages[top].previewedObjectID = stepped
+        case (_?, nil):
+            pages.removeLast()
+        case (nil, nil):
+            break
+        }
+    }
+
+    /// Takes pages for places that no longer exist out from under the one on
+    /// screen, and closes up two copies of one place left side by side.
+    private func prunePages(keeping survives: (LibraryDestination) -> Bool) {
+        guard pages.count > 1 else { return }
+        var kept: [LibraryPage] = []
+        for (index, page) in pages.enumerated() {
+            let isTop = index == pages.count - 1
+            guard isTop || survives(page.destination) else { continue }
+            if !isTop, page.previewedObjectID == nil,
+               kept.last?.destination == page.destination { continue }
+            if isTop, page.previewedObjectID == nil,
+               kept.last?.destination == page.destination, kept.last?.previewedObjectID == nil {
+                kept[kept.count - 1] = page
+                continue
+            }
+            kept.append(page)
+        }
+        if kept != pages { pages = kept }
+    }
+
+    /// What a place is called, from what the sidebar already knows, so a page
+    /// can be titled before the canvas has loaded it.
+    func title(for destination: LibraryDestination) -> String {
+        guard case .scope(let scope) = destination else { return "All" }
+        switch scope {
+        case .folder(let id):
+            if let crumb = breadcrumbs.last, crumb.id == id { return crumb.name }
+            return allFolders.first { $0.folder.id == id }?.folder.name ?? "Folder"
+        case .collection(let id): return collections.first { $0.id == id }?.name ?? "Collection"
+        case .tag(let id): return tags.first { $0.id == id }?.name ?? "Tag"
+        default: return scope.displayName
+        }
+    }
+
     /// Drops destinations that no longer exist, so Back never lands on a place
     /// that has been deleted.
     ///
@@ -936,6 +1086,7 @@ final class LibraryModel {
 
         backStack.removeAll { !survives($0) }
         forwardStack.removeAll { !survives($0) }
+        prunePages(keeping: survives)
     }
 
     // MARK: Selection
@@ -1789,6 +1940,20 @@ final class LibraryModel {
 enum LibraryDestination: Hashable {
     case home
     case scope(LibraryScope)
+}
+
+/// One page on the iOS navigation stack: a place, or an object previewed in
+/// front of it.
+///
+/// Identity is the page, not what it shows, so stepping a preview to the next
+/// item changes the page without the stack treating it as a new one.
+struct LibraryPage: Hashable, Identifiable {
+    let id = UUID()
+    let destination: LibraryDestination
+    var previewedObjectID: ObjectID?
+
+    static func == (lhs: LibraryPage, rhs: LibraryPage) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 /// Which column the keyboard is talking to.

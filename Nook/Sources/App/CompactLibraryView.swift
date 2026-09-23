@@ -13,11 +13,19 @@ import NookLibrary
 /// that stays docked beneath whatever is pushed on screen.
 struct CompactLibraryView: View {
     @Bindable var model: LibraryModel
+    @State private var stills = PageStills()
 
     var body: some View {
-        NavigationStack {
+        // Every step taken from the list is a page of its own, so the back
+        // button and the edge swipe undo one step at a time rather than
+        // returning to the list from wherever the canvas has got to.
+        NavigationStack(path: path) {
             CompactLibraryList(model: model)
+                .navigationDestination(for: LibraryPage.self) { page in
+                    LibraryPageView(model: model, page: page)
+                }
         }
+        .libraryPageStills(stills, model: model)
         // Metadata comes up as a sheet here rather than as a side panel.
         .sheet(isPresented: $model.isInspectorPresented) {
             NavigationStack {
@@ -32,6 +40,45 @@ struct CompactLibraryView: View {
             }
             .presentationDetents([.medium, .large])
         }
+    }
+
+    private var path: Binding<[LibraryPage]> {
+        Binding(
+            get: { model.pages },
+            set: { requested in
+                if requested.count < model.pages.count {
+                    model.popPages(to: requested)
+                } else if model.pages.isEmpty, let page = requested.last {
+                    // A row in the list. The page goes up at once and the
+                    // canvas catches up with it.
+                    model.beginPages(with: page)
+                    Task { await open(page.destination) }
+                }
+            }
+        )
+    }
+
+    private func open(_ destination: LibraryDestination) async {
+        switch destination {
+        case .home:
+            model.navigate(to: .home)
+        case .scope(.hidden):
+            await model.openHidden()
+        case .scope(.folder(let id)):
+            // A locked folder authenticates before the canvas lands on it,
+            // rather than navigating straight to the door.
+            await model.openFolder(id)
+        case .scope(let scope):
+            model.navigate(to: .scope(scope))
+        }
+        // Declining Face ID leaves the canvas where it was, so the page that
+        // went up for it has nothing to show.
+        guard model.destination == destination else {
+            model.popPages(to: [])
+            return
+        }
+        await model.loadPreferences()
+        await model.refreshContents()
     }
 }
 
@@ -64,7 +111,6 @@ private enum CompactToolbarIcon {
 /// open in detail — there is nothing here to add content to at that point.
 struct CompactAddContentToolbar: ToolbarContent {
     let model: LibraryModel
-    @Environment(\.dismiss) private var dismiss
     @State private var isAddPresented = false
 
     @ToolbarContentBuilder
@@ -73,9 +119,9 @@ struct CompactAddContentToolbar: ToolbarContent {
         // glass pill, apart from Add.
         ToolbarItemGroup(placement: .bottomBar) {
             // Pops back to the root list (All, Inbox, Recent, Favorites, …).
-            // A no-op when already there, since there's nothing to dismiss.
+            // A no-op when already there, since there's nothing to pop.
             Button {
-                dismiss()
+                model.popPages(to: [])
             } label: {
                 CompactToolbarIcon.system("house").label("Home")
             }
@@ -350,23 +396,16 @@ struct CompactLibraryList: View {
 
     private func row(scope: LibraryScope, title: String, count: Int? = nil,
                      @ViewBuilder icon: () -> some View) -> some View {
-        NavigationLink {
-            BrowseView(model: model, showsHistoryControls: false)
-                .task { await open(scope) }
-        } label: {
+        NavigationLink(value: LibraryPage(destination: .scope(scope))) {
             label(title: title, count: count, icon: icon)
         }
     }
 
     /// "All" is a distinct destination from any scope — it shows the Home
     /// canvas (the Folders First shelf and friends) rather than a plain
-    /// query over every object — so it gets its own push rather than going
-    /// through `open(_:)`.
+    /// query over every object.
     private func homeRow(title: String, symbol: String, count: Int? = nil) -> some View {
-        NavigationLink {
-            BrowseView(model: model, showsHistoryControls: false)
-                .task { await openHome() }
-        } label: {
+        NavigationLink(value: LibraryPage(destination: .home)) {
             label(title: title, count: count) { Image(systemName: symbol) }
         }
     }
@@ -385,28 +424,6 @@ struct CompactLibraryList: View {
                 }
             }
         } icon: { icon() }
-    }
-
-    private func openHome() async {
-        model.navigate(to: .home)
-        await model.loadPreferences()
-        await model.refreshContents()
-    }
-
-    private func open(_ scope: LibraryScope) async {
-        guard scope != .hidden else {
-            await model.openHidden()
-            return
-        }
-        // A locked folder authenticates before the canvas lands on it, rather
-        // than navigating straight to the door.
-        if case .folder(let id) = scope {
-            await model.openFolder(id)
-        } else {
-            model.navigate(to: .scope(scope))
-        }
-        await model.loadPreferences()
-        await model.refreshContents()
     }
 }
 

@@ -810,12 +810,13 @@ private enum ContinuityCameraScanner {
 struct GalleryToolbar: ToolbarContent {
     let model: LibraryModel
     let showsHistoryControls: Bool
+    let isPreviewing: Bool
 
     @ToolbarContentBuilder
     var body: some ToolbarContent {
         // Preview sits in front of the gallery rather than beside it, so the
         // gallery's own controls stand down while it is open.
-        if model.previewedObjectID == nil {
+        if !isPreviewing {
             if showsHistoryControls {
                 ToolbarItemGroup(placement: .navigation) {
                     Button("Back", systemImage: "chevron.backward") { model.goBack() }

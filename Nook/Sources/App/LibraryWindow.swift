@@ -21,6 +21,7 @@ struct LibraryWindow: View {
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var detailStills = PageStills()
     #endif
     #if os(iOS) || os(macOS)
     @State private var photoSelections: [PhotosPickerItem] = []
@@ -270,9 +271,46 @@ struct LibraryWindow: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
             #endif
         } detail: {
+            #if os(iOS)
+            detailStack
+            #else
             BrowseView(model: model)
+            #endif
         }
     }
+
+    #if os(iOS)
+    /// Every step taken from the sidebar is a page of its own, so the back
+    /// button and the edge swipe undo one step at a time. On the first page
+    /// there is nothing to go back to, and the edge swipe brings in the
+    /// sidebar instead.
+    private var detailStack: some View {
+        NavigationStack(path: detailPath) {
+            Group {
+                if let root = model.pages.first {
+                    LibraryPageView(model: model, page: root, isRoot: true)
+                } else {
+                    BrowseView(model: model, showsHistoryControls: false)
+                }
+            }
+            .navigationDestination(for: LibraryPage.self) { page in
+                LibraryPageView(model: model, page: page)
+            }
+        }
+        .libraryPageStills(detailStills, model: model)
+        .onAppear { model.startPagesIfNeeded() }
+    }
+
+    private var detailPath: Binding<[LibraryPage]> {
+        Binding(
+            get: { Array(model.pages.dropFirst()) },
+            set: { remaining in
+                guard let root = model.pages.first else { return }
+                model.popPages(to: [root] + remaining)
+            }
+        )
+    }
+    #endif
 
     #if os(iOS) || os(macOS)
     /// Photos hands over bytes rather than a file on disk, so each selection

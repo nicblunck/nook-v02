@@ -10,6 +10,16 @@ struct BrowseView: View {
     /// native stack navigation. Its custom history pair would be relocated to
     /// the trailing toolbar beside the view controls, duplicating navigation.
     var showsHistoryControls = true
+    /// The page this canvas is on, when it is one of the iOS navigation
+    /// stack's. A page is either a place or a preview, never both: the stack
+    /// shows the canvas beneath a preview as a page of its own.
+    var stackPage: LibraryPage?
+    /// Whether a page on the stack holds its items back until its own place
+    /// has loaded, rather than showing the last place's in the meantime.
+    var showsPlaceOnlyOnceLoaded = true
+    /// What a preview page last showed, so it keeps showing it while it
+    /// slides away after the preview has closed.
+    @State private var lastPreviewed: ObjectSnapshot?
     /// Where the canvas actually drew each item, which is what tells an arrow
     /// key what "the row above" means in a layout that is not a uniform grid.
     @State private var itemFrames = GalleryFrames<CanvasItemID>()
@@ -36,13 +46,24 @@ struct BrowseView: View {
 
     var body: some View {
         content
-            #if os(iOS)
-            // The preview's own Back closes it and returns to the canvas
-            // rather than popping the stack — the system's automatic back
-            // button means something different (leaving this screen
-            // entirely) and would otherwise sit right beside it.
-            .navigationBarBackButtonHidden(model.previewedObjectID != nil)
-            #endif
+            .onChange(of: model.previewedObject, initial: true) { _, object in
+                if let object, stackPage?.previewedObjectID != nil { lastPreviewed = object }
+            }
+    }
+
+    /// The object open in preview on this canvas, if any.
+    private var previewed: ObjectSnapshot? {
+        guard let stackPage else { return model.previewedObject }
+        guard stackPage.previewedObjectID != nil else { return nil }
+        return model.previewedObject ?? lastPreviewed
+    }
+
+    /// Whether this canvas is a page on the stack whose place has not loaded
+    /// yet. What the model holds then still belongs to the page it came from,
+    /// and showing it here would show that page twice.
+    private var isAwaitingPlace: Bool {
+        guard let stackPage, stackPage.previewedObjectID == nil, showsPlaceOnlyOnceLoaded else { return false }
+        return model.contentsDestination != stackPage.destination
     }
 
     private func presentSearch() {
@@ -58,9 +79,12 @@ struct BrowseView: View {
 
     private var content: some View {
         ZStack {
-            if let previewed = model.previewedObject {
-                ObjectPreviewView(model: model, object: previewed)
+            if let previewed {
+                ObjectPreviewView(model: model, object: previewed, showsBackButton: stackPage == nil)
                     .transition(previewTransition)
+            } else if stackPage?.previewedObjectID != nil {
+                // A preview page whose object is no longer there to show.
+                Color.clear
             } else {
                 // Search only makes sense while browsing, and scoping it to
                 // the canvas rather than the shared container is what keeps
@@ -109,19 +133,22 @@ struct BrowseView: View {
             #endif
         }
         .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                   value: model.previewedObjectID)
+                   value: previewed?.id)
         .navigationTitle(navigationTitle)
         .navigationSubtitle(navigationSubtitle)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            GalleryToolbar(model: model, showsHistoryControls: showsHistoryControls)
+            // A page on the stack goes back with the system's own back button.
+            GalleryToolbar(model: model,
+                           showsHistoryControls: showsHistoryControls && stackPage == nil,
+                           isPreviewing: previewed != nil)
             #if os(iOS)
             // Without its own `.bottomBar` content, this screen's automatic
             // search integration docks the search field there instead — so
             // this still needs its own copy, not just the root list's.
-            if horizontalSizeClass == .compact, model.previewedObjectID == nil {
+            if horizontalSizeClass == .compact, previewed == nil {
                 CompactAddContentToolbar(model: model)
             }
             #endif
@@ -279,7 +306,7 @@ struct BrowseView: View {
     /// gives way to the other.
     private var items: some View {
         ZStack(alignment: .top) {
-            if let place = model.contentsDestination {
+            if let place = model.contentsDestination, !isAwaitingPlace {
                 placeContents
                     .id(place)
                     .transition(swapTransition)
@@ -636,13 +663,18 @@ struct BrowseView: View {
     }
 
     private var navigationTitle: String {
-        model.previewedObject?.title ?? (model.isShowingHome ? "All" : title)
+        if let previewed { return previewed.title }
+        // A page is titled as soon as it arrives, not once its place has
+        // loaded.
+        if let stackPage { return model.title(for: stackPage.destination) }
+        return model.isShowingHome ? "All" : title
     }
 
     private var navigationSubtitle: String {
-        if let object = model.previewedObject {
+        if let object = previewed {
             return metadataParts(for: object).joined(separator: " · ")
         }
+        if isAwaitingPlace { return "" }
 
         let itemCount = model.contents.objects.count
         let folderCount = model.contents.folders.count

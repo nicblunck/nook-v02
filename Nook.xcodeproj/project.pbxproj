@@ -11,6 +11,7 @@
 		02C68817C51BB66995D6FCC4 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53549678390B5259BB4DF7D4 /* Accessibility.swift */; };
 		02FBDF9621B40E1228A1FDB0 /* MacSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F210F6A8865D75F169D982AD /* MacSidebar.swift */; };
 		035564AA98AB39A521E9D5C5 /* CompactLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */; };
+		A1B2C3D4E5F6071829304A5B /* PageStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5D /* PageStack.swift */; };
 		04D31608028346359E62B68B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
 		04FAEEE0EA38D787A9B2BCA7 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 3DA6DCC7DC29525F67279647 /* NookLibrary */; };
 		05EF14FE4062438D78D1E2AD /* FolderScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4813A195EDEB60B4C7E35F /* FolderScene.swift */; };
@@ -90,6 +91,7 @@
 		7E01157462720C1AB5DF7874 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 859CD1B6A1B80930666ADA7A /* Assets.xcassets */; };
 		7ED24106077E32B8ADD2D3D3 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */; };
 		8232CAEAAB3255EE9C0F13E6 /* CompactLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */; };
+		A1B2C3D4E5F6071829304A5C /* PageStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5D /* PageStack.swift */; };
 		82FF466E667040CFC5A8FCC9 /* AppFocusLoss.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AA740B740B8281F9DA7BA3 /* AppFocusLoss.swift */; };
 		84A83438ADE49BE340008E31 /* AppearanceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */; };
 		88D4B0F4595DC31D18B2A753 /* PasteImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56996EA6351BD06C5361175 /* PasteImporter.swift */; };
@@ -301,6 +303,7 @@
 		D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryIntents.swift; sourceTree = "<group>"; };
 		D525A7D837A50021BF91CA75 /* TransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferTests.swift; sourceTree = "<group>"; };
 		D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactLibraryView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071829304A5D /* PageStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageStack.swift; sourceTree = "<group>"; };
 		DC4813A195EDEB60B4C7E35F /* FolderScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderScene.swift; sourceTree = "<group>"; };
 		DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		E0EC2E92B891E22467AE8A3A /* ObjectPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectPreviewView.swift; sourceTree = "<group>"; };
@@ -480,6 +483,7 @@
 				5F3AB199013B3E104B25F50D /* AppSettings.swift */,
 				82924B5579C4C3667A253D96 /* Authentication.swift */,
 				D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */,
+				A1B2C3D4E5F6071829304A5D /* PageStack.swift */,
 				0A0D4665C495D3CB70F0276F /* LibraryModel.swift */,
 				106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */,
 				CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */,
@@ -813,6 +817,7 @@
 				6FD79E4456A471C6947DDDE6 /* CameraCapture.swift in Sources */,
 				CCFA3AD9EE77A3D62F3805E3 /* CanvasNavigation.swift in Sources */,
 				8232CAEAAB3255EE9C0F13E6 /* CompactLibraryView.swift in Sources */,
+				A1B2C3D4E5F6071829304A5C /* PageStack.swift in Sources */,
 				148F029A9660CF00E7F90657 /* EntityIcon.swift in Sources */,
 				EB1FEA2E4C84868F15F6EF39 /* ExternalURLDrop.swift in Sources */,
 				79E3C3C4B94B347855901090 /* FolderPeekIcon.swift in Sources */,
@@ -871,6 +876,7 @@
 				C02885DC4F4136981A4690EC /* CameraCapture.swift in Sources */,
 				EE5A79A170299CEC67D51427 /* CanvasNavigation.swift in Sources */,
 				035564AA98AB39A521E9D5C5 /* CompactLibraryView.swift in Sources */,
+				A1B2C3D4E5F6071829304A5B /* PageStack.swift in Sources */,
 				EFD9611BE8C3CAC7AE88B32C /* EntityIcon.swift in Sources */,
 				C5D89E0F3DE6C489CB2752D1 /* ExternalURLDrop.swift in Sources */,
 				AA1B326BBDCC55697189A410 /* FolderPeekIcon.swift in Sources */,

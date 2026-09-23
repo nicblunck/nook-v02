@@ -159,7 +159,7 @@ struct SidebarView: View {
                          isCurrent: model.scope == .recentlyDeleted,
                          count: model.counts[.recentlyDeleted],
                          dropTarget: .trash) {
-                model.navigate(to: .scope(.recentlyDeleted))
+                model.navigate(to: .scope(.recentlyDeleted), startingPageStack: true)
             }
             // No count on this one. How much someone is keeping out of sight
             // is itself something they are keeping out of sight.
@@ -167,7 +167,7 @@ struct SidebarView: View {
                          symbol: "eye.slash",
                          isCurrent: model.scope == .hidden,
                          dropTarget: .hidden) {
-                Task { await model.openHidden() }
+                Task { await model.openHidden(startingPageStack: true) }
             }
             Spacer(minLength: 0)
         }
@@ -349,7 +349,7 @@ struct SidebarView: View {
 
     private func tagRow(_ tag: TagSnapshot) -> some View {
         Button {
-            model.navigate(to: .scope(.tag(tag.id)))
+            model.navigate(to: .scope(.tag(tag.id)), startingPageStack: true)
         } label: {
             TagPill(tag: tag, isSelected: model.scope == .tag(tag.id))
         }
@@ -458,9 +458,9 @@ struct SidebarView: View {
                 // A locked folder authenticates before the canvas lands on it,
                 // rather than navigating straight to the door.
                 if case .scope(.folder(let id)) = value {
-                    Task { await model.openFolder(id) }
+                    Task { await model.openFolder(id, startingPageStack: true) }
                 } else {
-                    model.navigate(to: value)
+                    model.navigate(to: value, startingPageStack: true)
                 }
             }
         )
