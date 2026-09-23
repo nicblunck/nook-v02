@@ -69,7 +69,9 @@ struct MacShareView: View {
                     .background(.regularMaterial, in: .rect(cornerRadius: 12))
             }
         }
-        .frame(minWidth: 460, idealWidth: 480, minHeight: 560, idealHeight: 620)
+        // The sheet's size is set once, by ShareViewController. A minimum here
+        // larger than that sheet pushes the header and bottom margin out of view.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await load() }
     }
 

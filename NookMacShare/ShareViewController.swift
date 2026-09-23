@@ -2,10 +2,13 @@ import AppKit
 import SwiftUI
 
 final class ShareViewController: NSViewController {
+    /// The sheet's size. MacShareView fills it and scrolls whatever doesn't fit.
+    private static let sheetSize = NSSize(width: 480, height: 620)
+
     private var hostingController: NSHostingController<MacShareView>?
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 520))
+        view = NSView(frame: NSRect(origin: .zero, size: Self.sheetSize))
     }
 
     override func viewDidLoad() {
@@ -44,6 +47,6 @@ final class ShareViewController: NSViewController {
             host.view.topAnchor.constraint(equalTo: view.topAnchor),
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        preferredContentSize = NSSize(width: 460, height: 520)
+        preferredContentSize = Self.sheetSize
     }
 }
