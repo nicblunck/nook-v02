@@ -89,10 +89,12 @@ struct CompactAddContentToolbar: ToolbarContent {
         // what splits Home, the search field and Add into pills of their
         // own, with the field taking whatever width is left over.
         ToolbarItem(placement: .bottomBar) {
-            // Back to the start page chosen in Settings — All unless asked
-            // otherwise, or the Library list itself.
-            Button("Home", systemImage: "house") {
-                model.showStartPage()
+            // Pops all the way back to the Library list, whatever the start
+            // page is, so the root is always one tap away. A list rather
+            // than a house, which would read as the start page. A no-op when
+            // already there.
+            Button("Library", systemImage: "list.bullet") {
+                model.popPages(to: [])
             }
         }
         if includesSearch {

@@ -75,7 +75,7 @@ struct SettingsView: View {
         Section {
             Picker("Start Page", selection: startPageBinding) {
                 Section {
-                    Label("Library", systemImage: "sidebar.leading").tag(StartPage.library)
+                    Label("Library", systemImage: "list.bullet").tag(StartPage.library)
                     Label("All", systemImage: "square.grid.2x2").tag(StartPage.all)
                     Label("Inbox", systemImage: "tray").tag(StartPage.inbox)
                     Label("Recent", systemImage: "clock").tag(StartPage.recent)
@@ -96,8 +96,6 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.navigationLink)
-        } footer: {
-            Text("Where Nook opens on iPhone, and where Home takes you. Library is the list of all your places.")
         }
     }
 

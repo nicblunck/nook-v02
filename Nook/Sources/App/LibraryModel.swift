@@ -1013,7 +1013,7 @@ final class LibraryModel {
     }
 
     /// Takes the canvas to a page already pushed for it: a row in the
-    /// iPhone's Library list, or the start page.
+    /// iPhone's Library list, or the start page at launch.
     func openPage(_ destination: LibraryDestination) async {
         switch destination {
         case .home:
@@ -1037,8 +1037,7 @@ final class LibraryModel {
         await refreshContents()
     }
 
-    /// Where the iPhone opens and Home returns to, or nil for the Library
-    /// list. A start folder that has since been deleted falls back to All.
+    /// Where the iPhone opens, or nil for the Library list. A start folder that has since been deleted falls back to All.
     var startDestination: LibraryDestination? {
         if case .folder(let id) = settings.startPage,
            !allFolders.contains(where: { $0.folder.id == id }) {
@@ -1064,24 +1063,6 @@ final class LibraryModel {
         withTransaction(transaction) {
             beginPages(with: LibraryPage(destination: start))
         }
-        return Task { await openPage(start) }
-    }
-
-    /// Home: back to the start page, or to the Library list when that is
-    /// the start page.
-    @discardableResult
-    func showStartPage() -> Task<Void, Never>? {
-        guard let start = startDestination else {
-            popPages(to: [])
-            return nil
-        }
-        // Already beneath everything pushed since: pop back to it.
-        if let first = pages.first, first.destination == start, first.previewedObjectID == nil {
-            popPages(to: [first])
-            return nil
-        }
-        popPages(to: [])
-        beginPages(with: LibraryPage(destination: start))
         return Task { await openPage(start) }
     }
 
