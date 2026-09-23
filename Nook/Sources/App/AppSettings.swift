@@ -58,6 +58,58 @@ enum HiddenRevealTimeout: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where the iPhone opens, and where its Home button goes back to.
+///
+/// Anything other than the Library list is pushed on top of it, so the back
+/// button still reaches the list from there.
+enum StartPage: Hashable {
+    /// The Library list itself, with nothing pushed.
+    case library
+    case all
+    case inbox
+    case recent
+    case favorites
+    case folder(FolderID)
+
+    /// What the canvas shows, or nil for the Library list.
+    var destination: LibraryDestination? {
+        switch self {
+        case .library: nil
+        case .all: .home
+        case .inbox: .scope(.inbox)
+        case .recent: .scope(.recent)
+        case .favorites: .scope(.favorites)
+        case .folder(let id): .scope(.folder(id))
+        }
+    }
+
+    fileprivate var rawValue: String {
+        switch self {
+        case .library: "library"
+        case .all: "all"
+        case .inbox: "inbox"
+        case .recent: "recent"
+        case .favorites: "favorites"
+        case .folder(let id): "folder:\(id.uuid.uuidString)"
+        }
+    }
+
+    fileprivate init?(rawValue: String) {
+        switch rawValue {
+        case "library": self = .library
+        case "all": self = .all
+        case "inbox": self = .inbox
+        case "recent": self = .recent
+        case "favorites": self = .favorites
+        default:
+            guard rawValue.hasPrefix("folder:"),
+                  let id = FolderID(uuidString: String(rawValue.dropFirst("folder:".count)))
+            else { return nil }
+            self = .folder(id)
+        }
+    }
+}
+
 /// The global defaults every location follows until one is explicitly told to
 /// remember something else.
 ///
@@ -81,6 +133,7 @@ final class AppSettings {
         static let appearance = "nook.appearance"
         static let hiddenRevealTimeout = "nook.hiddenRevealTimeout"
         static let rehidesOnFocusLoss = "nook.rehidesOnFocusLoss"
+        static let startPage = "nook.startPage"
     }
 
     private let defaults: UserDefaults
@@ -127,6 +180,10 @@ final class AppSettings {
         didSet { defaults.set(rehidesWhenAppLosesFocus, forKey: Key.rehidesOnFocusLoss) }
     }
 
+    var startPage: StartPage {
+        didSet { defaults.set(startPage.rawValue, forKey: Key.startPage) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.defaultPreferences = Self.load(from: defaults, key: Key.defaultPreferences)
@@ -140,6 +197,8 @@ final class AppSettings {
         self.rehidesWhenAppLosesFocus = defaults.object(forKey: Key.rehidesOnFocusLoss) == nil
             ? true
             : defaults.bool(forKey: Key.rehidesOnFocusLoss)
+        self.startPage = defaults.string(forKey: Key.startPage)
+            .flatMap(StartPage.init(rawValue:)) ?? .all
     }
 
     var accentColor: Color? { Color(hex: accentColorHex) }
