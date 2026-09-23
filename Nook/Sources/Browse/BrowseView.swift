@@ -20,6 +20,9 @@ struct BrowseView: View {
     /// What a preview page last showed, so it keeps showing it while it
     /// slides away after the preview has closed.
     @State private var lastPreviewed: ObjectSnapshot?
+    /// Where a page on the stack is scrolled to, so coming back to it lands
+    /// where it was left.
+    @State private var scrollPosition = ScrollPosition(edge: .top)
     /// Where the canvas actually drew each item, which is what tells an arrow
     /// key what "the row above" means in a layout that is not a uniform grid.
     @State private var itemFrames = GalleryFrames<CanvasItemID>()
@@ -226,6 +229,17 @@ struct BrowseView: View {
                             // sits in the canvas and does not change as the
                             // canvas scrolls.
                             .coordinateSpace(.named(canvasCoordinateSpace))
+                    }
+                    .scrollPosition($scrollPosition)
+                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.contentOffset.y + geometry.contentInsets.top
+                    } action: { _, offset in
+                        if let stackPage { model.rememberScrollOffset(offset, for: stackPage.id) }
+                    }
+                    .onAppear {
+                        if let stackPage, let offset = model.scrollOffset(for: stackPage.id) {
+                            scrollPosition.scrollTo(y: offset)
+                        }
                     }
                     .refreshable {
                         await model.refreshAll()

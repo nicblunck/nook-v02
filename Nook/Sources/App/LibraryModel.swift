@@ -926,7 +926,41 @@ final class LibraryModel {
     // means nothing is pushed — on iPhone, the Library list is showing; on
     // the Mac, always.
 
-    private(set) var pages: [LibraryPage] = []
+    private(set) var pages: [LibraryPage] = [] {
+        didSet {
+            let ids = Set(pages.map(\.id))
+            pageStates = pageStates.filter { ids.contains($0.key) }
+            pageScrollOffsets = pageScrollOffsets.filter { ids.contains($0.key) }
+        }
+    }
+
+    /// What each covered page was showing when it was left, so going back to
+    /// it puts that straight back on the canvas instead of loading the place
+    /// again from nothing. The refresh that follows then only animates what
+    /// has actually changed since.
+    @ObservationIgnored private var pageStates: [LibraryPage.ID: PageState] = [:]
+
+    /// How far down each page had been scrolled.
+    @ObservationIgnored private var pageScrollOffsets: [LibraryPage.ID: CGFloat] = [:]
+
+    private struct PageState {
+        let destination: LibraryDestination
+        let contents: LocationContents
+        let folderPeeks: [FolderID: [ObjectSnapshot]]
+        let breadcrumbs: [FolderSnapshot]
+        let availableContentFilters: Set<LibraryContentFilter>
+        let preferences: LocationViewPreferences
+        let canRememberLocation: Bool
+        let isRememberingLocation: Bool
+    }
+
+    func rememberScrollOffset(_ offset: CGFloat, for page: LibraryPage.ID) {
+        pageScrollOffsets[page] = offset
+    }
+
+    func scrollOffset(for page: LibraryPage.ID) -> CGFloat? {
+        pageScrollOffsets[page]
+    }
 
     /// Raised while the stack is telling the model where it has landed, so
     /// the model's own changes on the way there are not taken as new steps.
@@ -971,7 +1005,10 @@ final class LibraryModel {
             previewedObjectID = nil
             return
         }
-        if landing.destination != destination { apply(landing.destination) }
+        if landing.destination != destination {
+            apply(landing.destination)
+            restorePageState()
+        }
         previewedObjectID = landing.previewedObjectID
     }
 
@@ -1063,7 +1100,39 @@ final class LibraryModel {
         guard !pages.isEmpty, !isApplyingPages,
               pages.last?.destination != destination
         else { return }
+        // The canvas has not loaded the new place yet, so what it holds is
+        // still the page being covered.
+        if let covered = pages.last, covered.previewedObjectID == nil,
+           contentsDestination == covered.destination {
+            pageStates[covered.id] = PageState(
+                destination: covered.destination,
+                contents: contents,
+                folderPeeks: folderPeeks,
+                breadcrumbs: breadcrumbs,
+                availableContentFilters: availableContentFilters,
+                preferences: preferences,
+                canRememberLocation: canRememberLocation,
+                isRememberingLocation: isRememberingLocation
+            )
+        }
         pages.append(LibraryPage(destination: destination))
+    }
+
+    /// Puts back what a page was showing when it was covered.
+    private func restorePageState() {
+        guard let page = pages.last, page.destination == destination,
+              let state = pageStates[page.id], state.destination == destination
+        else { return }
+        contentsChange = .none
+        contentFilterChange = .none
+        contents = state.contents
+        folderPeeks = state.folderPeeks
+        breadcrumbs = state.breadcrumbs
+        availableContentFilters = state.availableContentFilters
+        preferences = state.preferences
+        canRememberLocation = state.canRememberLocation
+        isRememberingLocation = state.isRememberingLocation
+        contentsDestination = destination
     }
 
     /// Back was asked for from the keyboard or a menu rather than by the
@@ -1076,6 +1145,7 @@ final class LibraryModel {
         if pages.last?.destination != destination {
             pages[pages.count - 1] = LibraryPage(destination: destination)
         }
+        restorePageState()
     }
 
     private func previewDidChange(from previous: ObjectID?) {
