@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 
 final class ShareViewController: NSViewController {
@@ -7,8 +8,37 @@ final class ShareViewController: NSViewController {
 
     private var hostingController: NSHostingController<MacShareView>?
 
+    private static let log = Logger(subsystem: "com.nicolasblunck.nook.app.macshare", category: "layout")
+
     override func loadView() {
         view = NSView(frame: NSRect(origin: .zero, size: Self.sheetSize))
+        // The system may give the sheet less height than asked for; the view
+        // has to follow the window it actually gets, not keep its own size.
+        view.autoresizingMask = [.width, .height]
+    }
+
+    // TEMPORARY: logs the sheet's real geometry so the clipped header can be
+    // diagnosed from the unified log. Remove once the clipping is fixed.
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        let window = view.window
+        let superview = view.superview
+        let parts: [String] = [
+            "view=\(NSStringFromRect(view.frame))",
+            "superview=\(superview.map { String(describing: type(of: $0)) } ?? "nil")",
+            "superFrame=\(NSStringFromRect(superview?.frame ?? .zero))",
+            "superFlipped=\(superview?.isFlipped ?? false)",
+            "host=\(NSStringFromRect(hostingController?.view.frame ?? .zero))",
+            "safeArea=\(view.safeAreaInsets)",
+            "hostSafeArea=\(String(describing: hostingController?.view.safeAreaInsets))",
+            "window=\(NSStringFromRect(window?.frame ?? .zero))",
+            "contentView=\(NSStringFromRect(window?.contentView?.frame ?? .zero))",
+            "contentLayout=\(NSStringFromRect(window?.contentLayoutRect ?? .zero))",
+            "isContentView=\(window?.contentView === view)",
+            "styleMask=\(window?.styleMask.rawValue ?? 0)"
+        ]
+        let line = parts.joined(separator: " ")
+        Self.log.notice("share-geometry \(line, privacy: .public)")
     }
 
     override func viewDidLoad() {
