@@ -792,21 +792,26 @@ private struct LibraryContentFilterBar: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(LibraryContentFilter.allCases.filter(available.contains)) { filter in
-                    LibraryContentFilterButton(
-                        filter: filter,
-                        isSelected: selection == filter,
-                        tint: tint,
-                        action: { select(filter) }
-                    )
-                    // A pill that has lost its last item fades out; the rest
-                    // close the gap; one earning its place fades in last.
-                    .transition(change.itemTransition(
-                        exit: .scale(scale: 0.9).combined(with: .opacity),
-                        enter: .scale(scale: 0.9).combined(with: .opacity),
-                        reduceMotion: reduceMotion
-                    ))
+            // One container, so the pills share a sampling pass instead of
+            // each lensing the others' glass. No spacing: neighbours stay
+            // separate pills at rest rather than melting into one bar.
+            GlassEffectContainer(spacing: 0) {
+                HStack(spacing: 8) {
+                    ForEach(LibraryContentFilter.allCases.filter(available.contains)) { filter in
+                        LibraryContentFilterButton(
+                            filter: filter,
+                            isSelected: selection == filter,
+                            tint: tint,
+                            action: { select(filter) }
+                        )
+                        // A pill that has lost its last item fades out; the rest
+                        // close the gap; one earning its place fades in last.
+                        .transition(change.itemTransition(
+                            exit: .scale(scale: 0.9).combined(with: .opacity),
+                            enter: .scale(scale: 0.9).combined(with: .opacity),
+                            reduceMotion: reduceMotion
+                        ))
+                    }
                 }
             }
             .padding(.horizontal, horizontalInset)
@@ -834,10 +839,12 @@ private struct LibraryContentFilterButton: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .foregroundStyle(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(.secondary))
-            .background(
+            // The selected pill takes the location's tint into its glass;
+            // the rest stay clear glass over whatever scrolls beneath.
+            .glassEffect(
                 isSelected
-                    ? AnyShapeStyle(tint.opacity(0.18))
-                    : AnyShapeStyle(.quaternary.opacity(0.5)),
+                    ? .regular.tint(tint.opacity(0.18)).interactive()
+                    : .regular.interactive(),
                 in: .capsule
             )
             // The capsule hugs its label; the surrounding frame keeps the

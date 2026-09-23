@@ -19,19 +19,23 @@ private enum ListCard {
 /// metadata sit in one block that stays whole at a phone's width instead of
 /// spreading into columns that squeeze the name to nothing.
 ///
+/// The surface is glass, laid beneath the row rather than around it: content
+/// wrapped in `glassEffect` is composited into the glass so the system can
+/// tint it, which would soften the thumbnail.
+///
 /// Selection tints the surface; the keyboard cursor is the ring the gallery
 /// draws around it, so a row can show both at once.
 private struct ListCardBackground: View {
     let isSelected: Bool
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: ListCard.cornerRadius)
-                .fill(.background.secondary)
-            RoundedRectangle(cornerRadius: ListCard.cornerRadius)
-                .fill(Color.accentColor)
-                .opacity(isSelected ? 0.18 : 0)
-        }
+        Color.clear
+            .glassEffect(.regular, in: .rect(cornerRadius: ListCard.cornerRadius))
+            .overlay {
+                RoundedRectangle(cornerRadius: ListCard.cornerRadius)
+                    .fill(Color.accentColor)
+                    .opacity(isSelected ? 0.18 : 0)
+            }
     }
 }
 
@@ -340,8 +344,10 @@ struct ObjectMasonryCard: View {
             )
         )
         .clipShape(.rect(cornerRadius: radius))
-        .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-        // Behind the tile, and behind its shadow, so a selected picture is
+        // The glass draws its own edge and lift; a drop shadow on top of
+        // it doubles up into a heavy halo.
+        .glassEffect(.regular, in: .rect(cornerRadius: radius))
+        // Behind the tile, so a selected picture is
         // shown exactly as an unselected one is.
         .background {
             RoundedRectangle(cornerRadius: radius + selectionInset)
@@ -548,7 +554,9 @@ struct FolderMasonryCard: View {
             )
         )
         .clipShape(.rect(cornerRadius: radius))
-        .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+        // The glass draws its own edge and lift; a drop shadow on top of
+        // it doubles up into a heavy halo.
+        .glassEffect(.regular, in: .rect(cornerRadius: radius))
         .background {
             RoundedRectangle(cornerRadius: radius + selectionInset)
                 .fill(.secondary)
