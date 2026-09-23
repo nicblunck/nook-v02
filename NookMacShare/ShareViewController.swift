@@ -1,5 +1,4 @@
 import AppKit
-import OSLog
 import SwiftUI
 
 final class ShareViewController: NSViewController {
@@ -8,37 +7,41 @@ final class ShareViewController: NSViewController {
 
     private var hostingController: NSHostingController<MacShareView>?
 
-    private static let log = Logger(subsystem: "com.nicolasblunck.nook.app.macshare", category: "layout")
+    /// Rounder than the system's own sheet corners, so the sheet reads as a
+    /// card of the same family as the rounded blocks inside it.
+    private static let cornerRadius: CGFloat = 28
 
     override func loadView() {
         view = NSView(frame: NSRect(origin: .zero, size: Self.sheetSize))
         // The system may give the sheet less height than asked for; the view
         // has to follow the window it actually gets, not keep its own size.
         view.autoresizingMask = [.width, .height]
+        view.wantsLayer = true
+        view.layer?.cornerRadius = Self.cornerRadius
+        view.layer?.cornerCurve = .continuous
+        view.layer?.masksToBounds = true
     }
 
-    // TEMPORARY: logs the sheet's real geometry so the clipped header can be
-    // diagnosed from the unified log. Remove once the clipping is fixed.
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        let window = view.window
-        let superview = view.superview
-        let parts: [String] = [
-            "view=\(NSStringFromRect(view.frame))",
-            "superview=\(superview.map { String(describing: type(of: $0)) } ?? "nil")",
-            "superFrame=\(NSStringFromRect(superview?.frame ?? .zero))",
-            "superFlipped=\(superview?.isFlipped ?? false)",
-            "host=\(NSStringFromRect(hostingController?.view.frame ?? .zero))",
-            "safeArea=\(view.safeAreaInsets)",
-            "hostSafeArea=\(String(describing: hostingController?.view.safeAreaInsets))",
-            "window=\(NSStringFromRect(window?.frame ?? .zero))",
-            "contentView=\(NSStringFromRect(window?.contentView?.frame ?? .zero))",
-            "contentLayout=\(NSStringFromRect(window?.contentLayoutRect ?? .zero))",
-            "isContentView=\(window?.contentView === view)",
-            "styleMask=\(window?.styleMask.rawValue ?? 0)"
-        ]
-        let line = parts.joined(separator: " ")
-        Self.log.notice("share-geometry \(line, privacy: .public)")
+    /// The system hosts the sheet in a visual effect view whose material and
+    /// shadow follow its own, tighter corners. Masking it to the same radius
+    /// keeps its corners from showing past ours.
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        guard let effectView = view.superview as? NSVisualEffectView else { return }
+        effectView.maskImage = Self.roundedMask(radius: Self.cornerRadius)
+        view.window?.invalidateShadow()
+    }
+
+    private static func roundedMask(radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 
     override func viewDidLoad() {

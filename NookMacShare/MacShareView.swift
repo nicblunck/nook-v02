@@ -442,6 +442,14 @@ private struct ShareItemDetailsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            DetailField(label: "Title") {
+                TextField("Title", text: $item.title, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...3)
+            }
+
+            Divider()
+
             DetailField(label: item.kind == .link ? "URL" : "Source") {
                 Text(item.source)
                     .font(.body)
@@ -451,15 +459,7 @@ private struct ShareItemDetailsCard: View {
 
             Divider()
 
-            DetailField(label: "Title") {
-                TextField("Title", text: $item.title, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...3)
-            }
-
-            Divider()
-
-            TextField("Note", text: $item.notes, axis: .vertical)
+            TextField("Add a note", text: $item.notes, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...5)
                 .padding(.horizontal, 16)
