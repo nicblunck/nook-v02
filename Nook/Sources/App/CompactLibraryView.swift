@@ -35,39 +35,17 @@ struct CompactLibraryView: View {
     }
 }
 
-/// A toolbar icon, either an SF Symbol or a full-color custom asset from
-/// Assets.xcassets.
-private enum CompactToolbarIcon {
-    case system(String)
-    case custom(String)
-
-    @ViewBuilder
-    func label(_ title: LocalizedStringKey) -> some View {
-        switch self {
-        case .system(let name):
-            Label(title, systemImage: name)
-        case .custom(let name):
-            // The assets are single 256px exports with no scale variants, so
-            // left to its natural size the image draws at 256pt. Pin it to
-            // the size a symbol takes in the same row.
-            Label {
-                Text(title)
-            } icon: {
-                Image(name)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
-            }
-        }
-    }
-}
-
 /// Every way to bring content in that's worth a thumb's reach, laid out
 /// where a long-press used to hide most of them. One button hides them all
-/// behind a popover, the same way the Mac's document and folder buttons
-/// already do — rather than several separate icons competing for space in
+/// behind a menu, rather than several separate icons competing for space in
 /// a bottom bar that has no way to tighten their spacing.
+///
+/// A menu rather than the popover the Mac uses: a popover from a bar item
+/// lets taps on the bar pass through instead of dismissing it, and SwiftUI
+/// only clears its binding once the exit animation has finished, so the
+/// button felt dead for a beat after it closed. A menu dismisses on any tap
+/// outside and runs its action after it has gone, so the sheet an item
+/// presents never collides with the menu on its way out.
 ///
 /// Shared between the landing list and every scope pushed from it, so the
 /// bar reads as one continuous piece of chrome rather than something that
@@ -76,7 +54,6 @@ private enum CompactToolbarIcon {
 struct CompactAddContentToolbar: ToolbarContent {
     let model: LibraryModel
     @Environment(\.dismiss) private var dismiss
-    @State private var isAddPresented = false
 
     @ToolbarContentBuilder
     var body: some ToolbarContent {
@@ -85,88 +62,74 @@ struct CompactAddContentToolbar: ToolbarContent {
         ToolbarItemGroup(placement: .bottomBar) {
             // Pops back to the root list (All, Inbox, Recent, Favorites, …).
             // A no-op when already there, since there's nothing to dismiss.
-            Button {
+            Button("Home", systemImage: "house") {
                 dismiss()
-            } label: {
-                CompactToolbarIcon.system("house").label("Home")
             }
             Spacer()
-            Button {
-                isAddPresented = true
-            } label: {
-                CompactToolbarIcon.system("plus").label("Add")
+            Menu("Add", systemImage: "plus") {
+                Section {
+                    item("New Folder…", icon: "ToolbarFolderIcon") {
+                        model.editingAppearance = .newFolder(parent: model.currentFolderID)
+                    }
+                    item("New Collection…", icon: "ToolbarCollectionIcon") {
+                        model.editingAppearance = .newCollection(adding: [])
+                    }
+                    item("New Tag…", icon: "ToolbarTagIcon") {
+                        model.editingAppearance = .newTag()
+                    }
+                }
+                Section {
+                    item("Add File…", icon: "ToolbarFileIcon") {
+                        model.isImporterPresented = true
+                    }
+                    item("Scan Document…", icon: "ToolbarScanIcon") {
+                        model.isDocumentScannerPresented = true
+                    }
+                    item("Paste", icon: "ToolbarClipboardIcon") {
+                        Task { await model.importPasteboard() }
+                    }
+                    item("Add Photo…", icon: "ToolbarGalleryIcon") {
+                        model.isPhotosPickerPresented = true
+                    }
+                    item("Take Photo…", icon: "ToolbarCameraIcon") {
+                        model.isCameraPresented = true
+                    }
+                }
             }
-            .popover(isPresented: $isAddPresented) {
-                CompactAddContentMenu(model: model, isPresented: $isAddPresented)
+        }
+    }
+
+    private func item(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(uiImage: CompactMenuIcon.image(named: icon))
             }
         }
     }
 }
 
-/// The popover behind the Add button: every way to bring content in or
-/// organize the library, in one list.
-private struct CompactAddContentMenu: View {
-    let model: LibraryModel
-    @Binding var isPresented: Bool
-    /// The row's action, held until the popover has finished leaving. Every
-    /// action presents something from the window's root, and UIKit refuses to
-    /// present while the popover is still on screen — the request is dropped,
-    /// its flag stays set, and the Add button can no longer bring the popover
-    /// back.
-    @State private var pendingAction: (() -> Void)?
+/// The full-colour toolbar assets, redrawn at the size a symbol takes in a
+/// menu row. They are single 256px exports with no scale variants, and a
+/// menu hands its images to UIKit as they are — SwiftUI's `resizable` and
+/// `frame` don't reach it — so left alone each would draw at 256pt.
+private enum CompactMenuIcon {
+    static let side: CGFloat = 24
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            row("New Folder…", icon: .custom("ToolbarFolderIcon")) {
-                model.editingAppearance = .newFolder(parent: model.currentFolderID)
-            }
-            row("New Collection…", icon: .custom("ToolbarCollectionIcon")) {
-                model.editingAppearance = .newCollection(adding: [])
-            }
-            row("New Tag…", icon: .custom("ToolbarTagIcon")) {
-                model.editingAppearance = .newTag()
-            }
-            Divider()
-            row("Add File…", icon: .custom("ToolbarFileIcon")) {
-                model.isImporterPresented = true
-            }
-            row("Scan Document…", icon: .custom("ToolbarScanIcon")) {
-                model.isDocumentScannerPresented = true
-            }
-            row("Paste", icon: .custom("ToolbarClipboardIcon")) {
-                Task { await model.importPasteboard() }
-            }
-            row("Add Photo…", icon: .custom("ToolbarGalleryIcon")) {
-                model.isPhotosPickerPresented = true
-            }
-            row("Take Photo…", icon: .custom("ToolbarCameraIcon")) {
-                model.isCameraPresented = true
-            }
-        }
-        .padding(12)
-        .frame(width: 240)
-        .presentationCompactAdaptation(.popover)
-        .onDisappear {
-            let action = pendingAction
-            pendingAction = nil
-            action?()
-        }
-    }
+    @MainActor private static var cache: [String: UIImage] = [:]
 
-    private func row(_ title: LocalizedStringKey, icon: CompactToolbarIcon, action: @escaping () -> Void) -> some View {
-        Button {
-            pendingAction = action
-            isPresented = false
-        } label: {
-            icon.label(title)
-                .labelStyle(.titleAndIcon)
-                .fontWeight(.regular)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
+    @MainActor
+    static func image(named name: String) -> UIImage {
+        if let cached = cache[name] { return cached }
+        guard let source = UIImage(named: name) else { return UIImage() }
+        let size = CGSize(width: side, height: side)
+        let image = UIGraphicsImageRenderer(size: size).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 8)
-        .frame(height: 44)
+        .withRenderingMode(.alwaysOriginal)
+        cache[name] = image
+        return image
     }
 }
 
