@@ -6,9 +6,10 @@ import NookLibrary
 ///
 /// The same information architecture as the sidebar, reached the way iOS
 /// reaches things — a single list of destinations, pushed into rather than
-/// switched between with tabs. This list itself is the landing page: All,
-/// Inbox, Recent and Favorites sit alongside the folder hierarchy,
-/// collections, media types and tags, exactly as they do in the sidebar.
+/// switched between with tabs. All, Inbox, Recent and Favorites sit alongside
+/// the folder hierarchy, collections, media types and tags, exactly as they
+/// do in the sidebar. The app opens on the start page chosen in Settings,
+/// pushed over this list — All unless asked otherwise.
 /// Adding content moves from a hidden long-press menu to a bottom toolbar
 /// that stays docked beneath whatever is pushed on screen.
 struct CompactLibraryView: View {
@@ -26,6 +27,7 @@ struct CompactLibraryView: View {
                 }
         }
         .libraryPageStills(stills, model: model)
+        .onAppear { model.showStartPageAtLaunch() }
         // Metadata comes up as a sheet here rather than as a side panel.
         .sheet(isPresented: $model.isInspectorPresented) {
             NavigationStack {
@@ -52,33 +54,10 @@ struct CompactLibraryView: View {
                     // A row in the list. The page goes up at once and the
                     // canvas catches up with it.
                     model.beginPages(with: page)
-                    Task { await open(page.destination) }
+                    Task { await model.openPage(page.destination) }
                 }
             }
         )
-    }
-
-    private func open(_ destination: LibraryDestination) async {
-        switch destination {
-        case .home:
-            model.navigate(to: .home)
-        case .scope(.hidden):
-            await model.openHidden()
-        case .scope(.folder(let id)):
-            // A locked folder authenticates before the canvas lands on it,
-            // rather than navigating straight to the door.
-            await model.openFolder(id)
-        case .scope(let scope):
-            model.navigate(to: .scope(scope))
-        }
-        // Declining Face ID leaves the canvas where it was, so the page that
-        // went up for it has nothing to show.
-        guard model.destination == destination else {
-            model.popPages(to: [])
-            return
-        }
-        await model.loadPreferences()
-        await model.refreshContents()
     }
 }
 
@@ -100,18 +79,30 @@ struct CompactLibraryView: View {
 /// open in detail — there is nothing here to add content to at that point.
 struct CompactAddContentToolbar: ToolbarContent {
     let model: LibraryModel
+    /// Whether the screen's search field docks between Home and Add. Only a
+    /// canvas has anything to search; the landing list leaves it out.
+    var includesSearch = false
 
     @ToolbarContentBuilder
     var body: some ToolbarContent {
-        // A `Spacer()` after Home is what splits it into its own floating
-        // glass pill, apart from Add.
-        ToolbarItemGroup(placement: .bottomBar) {
-            // Pops back to the root list (All, Inbox, Recent, Favorites, …).
-            // A no-op when already there, since there's nothing to pop.
+        // Adjacent bar items share one glass pill; a spacer between them is
+        // what splits Home, the search field and Add into pills of their
+        // own, with the field taking whatever width is left over.
+        ToolbarItem(placement: .bottomBar) {
+            // Back to the start page chosen in Settings — All unless asked
+            // otherwise, or the Library list itself.
             Button("Home", systemImage: "house") {
-                model.popPages(to: [])
+                model.showStartPage()
             }
-            Spacer()
+        }
+        if includesSearch {
+            ToolbarSpacer(.fixed, placement: .bottomBar)
+            DefaultToolbarItem(kind: .search, placement: .bottomBar)
+            ToolbarSpacer(.fixed, placement: .bottomBar)
+        } else {
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+        }
+        ToolbarItem(placement: .bottomBar) {
             Menu("Add", systemImage: "plus") {
                 Section {
                     item("New Folder…", icon: "ToolbarFolderIcon") {

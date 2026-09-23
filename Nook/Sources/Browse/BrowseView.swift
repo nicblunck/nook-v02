@@ -66,6 +66,16 @@ struct BrowseView: View {
         return model.contentsDestination != stackPage.destination
     }
 
+    /// On iPhone the search field lives in the bottom bar alongside Home
+    /// and Add, always there while browsing rather than summoned.
+    private var docksSearchInBottomBar: Bool {
+        #if os(iOS)
+        horizontalSizeClass == .compact && previewed == nil
+        #else
+        false
+        #endif
+    }
+
     private func presentSearch() {
         isSearchPresented = true
         isSearchFocused = true
@@ -100,10 +110,11 @@ struct BrowseView: View {
                         Label(token.name, systemImage: token.symbolName)
                     }
                     // Keep the system search field out of the toolbar until
-                    // Search or Command-F explicitly asks for it. Passing nil
-                    // restores the same default item without branching the
-                    // view and losing its identity.
-                    .toolbar(removing: isSearchPresented ? nil : .search)
+                    // Search or Command-F explicitly asks for it — except on
+                    // iPhone, where it's always docked in the bottom bar.
+                    // Passing nil restores the same default item without
+                    // branching the view and losing its identity.
+                    .toolbar(removing: isSearchPresented || docksSearchInBottomBar ? nil : .search)
                     .searchFocused($isSearchFocused)
                     .onChange(of: model.searchFieldFocusRequests) { presentSearch() }
                     .onChange(of: isSearchFocused) { _, focused in
@@ -145,11 +156,10 @@ struct BrowseView: View {
                            showsHistoryControls: showsHistoryControls && stackPage == nil,
                            isPreviewing: previewed != nil)
             #if os(iOS)
-            // Without its own `.bottomBar` content, this screen's automatic
-            // search integration docks the search field there instead — so
-            // this still needs its own copy, not just the root list's.
-            if horizontalSizeClass == .compact, previewed == nil {
-                CompactAddContentToolbar(model: model)
+            // This screen's own copy rather than the root list's, since it
+            // is the one with a search field to dock between Home and Add.
+            if docksSearchInBottomBar {
+                CompactAddContentToolbar(model: model, includesSearch: true)
             }
             #endif
         }

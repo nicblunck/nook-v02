@@ -165,7 +165,7 @@ struct LibraryWindow: View {
                 #if os(macOS)
                 SettingsView(settings: model.settings)
                 #else
-                NavigationStack { SettingsView(settings: model.settings) }
+                NavigationStack { SettingsView(settings: model.settings, folders: model.allFolders) }
                 #endif
             }
             .sheet(item: $model.editingAppearance) { target in

@@ -4,6 +4,8 @@ import NookLibrary
 /// The global defaults, and nothing that belongs to a single location.
 struct SettingsView: View {
     @Bindable var settings: AppSettings
+    /// The folders a start page can be, indented by depth.
+    var folders: [(folder: FolderSnapshot, depth: Int)] = []
 
     #if os(macOS)
     @State private var selection = SettingsPane.appearance
@@ -36,6 +38,7 @@ struct SettingsView: View {
         .frame(minWidth: 680, minHeight: 460)
         #else
         Form {
+            startPageSection
             appearanceSection
             privacySection
             librarySection
@@ -66,6 +69,53 @@ struct SettingsView: View {
             }
         }
     }
+
+    #if os(iOS)
+    private var startPageSection: some View {
+        Section {
+            Picker("Start Page", selection: startPageBinding) {
+                Section {
+                    Label("Library", systemImage: "sidebar.leading").tag(StartPage.library)
+                    Label("All", systemImage: "square.grid.2x2").tag(StartPage.all)
+                    Label("Inbox", systemImage: "tray").tag(StartPage.inbox)
+                    Label("Recent", systemImage: "clock").tag(StartPage.recent)
+                    Label("Favorites", systemImage: "star").tag(StartPage.favorites)
+                }
+                if !folders.isEmpty {
+                    Section("Folders") {
+                        ForEach(folders, id: \.folder.id) { entry in
+                            Label {
+                                Text(entry.folder.name)
+                            } icon: {
+                                EntityIcon(appearance: entry.folder.appearance, fallbackSymbol: "folder")
+                            }
+                            .padding(.leading, CGFloat(entry.depth) * 16)
+                            .tag(StartPage.folder(entry.folder.id))
+                        }
+                    }
+                }
+            }
+            .pickerStyle(.navigationLink)
+        } footer: {
+            Text("Where Nook opens on iPhone, and where Home takes you. Library is the list of all your places.")
+        }
+    }
+
+    /// A start folder that has since been deleted reads as All, which is
+    /// where it now takes you.
+    private var startPageBinding: Binding<StartPage> {
+        Binding(
+            get: {
+                if case .folder(let id) = settings.startPage,
+                   !folders.contains(where: { $0.folder.id == id }) {
+                    return .all
+                }
+                return settings.startPage
+            },
+            set: { settings.startPage = $0 }
+        )
+    }
+    #endif
 
     private var privacySection: some View {
         Section {

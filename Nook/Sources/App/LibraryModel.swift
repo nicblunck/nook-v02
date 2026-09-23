@@ -975,6 +975,79 @@ final class LibraryModel {
         previewedObjectID = landing.previewedObjectID
     }
 
+    /// Takes the canvas to a page already pushed for it: a row in the
+    /// iPhone's Library list, or the start page.
+    func openPage(_ destination: LibraryDestination) async {
+        switch destination {
+        case .home:
+            navigate(to: .home)
+        case .scope(.hidden):
+            await openHidden()
+        case .scope(.folder(let id)):
+            // A locked folder authenticates before the canvas lands on it,
+            // rather than navigating straight to the door.
+            await openFolder(id)
+        case .scope(let scope):
+            navigate(to: .scope(scope))
+        }
+        // Declining Face ID leaves the canvas where it was, so the page that
+        // went up for it has nothing to show.
+        guard self.destination == destination else {
+            popPages(to: [])
+            return
+        }
+        await loadPreferences()
+        await refreshContents()
+    }
+
+    /// Where the iPhone opens and Home returns to, or nil for the Library
+    /// list. A start folder that has since been deleted falls back to All.
+    var startDestination: LibraryDestination? {
+        if case .folder(let id) = settings.startPage,
+           !allFolders.contains(where: { $0.folder.id == id }) {
+            return .home
+        }
+        return settings.startPage.destination
+    }
+
+    /// Whether the start page has been put up since launch, so a return to
+    /// the compact layout later does not push it a second time.
+    private var hasShownStartPage = false
+
+    /// Puts the start page up over the Library list as the app opens, in
+    /// place rather than sliding in. The page goes up at once; the returned
+    /// task is the canvas catching up with it.
+    @discardableResult
+    func showStartPageAtLaunch() -> Task<Void, Never>? {
+        guard !hasShownStartPage else { return nil }
+        hasShownStartPage = true
+        guard pages.isEmpty, let start = startDestination else { return nil }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            beginPages(with: LibraryPage(destination: start))
+        }
+        return Task { await openPage(start) }
+    }
+
+    /// Home: back to the start page, or to the Library list when that is
+    /// the start page.
+    @discardableResult
+    func showStartPage() -> Task<Void, Never>? {
+        guard let start = startDestination else {
+            popPages(to: [])
+            return nil
+        }
+        // Already beneath everything pushed since: pop back to it.
+        if let first = pages.first, first.destination == start, first.previewedObjectID == nil {
+            popPages(to: [first])
+            return nil
+        }
+        popPages(to: [])
+        beginPages(with: LibraryPage(destination: start))
+        return Task { await openPage(start) }
+    }
+
     /// A place picked in the sidebar is a new root, not a step deeper, and it
     /// replaces the column's contents in place rather than sliding over them.
     private func restartPages() {
