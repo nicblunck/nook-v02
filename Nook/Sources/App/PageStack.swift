@@ -83,8 +83,13 @@ extension View {
             .onChange(of: model.pages.last?.id) { covered, _ in
                 if let covered { stills.capture(covered) }
             }
+            // A popped page keeps its still until it has slid away: once
+            // the model has moved on, the still is all it has to show.
             .onChange(of: model.pages) {
-                stills.keep(Set(model.pages.map(\.id)))
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    stills.keep(Set(model.pages.map(\.id)))
+                }
             }
     }
 }

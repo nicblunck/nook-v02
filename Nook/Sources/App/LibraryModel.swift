@@ -700,6 +700,7 @@ final class LibraryModel {
         folderPeeks = peeks
         contents = arrived
         contentsDestination = destination
+        if pendingPage?.page.destination == destination { commitPendingPage() }
 
         let presentKinds = Set(unfilteredObjects.map(\.kind))
         var available = Set(LibraryContentFilter.allCases.filter { candidate in
@@ -981,13 +982,61 @@ final class LibraryModel {
 
     /// Pushes a page the iPhone's Library list asked for, before the canvas
     /// has got there, so the push is not held up by loading or Face ID.
-    func beginPages(with page: LibraryPage) {
-        pages = [page]
+    ///
+    /// `waitingForContents` holds the push back until the place has loaded
+    /// instead, so the page slides in full rather than filling in on arrival.
+    func beginPages(with page: LibraryPage, waitingForContents: Bool = false) {
+        guard waitingForContents, contentsDestination != page.destination else {
+            discardPendingPage()
+            pages = [page]
+            return
+        }
+        holdBack(page, replacingStack: true)
+    }
+
+    // A step deeper waits for its place to load before its page goes up —
+    // a local query, well under the time a push takes — so the page arrives
+    // with its contents rather than sliding in empty and filling in after.
+    // Should loading take longer than that, the page goes up regardless.
+
+    @ObservationIgnored private var pendingPage: (page: LibraryPage, replacingStack: Bool)?
+    @ObservationIgnored private var pendingPageTimeout: Task<Void, Never>?
+
+    private func holdBack(_ page: LibraryPage, replacingStack: Bool) {
+        pendingPage = (page, replacingStack)
+        pendingPageTimeout?.cancel()
+        pendingPageTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            self?.commitPendingPage()
+        }
+    }
+
+    /// Puts up the page that was waiting, if the canvas is still headed there.
+    private func commitPendingPage() {
+        guard let pending = pendingPage else { return }
+        discardPendingPage()
+        guard pending.page.destination == destination else { return }
+        if pending.replacingStack {
+            pages = [pending.page]
+        } else if pages.last?.destination != destination {
+            pages.append(pending.page)
+        }
+    }
+
+    /// Returns whether there was a page waiting.
+    @discardableResult
+    private func discardPendingPage() -> Bool {
+        pendingPageTimeout?.cancel()
+        pendingPageTimeout = nil
+        defer { pendingPage = nil }
+        return pendingPage != nil
     }
 
     /// The system popped pages: the back button, the edge swipe, or a pick
     /// from the back button's menu. The model follows to wherever it landed.
     func popPages(to remaining: [LibraryPage]) {
+        discardPendingPage()
         guard remaining.count < pages.count else { return }
         var walking = pages
         while walking.count > remaining.count {
@@ -1088,6 +1137,7 @@ final class LibraryModel {
     /// A place picked in the sidebar is a new root, not a step deeper, and it
     /// replaces the column's contents in place rather than sliding over them.
     private func restartPages() {
+        discardPendingPage()
         guard !pages.isEmpty else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -1115,7 +1165,7 @@ final class LibraryModel {
                 isRememberingLocation: isRememberingLocation
             )
         }
-        pages.append(LibraryPage(destination: destination))
+        holdBack(LibraryPage(destination: destination), replacingStack: false)
     }
 
     /// Puts back what a page was showing when it was covered.
@@ -1139,6 +1189,11 @@ final class LibraryModel {
     /// stack itself.
     private func popPage() {
         guard !pages.isEmpty, !isApplyingPages else { return }
+        // The step being undone never got as far as its own page.
+        if discardPendingPage() {
+            restorePageState()
+            return
+        }
         if pages.count > 1 { pages.removeLast() }
         // History reaches further back than the stack: stepping past its
         // first page makes wherever Back landed the new first page.
@@ -1150,6 +1205,7 @@ final class LibraryModel {
 
     private func previewDidChange(from previous: ObjectID?) {
         guard !pages.isEmpty, !isApplyingPages, previous != previewedObjectID else { return }
+        commitPendingPage()
         let top = pages.count - 1
         switch (pages[top].previewedObjectID, previewedObjectID) {
         case (nil, let opened?):
