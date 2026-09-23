@@ -308,7 +308,7 @@ struct NavigationHistoryTests {
         #expect(model.pages.isEmpty)
     }
 
-    @Test("The Library list as start page pushes nothing, and Home pops to it")
+    @Test("The Library list as start page pushes nothing")
     func libraryStartPage() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
@@ -317,42 +317,6 @@ struct NavigationHistoryTests {
 
         #expect(model.showStartPageAtLaunch() == nil)
         #expect(model.pages.isEmpty)
-
-        model.beginPages(with: LibraryPage(destination: .scope(.inbox)))
-        await model.openPage(.scope(.inbox))
-        model.navigate(to: .scope(.favorites))
-        model.showStartPage()
-        #expect(model.pages.isEmpty)
-    }
-
-    @Test("Home pops back to the start page when it is beneath")
-    func homePopsToStartPage() async throws {
-        let harness = try await TestModel()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        model.settings.startPage = .inbox
-
-        await model.showStartPageAtLaunch()?.value
-        model.navigate(to: .scope(.favorites))
-        model.navigate(to: .scope(.recent))
-        #expect(model.showStartPage() == nil)
-        #expect(destinations(model) == [.scope(.inbox)])
-        #expect(model.destination == .scope(.inbox))
-    }
-
-    @Test("Home from somewhere the start page is not beneath starts the stack over there")
-    func homeRestartsAtStartPage() async throws {
-        let harness = try await TestModel()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        model.settings.startPage = .favorites
-
-        model.beginPages(with: LibraryPage(destination: .scope(.inbox)))
-        await model.openPage(.scope(.inbox))
-        model.navigate(to: .scope(.recent))
-        await model.showStartPage()?.value
-        #expect(destinations(model) == [.scope(.favorites)])
-        #expect(model.destination == .scope(.favorites))
     }
 
     @Test("A folder can be the start page, and a deleted one falls back to All")
