@@ -7,41 +7,11 @@ final class ShareViewController: NSViewController {
 
     private var hostingController: NSHostingController<MacShareView>?
 
-    /// Rounder than the system's own sheet corners, so the sheet reads as a
-    /// card of the same family as the rounded blocks inside it.
-    private static let cornerRadius: CGFloat = 28
-
     override func loadView() {
         view = NSView(frame: NSRect(origin: .zero, size: Self.sheetSize))
         // The system may give the sheet less height than asked for; the view
         // has to follow the window it actually gets, not keep its own size.
         view.autoresizingMask = [.width, .height]
-        view.wantsLayer = true
-        view.layer?.cornerRadius = Self.cornerRadius
-        view.layer?.cornerCurve = .continuous
-        view.layer?.masksToBounds = true
-    }
-
-    /// The system hosts the sheet in a visual effect view whose material and
-    /// shadow follow its own, tighter corners. Masking it to the same radius
-    /// keeps its corners from showing past ours.
-    override func viewDidAppear() {
-        super.viewDidAppear()
-        guard let effectView = view.superview as? NSVisualEffectView else { return }
-        effectView.maskImage = Self.roundedMask(radius: Self.cornerRadius)
-        view.window?.invalidateShadow()
-    }
-
-    private static func roundedMask(radius: CGFloat) -> NSImage {
-        let edge = radius * 2 + 1
-        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        image.resizingMode = .stretch
-        return image
     }
 
     override func viewDidLoad() {
