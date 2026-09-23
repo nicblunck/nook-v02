@@ -159,6 +159,12 @@ struct NavigationHistoryTests {
         model.pages.map(\.destination)
     }
 
+    /// A step deeper puts its page up once the place has loaded.
+    private func go(_ model: LibraryModel, to destination: LibraryDestination) async {
+        model.navigate(to: destination)
+        await model.refreshContents()
+    }
+
     @Test("Each step is a page, and popping one steps back once")
     func eachStepIsAPage() async throws {
         let harness = try await TestModel()
@@ -166,8 +172,8 @@ struct NavigationHistoryTests {
         let model = harness.model
 
         model.startPagesIfNeeded()
-        model.navigate(to: .scope(.inbox))
-        model.navigate(to: .scope(.favorites))
+        await go(model, to: .scope(.inbox))
+        await go(model, to: .scope(.favorites))
         #expect(destinations(model) == [.home, .scope(.inbox), .scope(.favorites)])
 
         // The edge swipe off Favorites.
@@ -193,10 +199,12 @@ struct NavigationHistoryTests {
 
         model.startPagesIfNeeded()
         await model.openFolder(papers.id)
+        await model.refreshContents()
         #expect(destinations(model) == [.home, .scope(.folder(papers.id))])
 
         // Setting the scope directly is a step too.
         model.scope = .inbox
+        await model.refreshContents()
         #expect(destinations(model) == [.home, .scope(.folder(papers.id)), .scope(.inbox)])
     }
 
@@ -207,7 +215,7 @@ struct NavigationHistoryTests {
         let model = harness.model
 
         model.startPagesIfNeeded()
-        model.navigate(to: .scope(.inbox))
+        await go(model, to: .scope(.inbox))
         let first = ObjectID(), second = ObjectID()
         model.previewedObjectID = first
         #expect(model.pages.count == 3)
@@ -249,9 +257,9 @@ struct NavigationHistoryTests {
         let model = harness.model
 
         model.startPagesIfNeeded()
-        model.navigate(to: .scope(.inbox))
+        await go(model, to: .scope(.inbox))
         model.previewedObjectID = ObjectID()
-        model.navigate(to: .scope(.favorites))
+        await go(model, to: .scope(.favorites))
         #expect(destinations(model) == [.home, .scope(.inbox), .scope(.favorites)])
         #expect(model.pages.allSatisfy { $0.previewedObjectID == nil })
     }
@@ -389,6 +397,28 @@ struct NavigationHistoryTests {
         // Before any refresh has had a chance to run.
         #expect(model.contentsDestination == .home)
         #expect(model.contents == home)
+    }
+
+    @Test("A step deeper waits for its place to load before its page goes up")
+    func pushWaitsForContents() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        model.startPagesIfNeeded()
+        await model.refreshContents()
+        model.navigate(to: .scope(.inbox))
+        #expect(destinations(model) == [.home])
+        await model.refreshContents()
+        #expect(destinations(model) == [.home, .scope(.inbox)])
+
+        // Going back before it arrived undoes a step that never got a page.
+        model.navigate(to: .scope(.favorites))
+        model.goBack()
+        #expect(destinations(model) == [.home, .scope(.inbox)])
+        #expect(model.destination == .scope(.inbox))
+        await model.refreshContents()
+        #expect(destinations(model) == [.home, .scope(.inbox)])
     }
 }
 

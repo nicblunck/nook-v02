@@ -53,7 +53,7 @@ struct CompactLibraryView: View {
                 } else if model.pages.isEmpty, let page = requested.last {
                     // A row in the list. The page goes up at once and the
                     // canvas catches up with it.
-                    model.beginPages(with: page)
+                    model.beginPages(with: page, waitingForContents: true)
                     Task { await model.openPage(page.destination) }
                 }
             }
