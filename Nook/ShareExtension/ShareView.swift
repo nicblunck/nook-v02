@@ -53,9 +53,9 @@ struct ShareView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
+                    previews
                     itemDetails
                     saveToSection
-                    previews
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 28)
