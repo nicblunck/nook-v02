@@ -309,4 +309,29 @@ struct NavigationHistoryTests {
         #expect(!destinations(model).contains(.scope(.folder(scratch.id))))
         #expect(model.pages.last?.destination == .scope(.favorites))
     }
+
+    @Test("Going back puts the page's contents straight back rather than loading them again")
+    func goingBackRestoresContents() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+
+        await model.createFolder(named: "Papers", in: nil)
+        let papers = try #require(model.folderTree.first?.folder)
+
+        model.startPagesIfNeeded()
+        await model.refreshContents()
+        let home = model.contents
+        #expect(home.folders.map(\.id) == [papers.id])
+
+        await model.openFolder(papers.id)
+        await model.refreshContents()
+        #expect(model.contentsDestination == .scope(.folder(papers.id)))
+
+        model.popPages(to: Array(model.pages.prefix(1)))
+        // Before any refresh has had a chance to run.
+        #expect(model.contentsDestination == .home)
+        #expect(model.contents == home)
+    }
 }
+
