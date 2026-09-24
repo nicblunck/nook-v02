@@ -296,10 +296,14 @@ private struct AppearancePicker: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
-    @State private var emojiDraft = ""
     @State private var customColor = Color.accentColor
+    @State private var isEmojiFieldFocused = false
     @FocusState private var isSearchFocused: Bool
-    @FocusState private var isEmojiFocused: Bool
+    #if os(macOS)
+    @State private var emojiPickerBridge = EmojiPickerBridge()
+    #else
+    @State private var isEmojiPickerActive = false
+    #endif
 
     private static let palette: [AppearanceColorOption] = [
         AppearanceColorOption(id: "default", name: "Default", hex: nil),
@@ -332,7 +336,6 @@ private struct AppearancePicker: View {
                 if appearance != .system {
                     Button("Reset") {
                         appearance = .system
-                        emojiDraft = ""
                     }
                     .font(.caption)
                     .buttonStyle(.plain)
@@ -361,7 +364,6 @@ private struct AppearancePicker: View {
             iconGrid
         }
         .onAppear {
-            emojiDraft = appearance.emoji ?? ""
             customColor = Color(hex: appearance.colorHex) ?? .accentColor
         }
         .onChange(of: query) { _, query in
@@ -370,7 +372,7 @@ private struct AppearancePicker: View {
         .onChange(of: isSearchFocused) { _, _ in
             syncFocus()
         }
-        .onChange(of: isEmojiFocused) { _, _ in
+        .onChange(of: isEmojiFieldFocused) { _, _ in
             syncFocus()
         }
         .onChange(of: customColor) { _, color in
@@ -471,23 +473,46 @@ private struct AppearancePicker: View {
     }
 
     private var emojiField: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "face.smiling")
-                .foregroundStyle(.secondary)
-            TextField("Emoji", text: $emojiDraft)
-                .textFieldStyle(.plain)
-                .focused($isEmojiFocused)
-                .frame(width: 46)
-                .onChange(of: emojiDraft) { _, draft in
-                    let emoji = draft.isEmpty ? nil : String(draft.prefix(1))
-                    if draft != emoji { emojiDraft = emoji ?? "" }
-                    appearance.emoji = emoji
-                    if emoji != nil { appearance.symbolName = nil }
+        Button {
+            #if os(macOS)
+            emojiPickerBridge.activate()
+            #else
+            isEmojiPickerActive = true
+            #endif
+        } label: {
+            Group {
+                if let emoji = appearance.emoji {
+                    Text(emoji)
+                } else {
+                    Image(systemName: "face.smiling")
+                        .foregroundStyle(.secondary)
                 }
+            }
+            .font(.body)
+            .frame(width: 30, height: 30)
+            .background(Color.primary.opacity(0.06), in: Circle())
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.06), in: Capsule())
+        .buttonStyle(.plain)
+        .background(emojiCatcher)
+    }
+
+    @ViewBuilder
+    private var emojiCatcher: some View {
+        #if os(macOS)
+        EmojiCatcherField(bridge: emojiPickerBridge, onFocusChange: { isEmojiFieldFocused = $0 }) { emoji in
+            appearance.emoji = emoji
+            appearance.symbolName = nil
+        }
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+        #else
+        EmojiCatcherField(isActive: $isEmojiPickerActive, onFocusChange: { isEmojiFieldFocused = $0 }) { emoji in
+            appearance.emoji = emoji
+            appearance.symbolName = nil
+        }
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+        #endif
     }
 
     /// The grid gives way to the "no match" note and back in stages, and
@@ -547,7 +572,6 @@ private struct AppearancePicker: View {
         return Button {
             appearance.symbolName = symbol
             appearance.emoji = nil
-            emojiDraft = ""
         } label: {
             Image(systemName: symbol)
                 .font(.body)
@@ -566,9 +590,131 @@ private struct AppearancePicker: View {
     }
 
     private func syncFocus() {
-        onFocusChange(isSearchFocused || isEmojiFocused)
+        onFocusChange(isSearchFocused || isEmojiFieldFocused)
     }
 }
+
+#if os(macOS)
+/// Holds the invisible text field that receives the system character palette's
+/// emoji insertion. Kept as a reference type so the picker button can trigger
+/// the palette directly, outside SwiftUI's view-update cycle.
+@MainActor
+private final class EmojiPickerBridge {
+    weak var field: NSTextField?
+
+    func activate() {
+        guard let field else { return }
+        field.window?.makeFirstResponder(field)
+        NSApp.orderFrontCharacterPalette(field)
+    }
+}
+
+/// A zero-size text field that exists only to catch the emoji the system
+/// character palette inserts into the first responder.
+private struct EmojiCatcherField: NSViewRepresentable {
+    let bridge: EmojiPickerBridge
+    let onFocusChange: (Bool) -> Void
+    let onPick: (String) -> Void
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.isBordered = false
+        field.drawsBackground = false
+        field.isEditable = true
+        field.isSelectable = true
+        field.focusRingType = .none
+        field.delegate = context.coordinator
+        bridge.field = field
+        return field
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onFocusChange: onFocusChange, onPick: onPick)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        let onFocusChange: (Bool) -> Void
+        let onPick: (String) -> Void
+
+        init(onFocusChange: @escaping (Bool) -> Void, onPick: @escaping (String) -> Void) {
+            self.onFocusChange = onFocusChange
+            self.onPick = onPick
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            onFocusChange(true)
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            onFocusChange(false)
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            if let last = field.stringValue.last {
+                onPick(String(last))
+            }
+            field.stringValue = ""
+            field.window?.makeFirstResponder(nil)
+        }
+    }
+}
+#else
+/// A zero-size text field that becomes first responder on request, bringing
+/// up the system keyboard so the emoji glyph can be picked from it.
+private struct EmojiCatcherField: UIViewRepresentable {
+    @Binding var isActive: Bool
+    let onFocusChange: (Bool) -> Void
+    let onPick: (String) -> Void
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.delegate = context.coordinator
+        field.addTarget(context.coordinator, action: #selector(Coordinator.textChanged), for: .editingChanged)
+        return field
+    }
+
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        if isActive, !uiView.isFirstResponder {
+            uiView.becomeFirstResponder()
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isActive: $isActive, onFocusChange: onFocusChange, onPick: onPick)
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        let isActive: Binding<Bool>
+        let onFocusChange: (Bool) -> Void
+        let onPick: (String) -> Void
+
+        init(isActive: Binding<Bool>, onFocusChange: @escaping (Bool) -> Void, onPick: @escaping (String) -> Void) {
+            self.isActive = isActive
+            self.onFocusChange = onFocusChange
+            self.onPick = onPick
+        }
+
+        func textFieldDidBeginEditing(_ textField: UITextField) {
+            onFocusChange(true)
+        }
+
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            isActive.wrappedValue = false
+            onFocusChange(false)
+        }
+
+        @objc func textChanged(_ field: UITextField) {
+            if let last = field.text?.last {
+                onPick(String(last))
+            }
+            field.text = ""
+        }
+    }
+}
+#endif
 
 private struct AppearanceColorOption: Identifiable {
     let id: String
