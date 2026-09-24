@@ -9,9 +9,11 @@ struct LinkPreviewView: View {
     let model: LibraryModel
     let object: ObjectSnapshot
     #if os(iOS)
-    var onStep: ((Int) -> Void)? = nil
     var onTap: (() -> Void)? = nil
     #endif
+    /// The bars' height, which the page's own header keeps clear of while
+    /// the preview itself runs under them.
+    var chromeInsets = EdgeInsets()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,7 +21,7 @@ struct LinkPreviewView: View {
             Divider()
             if let url = object.sourceURL {
                 #if os(iOS)
-                WebPageView(url: url, onStep: onStep, onTap: onTap)
+                WebPageView(url: url, onTap: onTap)
                 #else
                 WebPageView(url: url)
                 #endif
@@ -27,6 +29,8 @@ struct LinkPreviewView: View {
                 Spacer()
             }
         }
+        .padding(.top, chromeInsets.top)
+        .padding(.bottom, chromeInsets.bottom)
     }
 
     private var header: some View {
@@ -70,7 +74,6 @@ import UIKit
 
 private struct WebPageView: UIViewRepresentable {
     let url: URL
-    var onStep: ((Int) -> Void)? = nil
     var onTap: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> WKWebView {
@@ -81,7 +84,6 @@ private struct WebPageView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: WKWebView, context: Context) {
-        context.coordinator.installer.onStep = onStep
         context.coordinator.installer.onTap = onTap
         guard context.coordinator.loadedURL != url else { return }
         context.coordinator.loadedURL = url

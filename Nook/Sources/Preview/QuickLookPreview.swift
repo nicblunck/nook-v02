@@ -36,7 +36,6 @@ import UIKit
 
 struct QuickLookPreview: UIViewControllerRepresentable {
     let url: URL
-    var onStep: ((Int) -> Void)? = nil
     var onTap: (() -> Void)? = nil
 
     static func canPreview(_ url: URL) -> Bool {
@@ -53,7 +52,6 @@ struct QuickLookPreview: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: QLPreviewController, context: Context) {
-        context.coordinator.installer.onStep = onStep
         context.coordinator.installer.onTap = onTap
         guard context.coordinator.url != url else { return }
         context.coordinator.url = url

@@ -136,6 +136,7 @@ struct ObjectListRow: View {
             ThumbnailView(object: object, maximumSize: 256)
                 .frame(width: thumbnailSize, height: thumbnailSize)
                 .clipShape(.rect(cornerRadius: ListCard.thumbnailRadius))
+                .previewZoomSource(for: object.id)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(object.title)

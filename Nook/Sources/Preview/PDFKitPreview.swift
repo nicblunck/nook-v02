@@ -12,7 +12,6 @@ import UIKit
 
 struct PDFKitPreview: UIViewRepresentable {
     let url: URL
-    var onStep: ((Int) -> Void)? = nil
     var onTap: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> PDFView {
@@ -24,7 +23,6 @@ struct PDFKitPreview: UIViewRepresentable {
     }
 
     func updateUIView(_ view: PDFView, context: Context) {
-        context.coordinator.installer.onStep = onStep
         context.coordinator.installer.onTap = onTap
         guard context.coordinator.url != url else { return }
         context.coordinator.url = url

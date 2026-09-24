@@ -1,115 +1,151 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import NookLibrary
 
 /// A content-first preview that replaces the browsing canvas.
 ///
 /// Only the controls that matter stay: back, favourite, info, and movement to
 /// the adjacent object in whatever order the canvas is currently using.
+///
+/// The objects sit side by side in a paging scroll view, so a swipe — a
+/// finger on iOS, two on a trackpad — drags the next one in and settles on
+/// it exactly the way the system pages everywhere else. Zooming, playback and
+/// scrolling within each page belong to Apple's own viewers.
 struct ObjectPreviewView: View {
     let model: LibraryModel
     let object: ObjectSnapshot
     /// Off on a page of the iOS navigation stack, which has the system's own.
     var showsBackButton = true
 
-    @State private var resolvedURL: URL?
-    @State private var loadFailure: String?
+    @State private var scrolledID: ObjectID?
+    @State private var pageKeys = PreviewKeyRegistry()
     #if os(iOS)
     @State private var isChromeHidden = false
+    /// Where the bars sit over the full-bleed pages, for the few pages
+    /// that must keep clear of them.
+    @State private var chromeInsets = EdgeInsets()
     #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    var body: some View {
-        ZStack {
-            content
-        }
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
-                   value: object.id)
-        .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction,
-                   value: resolvedURL)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.background.secondary)
-            #if os(macOS)
-            .background(HorizontalScrollPaging(isActive: true) { step($0) })
-            #endif
-            #if os(iOS)
-            .gesture(swipeGesture)
-            // Only ever reaches content that isn't already an embedded Quick
-            // Look, PDFKit or web view — those install their own tap
-            // recognizer directly so a tap still toggles the chrome even
-            // while the UIKit view underneath owns the touch.
-            .onTapGesture(perform: toggleChrome)
-            .toolbarVisibility(isChromeHidden ? .hidden : .visible, for: .navigationBar, .bottomBar)
-            .statusBarHidden(isChromeHidden)
-            .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction, value: isChromeHidden)
-            #endif
-            .toolbar { toolbarContent }
-            .task(id: object.id) { await resolve() }
-            .onKeyPress(.escape) { close(); return .handled }
-            .onKeyPress(.leftArrow) { step(-1); return .handled }
-            .onKeyPress(.rightArrow) { step(1); return .handled }
-            .onKeyPress(.space) { close(); return .handled }
+    init(model: LibraryModel, object: ObjectSnapshot, showsBackButton: Bool = true) {
+        self.model = model
+        self.object = object
+        self.showsBackButton = showsBackButton
+        _scrolledID = State(initialValue: object.id)
     }
 
-    #if os(iOS)
-    /// A flick left brings in what comes next, the same direction Photos
-    /// treats it as; only a swipe that reads as clearly horizontal and
-    /// deliberate is allowed to compete with a pinch-zoomed image's own pan.
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { value in
-                let translation = value.translation
-                guard abs(translation.width) > abs(translation.height) * 1.5,
-                      abs(translation.width) > 60
-                else { return }
-                step(translation.width < 0 ? 1 : -1)
+    var body: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 0) {
+                ForEach(pages) { page in
+                    PreviewPage(model: model, object: page, isCurrent: page.id == object.id,
+                                chromeInsets: pageChromeInsets, keyRegistry: pageKeys,
+                                onTap: toggleChrome, onClose: close, onShowInfo: showInfo)
+                        .containerRelativeFrame([.horizontal, .vertical])
+                        .id(page.id)
+                }
             }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $scrolledID)
+        .scrollIndicators(.hidden)
+        .scrollDisabled(pages.count < 2)
+        .background(.background)
+        #if os(iOS)
+        // Every page runs under the bars, which float over it, as in Photos;
+        // there is no band left behind when they hide.
+        .ignoresSafeArea()
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { chromeInsets = $0 }
+        .toolbarVisibility(isChromeHidden ? .hidden : .visible, for: .navigationBar, .bottomBar)
+        .statusBarHidden(isChromeHidden)
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction, value: isChromeHidden)
+        #else
+        // In full screen the toolbar slides away and comes back when the
+        // pointer reaches the top edge, as it does in Photos and Preview.
+        .windowToolbarFullScreenVisibility(.onHover)
+        .background(PreviewKeyMonitor(onKey: handle))
+        #endif
+        .toolbar { toolbarContent }
+        // A step from the keyboard or the menu bar moves the pages to it.
+        // Where the pages come to rest is what is open now. Read off the
+        // resting offset rather than the scroll position binding, which the
+        // Mac neither updates for a trackpad swipe nor leaves alone while the
+        // pages first lay out. A step from the keyboard comes to rest on the
+        // object already open, so it changes nothing here.
+        .onScrollPhaseChange { old, phase, context in
+            guard phase == .idle, old != .idle else { return }
+            let geometry = context.geometry
+            guard geometry.containerSize.width > 0 else { return }
+            let index = Int((geometry.contentOffset.x / geometry.containerSize.width).rounded())
+            let pages = pages
+            guard pages.indices.contains(index) else { return }
+            settle(on: pages[index])
+        }
+        .onChange(of: object.id) { _, current in
+            guard scrolledID != current else { return }
+            withAnimation(reduceMotion ? nil : NookMotion.presentation) { scrolledID = current }
+        }
+        #if os(iOS)
+        .onKeyPress(.escape) { close(); return .handled }
+        .onKeyPress(.leftArrow) { step(-1); return .handled }
+        .onKeyPress(.rightArrow) { step(1); return .handled }
+        .onKeyPress(.space) { close(); return .handled }
+        #endif
+    }
+
+    #if os(macOS)
+    /// Photos' keys: Esc and Space go back, Option-Space plays a video, the
+    /// arrows step, Z and Command-Plus and -Minus zoom a photo. A link's live
+    /// page keeps Space and the arrows for its own scrolling.
+    private func handle(_ key: PreviewKey) -> Bool {
+        let keys = pageKeys.pages[object.id]
+        switch key {
+        case .escape:
+            close()
+        case .space:
+            guard object.kind != .link else { return false }
+            close()
+        case .playPause:
+            guard let playPause = keys?.playPause else { return false }
+            playPause()
+        case .step(let offset):
+            guard object.kind != .link else { return false }
+            step(offset)
+        case .zoomToActualSize:
+            guard let zoom = keys?.zoomToActualSize else { return false }
+            zoom()
+        case .zoom(let steps):
+            guard let zoom = keys?.zoom else { return false }
+            zoom(steps)
+        }
+        return true
     }
     #endif
 
-    // MARK: Content
-
-    /// Whichever of these is showing gives way to the next in stages — the
-    /// spinner fades out before the file fades in, and so on — the same way
-    /// the canvas gives way to this view.
-    @ViewBuilder
-    private var content: some View {
-        if object.kind == .link {
-            #if os(iOS)
-            LinkPreviewView(model: model, object: object, onStep: step, onTap: toggleChrome)
-                .transition(swapTransition)
-            #else
-            LinkPreviewView(model: model, object: object)
-                .transition(swapTransition)
-            #endif
-        } else if let loadFailure {
-            ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
-                                   description: Text(loadFailure))
-                .transition(swapTransition)
-        } else if let resolvedURL {
-            #if os(iOS)
-            FilePreview(object: object, url: resolvedURL, onStep: step, onTap: toggleChrome)
-                .transition(swapTransition)
-            #else
-            FilePreview(object: object, url: resolvedURL)
-                .transition(swapTransition)
-            #endif
-        } else {
-            ProgressView().controlSize(.large)
-                .transition(swapTransition)
-        }
+    /// Whatever the canvas is showing, in its order. An object opened from
+    /// somewhere that order does not cover — a search result, Home — is a
+    /// single page on its own.
+    private var pages: [ObjectSnapshot] {
+        let visible = model.visibleObjects
+        return visible.contains(where: { $0.id == object.id }) ? visible : [object]
     }
 
-    private var swapTransition: AnyTransition {
-        .staged(reduceMotion: reduceMotion)
+    private var pageChromeInsets: EdgeInsets {
+        #if os(iOS)
+        chromeInsets
+        #else
+        EdgeInsets()
+        #endif
     }
 
-    #if os(iOS)
     private func toggleChrome() {
+        #if os(iOS)
         withAnimation(reduceMotion ? nil : NookMotion.interaction) {
             isChromeHidden.toggle()
         }
+        #endif
     }
-    #endif
 
     // MARK: Chrome
 
@@ -156,62 +192,139 @@ struct ObjectPreviewView: View {
         model.previewedObjectID = nil
     }
 
+    /// Info for what is showing: the sheet on iPhone, the popover elsewhere.
+    private func showInfo() {
+        model.selectPreviewed(object)
+        model.setInspector(true)
+    }
+
+    private func settle(on landed: ObjectSnapshot) {
+        guard landed.id != object.id else { return }
+        model.previewedObjectID = landed.id
+        model.selectPreviewed(landed)
+    }
+
     private func step(_ offset: Int) {
         model.stepPreview(offset)
     }
+}
 
-    /// Resolves in place rather than clearing `resolvedURL` first.
-    ///
-    /// Nulling it before every lookup was what sent `FilePreview` briefly
-    /// out of the tree and back in on every step — tearing down and rebuilding
-    /// the `QLPreviewView` underneath it fast enough to catch AppKit between
-    /// closing one and finishing activating the next, which crashes. Handing
-    /// the new URL straight to the existing view leaves it in place; only its
-    /// `previewItem` changes.
+/// One object's page: its stored file looked up, then shown in the viewer
+/// Apple makes for its kind.
+private struct PreviewPage: View {
+    let model: LibraryModel
+    let object: ObjectSnapshot
+    /// Only the page on screen plays; one swiped past stops.
+    let isCurrent: Bool
+    let chromeInsets: EdgeInsets
+    let keyRegistry: PreviewKeyRegistry
+    let onTap: () -> Void
+    let onClose: () -> Void
+    let onShowInfo: () -> Void
+
+    @State private var keys = PreviewPageKeys()
+    @State private var resolvedURL: URL?
+    @State private var loadFailure: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(reduceMotion ? NookMotion.reduced : NookMotion.interaction, value: resolvedURL)
+        .task(id: object.id) { await resolve() }
+        .onAppear { keyRegistry.pages[object.id] = keys }
+        .onDisappear {
+            if keyRegistry.pages[object.id] === keys { keyRegistry.pages[object.id] = nil }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if object.kind == .link {
+            #if os(iOS)
+            LinkPreviewView(model: model, object: object, onTap: onTap, chromeInsets: chromeInsets)
+                .transition(swapTransition)
+            #else
+            LinkPreviewView(model: model, object: object, chromeInsets: chromeInsets)
+                .transition(swapTransition)
+            #endif
+        } else if let loadFailure {
+            ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
+                                   description: Text(loadFailure))
+                .contentShape(.rect)
+                .onTapGesture(perform: onTap)
+                .transition(swapTransition)
+        } else if let resolvedURL {
+            FilePreview(object: object, url: resolvedURL, isCurrent: isCurrent, keys: keys,
+                        onTap: onTap, onClose: onClose, onShowInfo: onShowInfo)
+                .transition(swapTransition)
+        } else {
+            ProgressView().controlSize(.large)
+                .transition(swapTransition)
+        }
+    }
+
+    private var swapTransition: AnyTransition {
+        .staged(reduceMotion: reduceMotion)
+    }
+
     private func resolve() async {
         loadFailure = nil
         // A link has no blob of its own — the page is the content, and
         // `LinkPreviewView` reads `object.sourceURL` directly rather than
         // waiting on a file that was never stored.
-        guard object.kind != .link else {
-            resolvedURL = nil
-            return
-        }
+        guard object.kind != .link else { return }
         do {
             guard let url = try await model.library.service.originalURL(for: object.id,
                                                                         in: model.accessContext) else {
                 loadFailure = "This item has no stored file."
-                resolvedURL = nil
                 return
             }
             resolvedURL = url
         } catch {
             loadFailure = error.localizedDescription
-            resolvedURL = nil
         }
     }
 }
 
-/// A PDF gets PDFKit's own continuous scroll through every page; everything
-/// else stored uses the system's interactive Quick Look viewer.
+/// Each kind in Apple's own viewer for it: the platform's zooming scroll
+/// view for a photo, PDFKit's continuous scroll for a PDF, AVKit's player for
+/// video and audio, and Quick Look for everything else.
 private struct FilePreview: View {
     let object: ObjectSnapshot
     let url: URL
-    #if os(iOS)
-    var onStep: ((Int) -> Void)? = nil
-    var onTap: (() -> Void)? = nil
-    #endif
+    let isCurrent: Bool
+    let keys: PreviewPageKeys
+    let onTap: () -> Void
+    let onClose: () -> Void
+    let onShowInfo: () -> Void
 
     var body: some View {
-        if object.kind == .pdf {
+        if isStillImage {
             #if os(iOS)
-            PDFKitPreview(url: url, onStep: onStep, onTap: onTap)
+            ZoomableImageView(url: url, onTap: onTap, onSwipeUp: onShowInfo)
+            #else
+            ZoomableImageView(url: url, onClose: onClose, keys: keys)
+            #endif
+        } else if object.kind == .pdf {
+            #if os(iOS)
+            PDFKitPreview(url: url, onTap: onTap)
             #else
             PDFKitPreview(url: url)
             #endif
+        } else if object.kind == .video || object.kind == .audio {
+            #if os(iOS)
+            MediaPlayerPreview(url: url, isVideo: object.kind == .video, isCurrent: isCurrent,
+                               onTap: onTap)
+            #else
+            MediaPlayerPreview(url: url, isVideo: object.kind == .video, isCurrent: isCurrent,
+                               keys: keys)
+            #endif
         } else if canPreview {
             #if os(iOS)
-            QuickLookPreview(url: url, onStep: onStep, onTap: onTap)
+            QuickLookPreview(url: url, onTap: onTap)
             #else
             QuickLookPreview(url: url)
             #endif
@@ -225,7 +338,92 @@ private struct FilePreview: View {
         }
     }
 
+    /// Photos and screenshots zoom. An animated GIF stays with Quick Look on
+    /// iOS, which plays it; the Mac's image view plays it itself.
+    private var isStillImage: Bool {
+        guard object.kind == .image || object.kind == .screenshot else { return false }
+        #if os(iOS)
+        if let type = UTType(filenameExtension: url.pathExtension), type.conforms(to: .gif) {
+            return false
+        }
+        #endif
+        return true
+    }
+
     private var canPreview: Bool {
         QuickLookPreview.canPreview(url)
+    }
+}
+
+// MARK: Keys
+
+/// What a page can do with Photos' keys: play a video, zoom a photo. Each
+/// page has its own, so a key only ever reaches the page on screen.
+@MainActor
+final class PreviewPageKeys {
+    var playPause: (() -> Void)?
+    var zoomToActualSize: (() -> Void)?
+    var zoom: ((Int) -> Void)?
+}
+
+/// The keys of every page laid out, by the object each page shows.
+@MainActor
+final class PreviewKeyRegistry {
+    var pages: [ObjectID: PreviewPageKeys] = [:]
+}
+
+// MARK: Zoom transition
+
+extension EnvironmentValues {
+    /// Shared by a navigation stack's gallery tiles and the previews pushed
+    /// from them, so iOS can zoom a preview out of its tile and back.
+    @Entry var previewZoomNamespace: Namespace.ID? = nil
+}
+
+extension View {
+    /// Marks a gallery tile as where its object's preview zooms from.
+    func previewZoomSource(for id: ObjectID) -> some View {
+        modifier(PreviewZoomSource(id: id))
+    }
+
+    /// The system's zoom transition for a preview pushed onto the stack: it
+    /// grows out of its tile, and dragging it down shrinks it back into the
+    /// tile under the finger — the same gesture as closing a photo in Photos.
+    func previewZoomTransition(for id: ObjectID?) -> some View {
+        modifier(PreviewZoomTransition(id: id))
+    }
+}
+
+private struct PreviewZoomSource: ViewModifier {
+    let id: ObjectID
+    @Environment(\.previewZoomNamespace) private var namespace
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if let namespace {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+private struct PreviewZoomTransition: ViewModifier {
+    let id: ObjectID?
+    @Environment(\.previewZoomNamespace) private var namespace
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if let namespace, let id {
+            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
     }
 }

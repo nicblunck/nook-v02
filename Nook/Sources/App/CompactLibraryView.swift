@@ -15,6 +15,7 @@ import NookLibrary
 struct CompactLibraryView: View {
     @Bindable var model: LibraryModel
     @State private var stills = PageStills()
+    @Namespace private var previewZoom
 
     var body: some View {
         // Every step taken from the list is a page of its own, so the back
@@ -27,6 +28,7 @@ struct CompactLibraryView: View {
                 }
         }
         .libraryPageStills(stills, model: model)
+        .environment(\.previewZoomNamespace, previewZoom)
         .onAppear { model.showStartPageAtLaunch() }
         // Metadata comes up as a sheet here rather than as a side panel.
         .sheet(isPresented: $model.isInspectorPresented) {

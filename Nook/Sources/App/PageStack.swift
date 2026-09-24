@@ -25,6 +25,9 @@ struct LibraryPageView: View {
     var body: some View {
         if page.previewedObjectID != nil {
             BrowseView(model: model, stackPage: page)
+                // Follows the preview as it steps, so closing it shrinks it
+                // back into the tile of whatever is showing now.
+                .previewZoomTransition(for: model.previewedObjectID ?? page.previewedObjectID)
         } else if model.livePageID == page.id {
             live
         } else {

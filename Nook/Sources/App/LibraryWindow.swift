@@ -22,6 +22,7 @@ struct LibraryWindow: View {
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var detailStills = PageStills()
+    @Namespace private var previewZoom
     #endif
     #if os(iOS) || os(macOS)
     @State private var photoSelections: [PhotosPickerItem] = []
@@ -298,6 +299,7 @@ struct LibraryWindow: View {
             }
         }
         .libraryPageStills(detailStills, model: model)
+        .environment(\.previewZoomNamespace, previewZoom)
         .onAppear { model.startPagesIfNeeded() }
     }
 
@@ -702,9 +704,20 @@ struct NookCommands: Commands {
                 .keyboardShortcut("y", modifiers: .command)
                 .disabled(model.map { !$0.canQuickLookCurrentItem || $0.isTypingText } ?? true)
 
-            Button("Enclosing Folder") { model?.goToEnclosingScope() }
-                .keyboardShortcut(.upArrow, modifiers: .command)
-                .disabled(model.map { !$0.canGoToEnclosingScope || $0.previewedObjectID != nil } ?? true)
+            // Up a level: out of an open object back to its gallery, as
+            // Command-Up Arrow does in Photos, or out of a folder.
+            Button("Enclosing Folder") {
+                guard let model else { return }
+                if model.previewedObjectID != nil {
+                    model.previewedObjectID = nil
+                } else {
+                    model.goToEnclosingScope()
+                }
+            }
+            .keyboardShortcut(.upArrow, modifiers: .command)
+            .disabled(model.map {
+                $0.previewedObjectID != nil ? $0.isTypingText : !$0.canGoToEnclosingScope
+            } ?? true)
 
             Divider()
 
