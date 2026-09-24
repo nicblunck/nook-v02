@@ -196,6 +196,29 @@ struct ExportTests {
         #expect(model.toast?.tint == .blue)
     }
 
+    @Test("A renamed object is exported and shared under its new name")
+    func leavesUnderItsNookName() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let imported = try #require(try await harness.importFile(named: "IMG_2041.txt", contents: "kept"))
+        await model.update(imported.id, title: "Beach at dusk")
+        let object = try #require(model.contents.objects.first { $0.id == imported.id })
+        let destination = try harness.makeDirectory(named: "Exported")
+
+        model.beginExport(of: [object])
+        await model.completeExport(to: destination)
+        let names = try FileManager.default.contentsOfDirectory(atPath: destination.path(percentEncoded: false))
+        #expect(names == ["Beach at dusk.txt"])
+
+        let shared = try #require(model.outgoingURLs(for: [object]).first)
+        #expect(shared.lastPathComponent == "Beach at dusk.txt")
+        #expect(try String(contentsOf: shared, encoding: .utf8) == "kept")
+        #expect(shared != model.localURL(for: object))
+    }
+
     /// Objects share stored files and can repeat an original filename, so an
     /// export names its way around a collision rather than overwriting what is
     /// already in the folder.

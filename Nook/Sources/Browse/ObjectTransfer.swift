@@ -29,6 +29,10 @@ struct ObjectTransfer: Codable, Transferable, Hashable {
     /// Excluded from the encoded form — it is a local detail, not identity.
     var fileURL: URL?
 
+    /// What the file is called when it lands outside Nook — the object's own
+    /// name, not the stored file's. Local, like `fileURL`.
+    var filename: String?
+
     /// `carrying` is the selection the grabbed item belongs to. The grabbed
     /// item is always part of what moves, even when it was not selected —
     /// dragging something outside the selection acts on what was dragged.
@@ -46,6 +50,7 @@ struct ObjectTransfer: Codable, Transferable, Hashable {
 
     init(ids: [ObjectID],
          fileURL: URL? = nil,
+         filename: String? = nil,
          sourceFolderIDs: [FolderID?] = []) {
         self.id = ids.first ?? ObjectID()
         self.ids = ids
@@ -53,6 +58,7 @@ struct ObjectTransfer: Codable, Transferable, Hashable {
             ? sourceFolderIDs
             : Array(repeating: nil, count: ids.count)
         self.fileURL = fileURL
+        self.filename = filename
     }
 
     init(from decoder: any Decoder) throws {
@@ -88,9 +94,13 @@ struct ObjectTransfer: Codable, Transferable, Hashable {
             guard let url = transfer.fileURL else {
                 throw ObjectTransferError.originalNotAvailable
             }
-            // The default copies rather than vending the library's own file,
-            // which keeps managed storage untouched by whatever receives it.
-            return SentTransferredFile(url)
+            // Named here, when something actually takes the drop, rather than
+            // for every tile that could be dragged. The copy is what leaves,
+            // so managed storage stays untouched by whatever receives it.
+            let named = try transfer.filename.map {
+                try LibraryModel.outgoingCopy(of: url, named: $0, id: transfer.id)
+            } ?? url
+            return SentTransferredFile(named)
         }
     }
 }

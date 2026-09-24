@@ -1653,8 +1653,34 @@ final class LibraryModel {
         return library.blobStore.localURL(for: descriptor)
     }
 
-    nonisolated func localURLs(for objects: [ObjectSnapshot]) -> [URL] {
-        objects.compactMap { localURL(for: $0) }
+    /// Copies of the originals named the way the objects are named in Nook,
+    /// for handing to the share sheet. The library's own files are named by
+    /// their contents, which means nothing to whoever receives them.
+    nonisolated func outgoingURLs(for objects: [ObjectSnapshot]) -> [URL] {
+        objects.compactMap { object in
+            localURL(for: object).flatMap { try? Self.outgoingCopy(of: $0, named: object.exportFilename(storedAs: $0), id: object.id) }
+        }
+    }
+
+    /// A copy of a stored original under the name it should leave Nook with.
+    ///
+    /// On APFS the copy is a clone, so it costs neither time nor space, and
+    /// it keeps managed storage untouched by whatever receives it. Each object
+    /// keeps at most one copy; asking again under the same name reuses it.
+    nonisolated static func outgoingCopy(of source: URL, named name: String, id: ObjectID) throws -> URL {
+        let manager = FileManager.default
+        let directory = manager.temporaryDirectory
+            .appending(path: "Outgoing", directoryHint: .isDirectory)
+            .appending(path: id.uuid.uuidString, directoryHint: .isDirectory)
+        let destination = directory.appending(path: name)
+        if manager.fileExists(atPath: destination.path(percentEncoded: false)) {
+            return destination
+        }
+        // A copy under an earlier name, from before a rename, is stale.
+        try? manager.removeItem(at: directory)
+        try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try manager.copyItem(at: source, to: destination)
+        return destination
     }
 
     // MARK: Export
@@ -1704,11 +1730,7 @@ final class LibraryModel {
                 failures.append(object.title)
                 continue
             }
-            // A stored filename is data, not a path: a separator in it would
-            // otherwise aim the copy at a directory that isn't there.
-            let name = (object.originalFilename ?? source.lastPathComponent)
-                .replacingOccurrences(of: "/", with: "-")
-                .replacingOccurrences(of: ":", with: "-")
+            let name = object.exportFilename(storedAs: source)
             do {
                 try FileManager.default.copyItem(
                     at: source, to: Self.unusedURL(in: directory, named: name)
