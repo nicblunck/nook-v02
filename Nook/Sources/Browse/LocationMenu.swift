@@ -47,6 +47,21 @@ struct FolderMenu: View {
     var body: some View {
         Button("Open", systemImage: "folder") { open() }
         Divider()
+        if folder.isInTrash {
+            // In the Trash a folder can only come back or go for good.
+            Button("Put Back", systemImage: "arrow.uturn.backward") {
+                Task { await model.restoreFolder(folder.id) }
+            }
+            Button("Delete Immediately…", systemImage: "trash.slash", role: .destructive) {
+                model.requestDeleteImmediately(folder)
+            }
+        } else {
+            liveActions
+        }
+    }
+
+    @ViewBuilder
+    private var liveActions: some View {
         Button("Rename…", systemImage: "pencil") {
             model.namingPrompt = .renameFolder(folder.id)
         }
@@ -67,8 +82,8 @@ struct FolderMenu: View {
                          hide: { await model.setHidden($0, forFolder: folder) },
                          lock: { await model.setLocked($0, forFolder: folder) })
         Divider()
-        Button("Delete Folder", systemImage: "trash", role: .destructive) {
-            Task { await model.deleteFolder(folder.id) }
+        Button("Move to Trash", systemImage: "trash", role: .destructive) {
+            model.requestMoveToTrash(folder)
         }
     }
 }

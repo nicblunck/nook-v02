@@ -62,6 +62,7 @@
 		702719E53C7D716255F90296 /* StagedMotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09E360414ACC3AFF3A4281F6 /* StagedMotionTests.swift */; };
 		B2C3D4E5F60718293A4B5C6D /* GalleryResizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* GalleryResizeTests.swift */; };
 		58AAB74877361580BD292F04 /* NamingPromptModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */; };
+		E607BA175C2C61FAE4EFCA35 /* LibraryModel+Trash.swift in Sources */ = {isa = PBXBuildFile; fileRef = C76BAA60F77F66D4B4A540CA /* LibraryModel+Trash.swift */; };
 		59603E011D81C555FFE5C73A /* ClickTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14F605247A2F4067B7D59A99 /* ClickTests.swift */; };
 		5A7624C5BED582DEF8F19B93 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
 		6E9868EA56E44CE4ACC70D1C /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
@@ -76,6 +77,7 @@
 		6BB068FB80D701D70E33C4C2 /* LocalAuthentication.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */; };
 		6BEE273B9248D3238F110C4F /* AppTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF4A2584DCD536E7042B43B /* AppTestSupport.swift */; };
 		6E9B6F89937F77A0954E23C8 /* NamingPromptModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */; };
+		A4733A9C4E4D5281DD34D292 /* LibraryModel+Trash.swift in Sources */ = {isa = PBXBuildFile; fileRef = C76BAA60F77F66D4B4A540CA /* LibraryModel+Trash.swift */; };
 		6F737620C6737DC6CDF055A6 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53549678390B5259BB4DF7D4 /* Accessibility.swift */; };
 		6FD79E4456A471C6947DDDE6 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E88D1845A2EC891B1A5FE88 /* CameraCapture.swift */; };
 		706CE73484EDD5FE6C282907 /* HorizontalScrollPaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08B415D6A66E998FDBEC0BD /* HorizontalScrollPaging.swift */; };
@@ -279,6 +281,7 @@
 		905A205A714574C119F97337 /* ObjectListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectListRow.swift; sourceTree = "<group>"; };
 		9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasNavigation.swift; sourceTree = "<group>"; };
 		9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamingPromptModifier.swift; sourceTree = "<group>"; };
+		C76BAA60F77F66D4B4A540CA /* LibraryModel+Trash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryModel+Trash.swift"; sourceTree = "<group>"; };
 		A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceEditor.swift; sourceTree = "<group>"; };
 		A7091A482C8DC595EDBE0AFE /* NookLibrary */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NookLibrary; path = Packages/NookLibrary; sourceTree = SOURCE_ROOT; };
 		A84E1980FA826BB83783BEE2 /* KeyboardNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardNavigationTests.swift; sourceTree = "<group>"; };
@@ -490,6 +493,7 @@
 				5AF9FBE706068F746509C8D8 /* LibraryModel+Privacy.swift */,
 				26467AD6EEFD8E47048A033B /* LibraryWindow.swift */,
 				9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */,
+				C76BAA60F77F66D4B4A540CA /* LibraryModel+Trash.swift */,
 				C29536F9041A9DB155DE4316 /* NookApp.swift */,
 				5F175F723B10134AB2F47BC9 /* SearchScopeToken.swift */,
 				C29C2DE2B343966407986FF9 /* SettingsView.swift */,
@@ -840,6 +844,7 @@
 				F98D7A4C0BEB8624F3F49436 /* MacSidebar.swift in Sources */,
 				37950405A55D692DCB16214E /* MasonryLayout.swift in Sources */,
 				6E9B6F89937F77A0954E23C8 /* NamingPromptModifier.swift in Sources */,
+				A4733A9C4E4D5281DD34D292 /* LibraryModel+Trash.swift in Sources */,
 				F919052B06928625512FB7EF /* NookApp.swift in Sources */,
 				553A25554F6728150CC09384 /* ObjectCard.swift in Sources */,
 				B618EE95DD1C876AB2D2CE19 /* ObjectListRow.swift in Sources */,
@@ -899,6 +904,7 @@
 				02FBDF9621B40E1228A1FDB0 /* MacSidebar.swift in Sources */,
 				268B5CD0007BB6825E3B99D4 /* MasonryLayout.swift in Sources */,
 				58AAB74877361580BD292F04 /* NamingPromptModifier.swift in Sources */,
+				E607BA175C2C61FAE4EFCA35 /* LibraryModel+Trash.swift in Sources */,
 				9AC8781D259692C84AC47B25 /* NookApp.swift in Sources */,
 				235A80425229674DB7D34F06 /* ObjectCard.swift in Sources */,
 				B0C5D750590BF49474C11C1E /* ObjectListRow.swift in Sources */,

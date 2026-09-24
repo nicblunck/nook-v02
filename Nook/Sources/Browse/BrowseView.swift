@@ -771,7 +771,7 @@ struct BrowseView: View {
         switch model.scope {
         case .inbox: return "Inbox Zero"
         case .favorites: return "No Favorites"
-        case .recentlyDeleted: return "Nothing Deleted"
+        case .trash: return "Trash Is Empty"
         case .hidden: return "Nothing Hidden"
         case .collection: return "Empty Collection"
         default: return "Nothing Here Yet"
@@ -785,7 +785,7 @@ struct BrowseView: View {
         switch model.scope {
         case .inbox: return "tray"
         case .favorites: return "star"
-        case .recentlyDeleted: return "trash"
+        case .trash: return "trash"
         case .hidden: return "eye.slash"
         case .collection: return "rectangle.stack"
         default: return "square.grid.2x2"
@@ -977,6 +977,11 @@ private struct CanvasKeyboard: ViewModifier {
                 guard model.hasSelection else { return .ignored }
                 model.deselectAll()
                 return .handled
+            }
+            // Delete asks before anything goes: to the Trash, or — for what
+            // is in the Trash already — out of it for good.
+            .onKeyPress(.delete) {
+                model.requestTrashForKeyboard() ? .handled : .ignored
             }
     }
 }

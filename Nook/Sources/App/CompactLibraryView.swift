@@ -308,7 +308,7 @@ struct CompactLibraryList: View {
                         Task { await model.setHidden(true, for: ids) }
                         return true
                     }
-                row(scope: .recentlyDeleted, title: "Recently Deleted", count: model.counts[.recentlyDeleted]) {
+                row(scope: .trash, title: "Trash", count: model.counts[.trash]) {
                     Image(systemName: "trash")
                 }
             }

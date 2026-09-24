@@ -310,6 +310,8 @@ final class LibraryModel {
 
     private(set) var importProgress: ImportProgress?
     var alert: LibraryAlert?
+    /// Moving to the Trash or deleting for good, waiting on a yes.
+    var trashRequest: TrashRequest?
     var importFailure: ImportFailure?
     private(set) var toast: LibraryToast?
     private var toastRevision = 0
@@ -668,6 +670,10 @@ final class LibraryModel {
             // Hidden holds folders as well as objects, which is what makes it
             // a place rather than a list of loose things.
             locationFolders = await service.hiddenFolders(in: access)
+            breadcrumbs = []
+        } else if effectiveScope == .trash {
+            // So does the Trash: a folder goes there whole.
+            locationFolders = await service.trashedFolders(in: access)
             breadcrumbs = []
         } else {
             locationFolders = []
@@ -1686,10 +1692,40 @@ final class LibraryModel {
         }
     }
 
-    func deleteFolder(_ id: FolderID) async {
-        if case .folder(id) = scope { scope = .inbox }
-        await perform(successToast: "Deleted folder", systemImage: "trash.fill", tint: .red) {
-            try await self.library.service.deleteFolder(id)
+    /// Moves a folder to the Trash with everything in it. Standing in it, or
+    /// anywhere beneath it, is standing somewhere that has just left the
+    /// library, so the canvas steps out to the Inbox.
+    func moveFolderToTrash(_ id: FolderID) async {
+        if case .folder(let current) = scope,
+           current == id || breadcrumbs.contains(where: { $0.id == id }) {
+            scope = .inbox
+        }
+        await perform(successToast: "Moved to Trash", systemImage: "trash.fill", tint: .red) {
+            try await self.library.service.moveFolderToTrash(id)
+        }
+    }
+
+    func restoreFolder(_ id: FolderID) async {
+        await perform(successToast: "Restored folder",
+                      systemImage: "arrow.uturn.backward.circle.fill", tint: .green) {
+            try await self.library.service.restoreFolders([id])
+        }
+    }
+
+    func deleteFolderImmediately(_ id: FolderID) async {
+        if case .folder(let current) = scope,
+           current == id || breadcrumbs.contains(where: { $0.id == id }) {
+            scope = .trash
+        }
+        await perform(successToast: "Deleted folder permanently", systemImage: "trash.slash", tint: .red) {
+            try await self.library.service.permanentlyDeleteFolders([id])
+        }
+    }
+
+    func emptyTrash() async {
+        if isShowingDeleted, scope != .trash { scope = .trash }
+        await perform(successToast: "Emptied Trash", systemImage: "trash.slash", tint: .red) {
+            try await self.library.service.emptyTrash()
         }
     }
 
@@ -1722,12 +1758,12 @@ final class LibraryModel {
         }
     }
 
-    func delete(_ ids: [ObjectID]) async {
+    func moveToTrash(_ ids: [ObjectID]) async {
         guard !ids.isEmpty else { return }
         if let previewed = previewedObjectID, ids.contains(previewed) { previewedObjectID = nil }
         let message: LocalizedStringResource = ids.count == 1
-            ? "Moved to Recently Deleted"
-            : "Moved \(ids.count) items to Recently Deleted"
+            ? "Moved to Trash"
+            : "Moved \(ids.count) items to Trash"
         await perform(successToast: message, systemImage: "trash.fill", tint: .red) {
             try await self.library.service.delete(ids)
         }
@@ -1749,6 +1785,7 @@ final class LibraryModel {
 
     func permanentlyDelete(_ ids: [ObjectID]) async {
         guard !ids.isEmpty else { return }
+        if let previewed = previewedObjectID, ids.contains(previewed) { previewedObjectID = nil }
         let message: LocalizedStringResource = ids.count == 1
             ? "Deleted item permanently"
             : "Deleted \(ids.count) items permanently"
@@ -2033,9 +2070,15 @@ final class LibraryModel {
         return visibleObjects.filter { ids.contains($0.id) }
     }
 
-    /// Whether the destination on screen reads from Recently Deleted. Home
-    /// never does, whichever place the canvas was last pointed at.
-    var isShowingDeleted: Bool { !isShowingHome && scope == .recentlyDeleted }
+    /// Whether the destination on screen is in the Trash — the Trash itself,
+    /// or a folder in it. Home never is, whichever place the canvas was last
+    /// pointed at.
+    var isShowingDeleted: Bool {
+        guard !isShowingHome else { return false }
+        if scope == .trash { return true }
+        guard case .folder(let id) = scope, let here = breadcrumbs.last, here.id == id else { return false }
+        return here.isInTrash
+    }
 
     var availableSortFields: [ObjectSortField] {
         [.name, .dateAdded, .dateCreated, .kind, .size]
@@ -2225,14 +2268,14 @@ struct ImportFailure: Identifiable {
 
 /// The system destinations whose counts the sidebar shows.
 enum ScopeCountKey: Hashable, CaseIterable {
-    case inbox, favorites, allObjects, recentlyDeleted
+    case inbox, favorites, allObjects, trash
 
     var scope: LibraryScope {
         switch self {
         case .inbox: .inbox
         case .favorites: .favorites
         case .allObjects: .allObjects
-        case .recentlyDeleted: .recentlyDeleted
+        case .trash: .trash
         }
     }
 }

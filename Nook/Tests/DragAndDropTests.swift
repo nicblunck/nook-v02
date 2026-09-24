@@ -162,7 +162,7 @@ struct DragAndDropTests {
         #expect(model.contents.objects.map(\.id) == [object.id])
     }
 
-    @Test("Dropping on Recently Deleted throws it away")
+    @Test("Dropping on the Trash throws it away")
     func dropOnTrashDeletesIt() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
@@ -172,7 +172,7 @@ struct DragAndDropTests {
         let object = try #require(try await harness.importFile(named: "one.txt"))
         await model.accept([.object(ObjectTransfer(id: object.id))], at: .trash)
 
-        model.navigate(to: .scope(.recentlyDeleted))
+        model.navigate(to: .scope(.trash))
         await model.refreshContents()
         #expect(model.contents.objects.map(\.id) == [object.id])
     }

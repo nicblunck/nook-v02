@@ -68,6 +68,8 @@ public struct ObjectSnapshot: Identifiable, Hashable, Sendable, PrivacyBearing {
     public let dateAdded: Date
     public let dateCreated: Date?
     public let deletedAt: Date?
+    /// In the Trash, in its own right or because the folder it sits in is.
+    public let isInTrash: Bool
 
     public let isFavorite: Bool
     public let isHidden: Bool
@@ -112,6 +114,8 @@ public struct FolderSnapshot: Identifiable, Hashable, Sendable, PrivacyBearing {
     public let lockedSource: LibraryReference?
     public let visibility: Visibility
     public let dateAdded: Date
+    /// In the Trash, in its own right or because a folder above it is.
+    public let isInTrash: Bool
 
     public var reference: LibraryReference { .folder(id) }
 }

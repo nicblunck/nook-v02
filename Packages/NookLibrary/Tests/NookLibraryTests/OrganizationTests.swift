@@ -39,8 +39,8 @@ struct OrganizationTests {
 
         try await harness.service.delete([id])
         #expect(await harness.service.objects(matching: ObjectQuery(scope: .allObjects)).isEmpty)
-        #expect(await harness.service.objects(matching: ObjectQuery(scope: .recentlyDeleted)).count == 1)
-        // Still in Recently Deleted, so the bytes must survive a collection pass.
+        #expect(await harness.service.objects(matching: ObjectQuery(scope: .trash)).count == 1)
+        // Still in the Trash, so the bytes must survive a collection pass.
         try await harness.service.collectOrphanedBlobs()
         #expect(harness.library.blobStore.isAvailableLocally(descriptor))
 
@@ -49,6 +49,105 @@ struct OrganizationTests {
 
         try await harness.service.permanentlyDelete([id])
         #expect(harness.library.blobStore.isAvailableLocally(descriptor) == false)
+    }
+
+    @Test("A folder goes to the Trash whole, and comes back whole to where it was")
+    func folderTrashRoundTrip() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+        let service = harness.service
+
+        let work = try await service.createFolder(named: "Work")
+        let taxes = try await service.createFolder(named: "Taxes", in: work.id)
+        let receipts = try await service.createFolder(named: "Receipts", in: taxes.id)
+        let source = try harness.makeSourceFile(named: "receipt.txt", contents: "receipt")
+        let report = await service.importItems([.file(url: source)], into: .folder(receipts.id))
+        let id = try #require(report.importedIDs.first)
+
+        try await service.moveFolderToTrash(taxes.id)
+
+        // Gone from the library…
+        #expect(await service.subfolders(of: work.id).isEmpty)
+        #expect(await service.objects(matching: ObjectQuery(scope: .allObjects)).isEmpty)
+        #expect(await service.objectCount(in: .allObjects) == 0)
+        // …and in the Trash as one folder, not as its loose contents.
+        let trash = await service.contents(of: .trash)
+        #expect(trash.folders.map(\.id) == [taxes.id])
+        #expect(trash.objects.isEmpty)
+        #expect(await service.objectCount(in: .trash) == 1)
+        // Opening it there shows what it held.
+        #expect(await service.contents(of: .folder(taxes.id)).folders.map(\.id) == [receipts.id])
+        #expect(await service.contents(of: .folder(receipts.id)).objects.map(\.id) == [id])
+        #expect(await service.object(id)?.isInTrash == true)
+
+        try await service.restoreFolders([taxes.id])
+
+        #expect(await service.subfolders(of: work.id).map(\.id) == [taxes.id])
+        #expect(await service.object(id)?.folderID == receipts.id)
+        #expect(await service.contents(of: .trash).isEmpty)
+    }
+
+    @Test("Something put back from inside a folder still in the Trash lands at the top")
+    func putBackFromInsideATrashedFolder() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+        let service = harness.service
+
+        let taxes = try await service.createFolder(named: "Taxes")
+        let old = try await service.createFolder(named: "2019", in: taxes.id)
+        let source = try harness.makeSourceFile(named: "return.txt", contents: "return")
+        let report = await service.importItems([.file(url: source)], into: .folder(taxes.id))
+        let id = try #require(report.importedIDs.first)
+
+        try await service.moveFolderToTrash(taxes.id)
+        try await service.restore([id])
+        try await service.restoreFolders([old.id])
+
+        #expect(await service.object(id)?.folderID == nil)
+        #expect(await service.object(id)?.isInTrash == false)
+        #expect(await service.rootFolders().map(\.id) == [old.id])
+    }
+
+    @Test("A hidden folder leaves hiding for the Trash and goes back into it")
+    func hiddenFolderTrashRoundTrip() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+        let service = harness.service
+
+        let diary = try await service.createFolder(named: "Diary")
+        try await service.setPrivacy(PrivacyFlags(isHidden: true, isLocked: false), forFolder: diary.id)
+
+        try await service.moveFolderToTrash(diary.id)
+        #expect(await service.contents(of: .trash).folders.map(\.id) == [diary.id])
+
+        try await service.restoreFolders([diary.id])
+        #expect(await service.folder(diary.id, in: .standard) == nil)
+        #expect(await service.contents(of: .trash).isEmpty)
+    }
+
+    @Test("Emptying the Trash deletes what was in its folders too, and nothing live")
+    func emptyTrashTakesFolderContents() async throws {
+        let harness = try await TestLibrary()
+        defer { harness.cleanUp() }
+        let service = harness.service
+
+        let taxes = try await service.createFolder(named: "Taxes")
+        let inside = try harness.makeSourceFile(named: "inside.txt", contents: "inside")
+        let loose = try harness.makeSourceFile(named: "loose.txt", contents: "loose")
+        let kept = try harness.makeSourceFile(named: "kept.txt", contents: "kept")
+        let insideID = try #require(await service.importItems([.file(url: inside)], into: .folder(taxes.id)).importedIDs.first)
+        let ids = await service.importItems([.file(url: loose), .file(url: kept)], into: .root).importedIDs
+        let insideBlob = try #require(await service.object(insideID)?.blob)
+
+        try await service.moveFolderToTrash(taxes.id)
+        try await service.delete([ids[0]])
+        try await service.emptyTrash()
+
+        #expect(await service.contents(of: .trash).isEmpty)
+        #expect(await service.folder(taxes.id) == nil)
+        #expect(await service.object(insideID) == nil)
+        #expect(await service.objects(matching: ObjectQuery(scope: .allObjects)).map(\.id) == [ids[1]])
+        #expect(harness.library.blobStore.isAvailableLocally(insideBlob) == false)
     }
 
     @Test("Shared bytes outlive the first object to be deleted")

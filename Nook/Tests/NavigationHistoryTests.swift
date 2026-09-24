@@ -127,7 +127,7 @@ struct NavigationHistoryTests {
 
         model.navigate(to: .scope(.folder(scratch.id)))
         model.navigate(to: .scope(.favorites))
-        await model.deleteFolder(scratch.id)
+        await model.moveFolderToTrash(scratch.id)
 
         model.goBack()
         #expect(model.destination != .scope(.folder(scratch.id)))
@@ -147,7 +147,7 @@ struct NavigationHistoryTests {
 
         model.navigate(to: .scope(.folder(child.id)))
         model.navigate(to: .scope(.favorites))
-        await model.deleteFolder(parent.id)
+        await model.moveFolderToTrash(parent.id)
 
         model.goBack()
         #expect(model.destination != .scope(.folder(child.id)))
@@ -342,7 +342,7 @@ struct NavigationHistoryTests {
         #expect(destinations(model) == [.scope(.folder(projects.id))])
         #expect(model.destination == .scope(.folder(projects.id)))
 
-        await model.deleteFolder(projects.id)
+        await model.moveFolderToTrash(projects.id)
         #expect(model.startDestination == .home)
     }
 
@@ -393,7 +393,7 @@ struct NavigationHistoryTests {
         model.startPagesIfNeeded()
         model.navigate(to: .scope(.folder(scratch.id)))
         model.navigate(to: .scope(.favorites))
-        await model.deleteFolder(scratch.id)
+        await model.moveFolderToTrash(scratch.id)
 
         #expect(!destinations(model).contains(.scope(.folder(scratch.id))))
         #expect(model.pages.last?.destination == .scope(.favorites))

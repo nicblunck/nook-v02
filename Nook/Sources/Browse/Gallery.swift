@@ -838,6 +838,13 @@ struct GalleryToolbar: ToolbarContent {
             }
             #endif
 
+            if model.isShowingTrash {
+                ToolbarItem {
+                    Button("Empty Trash") { model.requestEmptyTrash() }
+                        .disabled(!model.canEmptyTrash)
+                }
+            }
+
             // On iOS the view picker moves into the same popover as the sort
             // and other view options, behind one ellipsis button — one
             // control instead of two on iPhone's narrower bar.

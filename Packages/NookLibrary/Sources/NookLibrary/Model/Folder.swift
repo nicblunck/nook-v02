@@ -34,6 +34,16 @@ public final class Folder {
     public var isHidden: Bool = false
     public var isLocked: Bool = false
 
+    // MARK: Trash
+
+    /// Set when the folder is moved to the Trash; nil while it is live. The
+    /// folder keeps its parent and its contents while it is there, so putting
+    /// it back returns the whole thing to where it was.
+    public var deletedAt: Date?
+    /// A hidden folder comes out of hiding to go in the Trash — the Trash is
+    /// not a hidden place — and goes back into hiding when it is put back.
+    public var wasHiddenBeforeTrash: Bool = false
+
     // MARK: Relationships
 
     public var parent: Folder?
@@ -81,6 +91,12 @@ public final class Folder {
     }
 
     public var depth: Int { ancestors.count }
+
+    /// Whether this folder is in the Trash, in its own right or because a
+    /// folder it sits in is.
+    public var isInTrash: Bool {
+        deletedAt != nil || ancestors.contains { $0.deletedAt != nil }
+    }
 
     /// Whether this folder is `other` or sits beneath it. Guards against
     /// dragging a folder into its own subtree.

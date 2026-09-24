@@ -82,7 +82,7 @@ extension LibraryModel {
         case .favorites:
             await setFavorite(true, for: ids)
         case .trash:
-            await delete(ids)
+            await moveToTrash(ids)
         case .hidden:
             await setHidden(true, for: ids)
         case .currentLocation:
@@ -131,7 +131,7 @@ extension LibraryModel {
         case .collection(let id): return .collection(id)
         case .tag(let id): return .tag(id)
         case .favorites: return .favorites
-        case .recentlyDeleted: return .trash
+        case .trash: return .trash
         case .allObjects, .recent, .kind, .hidden: return nil
         }
     }

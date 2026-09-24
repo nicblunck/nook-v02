@@ -48,6 +48,7 @@ struct ObjectPreviewView: View {
             .onKeyPress(.leftArrow) { step(-1); return .handled }
             .onKeyPress(.rightArrow) { step(1); return .handled }
             .onKeyPress(.space) { close(); return .handled }
+            .onKeyPress(.delete) { model.requestTrashForKeyboard() ? .handled : .ignored }
     }
 
     #if os(iOS)

@@ -20,7 +20,7 @@ struct ObjectMenu: View {
                 Task { await model.restore(ids) }
             }
             Button("Delete Immediately…", systemImage: "trash.slash", role: .destructive) {
-                Task { await model.permanentlyDelete(ids) }
+                model.requestDeleteImmediately(objects)
             }
         } else {
             if objects.count == 1, let object = objects.first {
@@ -119,8 +119,8 @@ struct ObjectMenu: View {
 
             Divider()
 
-            Button("Delete", systemImage: "trash", role: .destructive) {
-                Task { await model.delete(ids) }
+            Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                model.requestMoveToTrash(objects)
             }
         }
     }

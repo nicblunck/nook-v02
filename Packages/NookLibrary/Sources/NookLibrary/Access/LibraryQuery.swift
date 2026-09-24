@@ -12,7 +12,8 @@ public enum LibraryScope: Hashable, Sendable {
     case inbox
     case recent
     case favorites
-    case recentlyDeleted
+    /// What has been moved to the Trash, and can still be put back.
+    case trash
     /// Everything the user has put out of sight.
     ///
     /// Hidden is a place rather than a filter over the library: a hidden thing
@@ -34,7 +35,7 @@ public enum LibraryScope: Hashable, Sendable {
         case .inbox: "Inbox"
         case .recent: "Recent"
         case .favorites: "Favorites"
-        case .recentlyDeleted: "Recently Deleted"
+        case .trash: "Trash"
         case .hidden: "Hidden"
         case .folder, .folderTree: "Folder"
         case .collection: "Collection"
@@ -43,8 +44,8 @@ public enum LibraryScope: Hashable, Sendable {
         }
     }
 
-    /// Whether this scope reads from Recently Deleted rather than the live library.
-    public var showsDeleted: Bool { self == .recentlyDeleted }
+    /// Whether this scope reads from the Trash rather than the live library.
+    public var showsDeleted: Bool { self == .trash }
 }
 
 public enum ObjectSortField: String, Codable, Sendable, CaseIterable, Identifiable {
