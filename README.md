@@ -8,7 +8,6 @@ it visually, and get the original back intact.
 
 - macOS with Xcode 26 or newer
 - Swift 6.2 or newer
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.46 or newer
 
 Nook currently targets macOS 26, iOS 26 and iPadOS 26. Building the iOS app or
 share extension on a physical device also requires an Apple Developer account
@@ -16,26 +15,16 @@ with matching signing and App Group capabilities.
 
 ## Getting started
 
-The Xcode project is generated from [`project.yml`](project.yml) via
-[XcodeGen](https://github.com/yonaskolb/XcodeGen). The generated project is
-committed so a fresh checkout opens immediately, but `project.yml` remains the
-source of truth.
-
-```bash
-xcodegen generate
-Scripts/check-generated-project.sh
-open Nook.xcodeproj
-```
+Open `Nook.xcodeproj` directly. It is maintained by hand: it carries entries
+[`project.yml`](project.yml) doesn't describe (the `Nook-iOS-Alpha` scheme, the
+privacy manifest, `LinkMetadataFetcher` in the share target), so running
+`xcodegen generate` would drop them. Add new files and settings in Xcode or the
+`.pbxproj` itself.
 
 Targets deploy to macOS 26 / iOS 26 and build with Swift 6 strict concurrency.
 Select the `Nook-macOS` or `Nook-iOS` scheme in Xcode and run it normally. If
-you are using a different Apple Developer account, replace `DEVELOPMENT_TEAM`
-in `project.yml` before generating the project.
-
-Make project-setting or target changes in `project.yml`, regenerate, and commit
-the generated project alongside the spec. CI runs
-`Scripts/check-generated-project.sh` and rejects stale project, plist,
-entitlement, or shared-scheme output.
+you are using a different Apple Developer account, change the team under
+Signing & Capabilities for each target.
 
 ## Structure
 
@@ -183,7 +172,7 @@ xcodebuild -project Nook.xcodeproj \
   should consume `LibraryService` snapshots rather than query SwiftData.
 - Treat `LibraryToolSurface` as the read-only boundary for future external or
   model integrations.
-- Do not hand-edit the generated Xcode project. Do not commit build products,
+- Do not regenerate the Xcode project with XcodeGen. Do not commit build products,
   user-specific Xcode state or local library data.
 - Releases go through Xcode Cloud to TestFlight; see
   [`Documentation/releasing.md`](Documentation/releasing.md).
