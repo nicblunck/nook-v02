@@ -27,10 +27,10 @@ struct BrowseView: View {
     /// key what "the row above" means in a layout that is not a uniform grid.
     @State private var itemFrames = GalleryFrames<CanvasItemID>()
     /// The grid's available width, measured once per layout pass rather than
-    /// per item — what lets the Folders First shelf resolve the same columns
+    /// per item — what lets the folder shelf resolve the same columns
     /// the grid itself will, instead of drifting from them.
     @State private var gridContentWidth: CGFloat = 0
-    /// Whether the Folders First shelf's drawer is open. Per view instance
+    /// Whether the folder shelf's drawer is open. Per view instance
     /// rather than remembered: a location whose folders were glanced at once
     /// and dismissed reopens with them showing again, the same way a fresh
     /// visit would.
@@ -469,12 +469,10 @@ struct BrowseView: View {
         let revision: Int
     }
 
-    /// Folders First pulls locations out of the grid entirely rather than
+    /// Grouping folders pulls locations out of the grid entirely rather than
     /// merely sorting them ahead of it: they read as a shelf of places, not
     /// as items that happen to come first among the things being browsed.
-    private var showsFolderShelf: Bool {
-        model.foldersFirst && !model.contents.folders.isEmpty
-    }
+    private var showsFolderShelf: Bool { model.showsFolderShelf }
 
     /// The shelf appearing with the folders that fill it arrives on their
     /// beat. Appearing for a change of arrangement instead, it waits for the
@@ -596,19 +594,38 @@ struct BrowseView: View {
         shelfColumns?.width ?? GalleryMetrics.cellWidthRange(scale: model.itemScale).lowerBound
     }
 
-    /// What the grid itself draws. With Folders First on, folders have
-    /// already been pulled into the shelf above, so only the objects remain.
-    private var canvasGridItems: [CanvasItem] {
-        showsFolderShelf ? model.contents.objects.map(CanvasItem.object) : model.canvasItems
+    /// The grid, a section at a time. Ungrouped there is one section and no
+    /// heading; grouped by type, each section is headed by the kind it holds
+    /// and laid out on its own, so every kind starts on a fresh row.
+    private var canvasGrid: some View {
+        VStack(alignment: .leading, spacing: model.viewMode.contentInsets.top) {
+            ForEach(model.canvasSections) { section in
+                VStack(alignment: .leading, spacing: 8) {
+                    if let group = section.group {
+                        canvasSectionHeader(group)
+                    }
+                    GalleryLayout(mode: model.viewMode,
+                                  scale: model.itemScale,
+                                  masonryCaptionDisplay: model.masonryCaptionDisplay,
+                                  fixedColumns: gridFixedColumns) {
+                        ForEach(section.items) { item in
+                            canvasItem(item, mode: model.viewMode, scale: model.itemScale)
+                        }
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
     }
 
-    private var canvasGrid: some View {
-        GalleryLayout(mode: model.viewMode,
-                      scale: model.itemScale,
-                      masonryCaptionDisplay: model.masonryCaptionDisplay,
-                      fixedColumns: gridFixedColumns) {
-            ForEach(canvasGridItems) { item in canvasItem(item, mode: model.viewMode, scale: model.itemScale) }
-        }
+    /// A plain heading rather than the shelf's drawer: it names a run of the
+    /// grid and has nothing to open or close.
+    private func canvasSectionHeader(_ group: LibraryContentFilter) -> some View {
+        Text(group.title)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.horizontal, 4)
     }
 
     @ViewBuilder

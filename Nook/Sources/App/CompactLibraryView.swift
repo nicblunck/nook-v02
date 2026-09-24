@@ -382,7 +382,7 @@ struct CompactLibraryList: View {
     }
 
     /// "All" is a distinct destination from any scope — it shows the Home
-    /// canvas (the Folders First shelf and friends) rather than a plain
+    /// canvas (the folder shelf and friends) rather than a plain
     /// query over every object.
     private func homeRow(title: String, symbol: String, count: Int? = nil) -> some View {
         NavigationLink(value: LibraryPage(destination: .home)) {

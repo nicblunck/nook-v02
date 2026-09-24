@@ -51,7 +51,14 @@ public enum MasonryCaptionDisplay: String, Codable, Sendable, CaseIterable, Iden
 public struct LocationViewPreferences: Hashable, Sendable, Codable {
     public var viewMode: LibraryViewMode
     public var sort: ObjectSort
+    /// Puts a location's folders ahead of its objects.
     public var foldersFirst: Bool
+    /// Draws those leading folders as a shelf of their own above the objects
+    /// rather than as the first items of the grid. Only means anything with
+    /// Folders First on; see `showsFolderShelf`.
+    public var groupsFolders: Bool
+    /// Splits the objects into one section per type.
+    public var groupsByType: Bool
     public var masonryCaptionDisplay: MasonryCaptionDisplay
     public var showsMasonryTypeLabels: Bool
     /// How large the items are drawn, as a multiple of each layout's own
@@ -72,6 +79,8 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
         viewMode: .grid,
         sort: .default,
         foldersFirst: true,
+        groupsFolders: true,
+        groupsByType: false,
         masonryCaptionDisplay: .automatic,
         showsMasonryTypeLabels: true,
         itemScale: 1
@@ -80,16 +89,24 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
     public init(viewMode: LibraryViewMode = .grid,
                 sort: ObjectSort = .default,
                 foldersFirst: Bool = true,
+                groupsFolders: Bool = true,
+                groupsByType: Bool = false,
                 masonryCaptionDisplay: MasonryCaptionDisplay = .automatic,
                 showsMasonryTypeLabels: Bool = true,
                 itemScale: Double = 1) {
         self.viewMode = viewMode
         self.sort = sort
         self.foldersFirst = foldersFirst
+        self.groupsFolders = groupsFolders
+        self.groupsByType = groupsByType
         self.masonryCaptionDisplay = masonryCaptionDisplay
         self.showsMasonryTypeLabels = showsMasonryTypeLabels
         self.itemScale = Self.clamped(scale: itemScale)
     }
+
+    /// Whether folders sit on a shelf above the objects: grouping them is a
+    /// refinement of putting them first, so it waits on Folders First.
+    public var showsFolderShelf: Bool { foldersFirst && groupsFolders }
 
     /// Decoded a setting at a time, each falling back to the default, so an
     /// arrangement saved before a setting existed still opens — which is what
@@ -101,6 +118,8 @@ public struct LocationViewPreferences: Hashable, Sendable, Codable {
             viewMode: try container.decodeIfPresent(LibraryViewMode.self, forKey: .viewMode) ?? fallback.viewMode,
             sort: try container.decodeIfPresent(ObjectSort.self, forKey: .sort) ?? fallback.sort,
             foldersFirst: try container.decodeIfPresent(Bool.self, forKey: .foldersFirst) ?? fallback.foldersFirst,
+            groupsFolders: try container.decodeIfPresent(Bool.self, forKey: .groupsFolders) ?? fallback.groupsFolders,
+            groupsByType: try container.decodeIfPresent(Bool.self, forKey: .groupsByType) ?? fallback.groupsByType,
             masonryCaptionDisplay: try container.decodeIfPresent(
                 MasonryCaptionDisplay.self,
                 forKey: .masonryCaptionDisplay

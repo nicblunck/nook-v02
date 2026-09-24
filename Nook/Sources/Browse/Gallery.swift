@@ -17,7 +17,7 @@ import AppKit
 
 extension LibraryViewMode {
     /// The inset a gallery's contents sit in — the same in every view mode,
-    /// so anything anchored to the canvas edge (the Folders First shelf) sits
+    /// so anything anchored to the canvas edge (the folder shelf) sits
     /// the same distance in regardless of which arrangement is showing.
     var contentInsets: EdgeInsets {
         EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20)
@@ -63,7 +63,7 @@ struct GalleryLayout<Content: View>: View {
     var masonryCaptionDisplay: MasonryCaptionDisplay = .automatic
     /// Replaces the grid's own adaptive column resolution with an exact
     /// count, computed by the caller from a measured width. Lets something
-    /// drawn outside the grid — the Folders First shelf — line up with these
+    /// drawn outside the grid — the folder shelf — line up with these
     /// columns instead of guessing at what the grid would have chosen on its
     /// own. The `width` is the caller's to draw that something at; the grid
     /// gets there by sharing its own width equally.
@@ -128,7 +128,7 @@ struct GalleryLayout<Content: View>: View {
 }
 
 /// The grid's own cell sizing, pulled out from `GalleryLayout` so something
-/// laid out beside it — the Folders First shelf — can measure a width and
+/// laid out beside it — the folder shelf — can measure a width and
 /// resolve the same columns instead of drifting from whatever the grid
 /// actually rendered.
 enum GalleryMetrics {
@@ -1231,6 +1231,27 @@ private struct GalleryViewOptionsButton: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
             }
+            // A refinement of Folders First, so it stays in view but can't be
+            // changed while there is nothing leading to group.
+            HStack {
+                Text("Group Folders")
+                    .accessibilityHidden(true)
+                Spacer()
+                Toggle("Group Folders", isOn: groupsFoldersBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+            .disabled(!model.foldersFirst)
+            .opacity(model.foldersFirst ? 1 : 0.35)
+            .motionAware(NookMotion.interaction, value: model.foldersFirst)
+            HStack {
+                Text("Group by Type")
+                    .accessibilityHidden(true)
+                Spacer()
+                Toggle("Group by Type", isOn: groupsByTypeBinding)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
 
             Divider()
             // A change stays temporary unless the user says otherwise, so no
@@ -1310,6 +1331,16 @@ private struct GalleryViewOptionsButton: View {
     private var foldersFirstBinding: Binding<Bool> {
         Binding(get: { model.foldersFirst },
                 set: { value in Task { await model.setFoldersFirst(value) } })
+    }
+
+    private var groupsFoldersBinding: Binding<Bool> {
+        Binding(get: { model.groupsFolders },
+                set: { value in Task { await model.setGroupsFolders(value) } })
+    }
+
+    private var groupsByTypeBinding: Binding<Bool> {
+        Binding(get: { model.groupsByType },
+                set: { value in Task { await model.setGroupsByType(value) } })
     }
 
     private var masonryCaptionDisplayBinding: Binding<MasonryCaptionDisplay> {

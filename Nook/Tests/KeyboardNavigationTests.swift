@@ -623,3 +623,79 @@ struct KeyboardNavigationTests {
         #expect(model.cursor == .object(objects[2].id))
     }
 }
+
+/// Folders First, Group Folders and Group by Type decide the order the
+/// canvas draws in, and the keyboard has to walk that same order.
+@Suite("Canvas grouping")
+@MainActor
+struct CanvasGroupingTests {
+
+    private func populatedModel(_ harness: TestModel) async throws -> LibraryModel {
+        let model = harness.model
+        await model.createFolder(named: "Work", in: nil)
+        _ = try await harness.importFile(named: "b-photo.png", as: .png)
+        _ = try await harness.importFile(named: "a-notes.txt", contents: "notes")
+        _ = try await harness.importFile(named: "c-photo.png", as: .png)
+        model.navigate(to: .home)
+        await model.setSort(ObjectSort(field: .name, ascending: true))
+        await model.refreshContents()
+        return model
+    }
+
+    @Test("Folders First alone puts folders at the top of the grid, not on a shelf")
+    func foldersFirstWithoutGrouping() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = try await populatedModel(harness)
+
+        await model.setFoldersFirst(true)
+        await model.setGroupsFolders(false)
+
+        #expect(!model.showsFolderShelf)
+        #expect(model.canvasSections.count == 1)
+        let first = try #require(model.canvasSections.first?.items.first)
+        #expect(first.itemID == .folder(try #require(model.contents.folders.first).id))
+    }
+
+    @Test("Group Folders only takes effect with Folders First on")
+    func groupFoldersNeedsFoldersFirst() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = try await populatedModel(harness)
+
+        await model.setGroupsFolders(true)
+        await model.setFoldersFirst(true)
+        #expect(model.showsFolderShelf)
+        #expect(!model.canvasSections.flatMap(\.items).contains { if case .folder = $0 { true } else { false } })
+
+        await model.setFoldersFirst(false)
+        #expect(!model.showsFolderShelf)
+        #expect(model.canvasSections.flatMap(\.items).count == model.canvasItems.count)
+    }
+
+    @Test("Group by Type splits objects into a section per kind, in drawing order")
+    func groupsByType() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = try await populatedModel(harness)
+
+        await model.setFoldersFirst(true)
+        await model.setGroupsFolders(false)
+        await model.setGroupsByType(true)
+
+        #expect(model.canvasSections.map(\.group) == [.folders, .images, .documents])
+        let images = try #require(model.canvasSections.first { $0.group == .images })
+        #expect(images.items.count == 2)
+        #expect(model.canvasOrder == model.canvasSections.flatMap(\.items).map(\.itemID))
+
+        // With Folders First off, the folders' section trails.
+        await model.setFoldersFirst(false)
+        #expect(model.canvasSections.map(\.group) == [.images, .documents, .folders])
+
+        // Grouped on a shelf, folders lead the order ahead of every section.
+        await model.setFoldersFirst(true)
+        await model.setGroupsFolders(true)
+        #expect(model.canvasSections.map(\.group) == [.images, .documents])
+        #expect(model.canvasOrder.first == .folder(try #require(model.contents.folders.first).id))
+    }
+}

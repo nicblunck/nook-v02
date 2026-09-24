@@ -55,6 +55,32 @@ struct GalleryResizeTests {
         #expect(widest <= 600.5, "canvas content reaches \(widest)pt in a 600pt window")
     }
 
+    @Test("A grid grouped by type follows the window back down in width")
+    func typeGroupedGridShrinksWithTheWindow() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.createFolder(named: "Work", in: nil)
+        for index in 0..<6 {
+            _ = try await harness.importFile(named: "photo-\(index).png", as: .png)
+            _ = try await harness.importFile(named: "note-\(index).txt")
+        }
+        // Through the default, since a location that isn't locked reloads
+        // it on refresh.
+        model.settings.defaultPreferences.foldersFirst = true
+        model.settings.defaultPreferences.groupsFolders = false
+        model.settings.defaultPreferences.groupsByType = true
+        await model.setViewMode(.grid)
+        await model.refreshAll()
+        #expect(model.canvasSections.map(\.group) == [.folders, .images, .documents])
+
+        let hosting = try await hostCanvas(model, width: 1100)
+        hosting.frame.size.width = 600
+        await settle(hosting)
+        let widest = widestSubview(in: hosting)
+        #expect(widest <= 600.5, "canvas content reaches \(widest)pt in a 600pt window")
+    }
+
     @Test("A size chosen in a location following the default survives a change of view")
     func itemScaleSurvivesSwitchingViews() async throws {
         let harness = try await TestModel()

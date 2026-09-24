@@ -143,6 +143,9 @@ struct SettingsView: View {
                 Text("Descending").tag(false)
             }
             Toggle("Folders First", isOn: foldersFirstBinding)
+            Toggle("Group Folders", isOn: groupsFoldersBinding)
+                .disabled(!settings.defaultPreferences.foldersFirst)
+            Toggle("Group by Type", isOn: groupsByTypeBinding)
         } header: {
             Text("Default Sorting")
         } footer: {
@@ -196,6 +199,16 @@ struct SettingsView: View {
     private var foldersFirstBinding: Binding<Bool> {
         Binding(get: { settings.defaultPreferences.foldersFirst },
                 set: { settings.defaultPreferences.foldersFirst = $0 })
+    }
+
+    private var groupsFoldersBinding: Binding<Bool> {
+        Binding(get: { settings.defaultPreferences.groupsFolders },
+                set: { settings.defaultPreferences.groupsFolders = $0 })
+    }
+
+    private var groupsByTypeBinding: Binding<Bool> {
+        Binding(get: { settings.defaultPreferences.groupsByType },
+                set: { settings.defaultPreferences.groupsByType = $0 })
     }
 }
 

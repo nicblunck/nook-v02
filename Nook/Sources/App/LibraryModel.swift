@@ -379,6 +379,8 @@ final class LibraryModel {
     var sort: ObjectSort { preferences.sort }
     var viewMode: LibraryViewMode { preferences.viewMode }
     var foldersFirst: Bool { preferences.foldersFirst }
+    var groupsFolders: Bool { preferences.groupsFolders }
+    var groupsByType: Bool { preferences.groupsByType }
     var masonryCaptionDisplay: MasonryCaptionDisplay { preferences.masonryCaptionDisplay }
     var showsMasonryTypeLabels: Bool { preferences.showsMasonryTypeLabels }
     // On iPhone, item size is decided by the adaptive grid rather than the
@@ -579,6 +581,20 @@ final class LibraryModel {
         isReflowPending = true
         var updated = preferences
         updated.foldersFirst = foldersFirst
+        await apply(updated)
+    }
+
+    func setGroupsFolders(_ groupsFolders: Bool) async {
+        isReflowPending = true
+        var updated = preferences
+        updated.groupsFolders = groupsFolders
+        await apply(updated)
+    }
+
+    func setGroupsByType(_ groupsByType: Bool) async {
+        isReflowPending = true
+        var updated = preferences
+        updated.groupsByType = groupsByType
         await apply(updated)
     }
 
@@ -2126,14 +2142,51 @@ final class LibraryModel {
 
     // MARK: Derived
 
-    /// The canvas as one ordered sequence.
-    ///
-    /// With Folders First on, locations lead and their contents follow. With it
-    /// off, folders sort inline among the objects — but only by a key both
-    /// kinds actually have, so sorting by size or duration keeps folders first
-    /// rather than inventing a value for them.
+    /// Whether the location's folders sit on a shelf of their own above the
+    /// canvas rather than among its items.
+    var showsFolderShelf: Bool {
+        preferences.showsFolderShelf && !contents.folders.isEmpty
+    }
+
+    /// The canvas as one ordered sequence: the shelf, when there is one, then
+    /// each section in turn. What keyboard navigation and Select All read, so
+    /// it always follows the order things are drawn in.
     var canvasItems: [CanvasItem] {
-        let folders = contents.folders.map(CanvasItem.folder)
+        let shelf = showsFolderShelf ? contents.folders.map(CanvasItem.folder) : []
+        return shelf + canvasSections.flatMap(\.items)
+    }
+
+    /// What the canvas draws below the shelf.
+    ///
+    /// Ungrouped, it is one untitled section. Grouped by type, each kind of
+    /// thing present gets its own, in the order the filter pills use, each
+    /// keeping the location's sort within it. Folders not on the shelf are a
+    /// section too — leading with Folders First on, trailing with it off.
+    var canvasSections: [CanvasSection] {
+        let folders = showsFolderShelf ? [] : contents.folders.map(CanvasItem.folder)
+        guard preferences.groupsByType else {
+            return [CanvasSection(group: nil, items: orderedInline(folders: folders))]
+        }
+
+        var sections = LibraryContentFilter.allCases.compactMap { group -> CanvasSection? in
+            guard group != .folders else { return nil }
+            let items = contents.objects
+                .filter { group.objectKinds.contains($0.kind) }
+                .map(CanvasItem.object)
+            return items.isEmpty ? nil : CanvasSection(group: group, items: items)
+        }
+        if !folders.isEmpty {
+            let section = CanvasSection(group: .folders, items: folders)
+            if preferences.foldersFirst { sections.insert(section, at: 0) } else { sections.append(section) }
+        }
+        return sections
+    }
+
+    /// Folders and objects in one run. With Folders First on, folders lead.
+    /// With it off, they sort inline among the objects — but only by a key
+    /// both kinds actually have, so sorting by size or duration keeps folders
+    /// first rather than inventing a value for them.
+    private func orderedInline(folders: [CanvasItem]) -> [CanvasItem] {
         let objects = contents.objects.map(CanvasItem.object)
 
         guard !preferences.foldersFirst, !folders.isEmpty else {
@@ -2364,6 +2417,15 @@ enum CanvasItem: Identifiable, Hashable {
         case .object(let object): object.dateAdded
         }
     }
+}
+
+/// A run of the canvas under one heading. `group` is nil for the single
+/// untitled section an ungrouped canvas draws.
+struct CanvasSection: Identifiable, Hashable {
+    let group: LibraryContentFilter?
+    let items: [CanvasItem]
+
+    var id: String { group?.rawValue ?? "all" }
 }
 
 /// One folder and its subtree, as the sidebar draws it.
