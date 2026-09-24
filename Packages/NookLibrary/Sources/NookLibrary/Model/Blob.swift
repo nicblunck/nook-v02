@@ -68,6 +68,6 @@ public final class Blob {
     public var referencingObjects: [LibraryObject] { objects ?? [] }
 
     /// A blob may be collected only once nothing durable points at it —
-    /// including objects sitting in Recently Deleted, which can still be restored.
+    /// including objects sitting in the Trash, which can still be put back.
     public var isEligibleForCollection: Bool { referencingObjects.isEmpty }
 }

@@ -10,15 +10,29 @@ public extension LibraryService {
     /// that place rather than by the library's structure leading to them.
     func rootFolders(in access: AccessContext = .standard) -> [FolderSnapshot] {
         let descriptor = FetchDescriptor<Folder>(
-            predicate: #Predicate { $0.parent == nil }
+            predicate: #Predicate { $0.parent == nil && $0.deletedAt == nil }
         )
         let folders = (try? context.fetch(descriptor)) ?? []
         return folderSnapshots(folders, access: access.leavingHiddenContext())
     }
 
+    /// A folder's subfolders. One moved to the Trash on its own is in the
+    /// Trash rather than here, even when the folder it came from is in the
+    /// Trash too — the same as an object moved there on its own.
     func subfolders(of parent: FolderID, in access: AccessContext = .standard) -> [FolderSnapshot] {
         guard let folder = folder(withIdentifier: parent.uuid) else { return [] }
-        return folderSnapshots(folder.childFolders, access: self.access(access, reading: .folder(parent)))
+        return folderSnapshots(folder.childFolders.filter { $0.deletedAt == nil },
+                               access: self.access(access, reading: .folder(parent)))
+    }
+
+    /// The folders at the top of the Trash: each one moved there in its own
+    /// right. What they held is reached by opening them.
+    func trashedFolders(in access: AccessContext = .standard) -> [FolderSnapshot] {
+        let descriptor = FetchDescriptor<Folder>(
+            predicate: #Predicate { $0.deletedAt != nil }
+        )
+        let folders = (try? context.fetch(descriptor)) ?? []
+        return folderSnapshots(folders, access: access.leavingHiddenContext())
     }
 
     /// What Hidden holds at its top level: the folders and objects hidden in
@@ -29,7 +43,8 @@ public extension LibraryService {
             predicate: #Predicate { $0.isHidden }
         )
         let folders = (try? context.fetch(descriptor)) ?? []
-        return folderSnapshots(folders.filter { !hasHiddenAncestor($0.parent) }, access: access)
+        return folderSnapshots(folders.filter { !$0.isInTrash && !hasHiddenAncestor($0.parent) },
+                               access: access)
     }
 
     func folder(_ id: FolderID, in access: AccessContext = .standard) -> FolderSnapshot? {
@@ -83,13 +98,10 @@ public extension LibraryService {
         let access = self.access(access, reading: query.scope)
         guard allowsReadingContents(of: query.scope, in: access) else { return [] }
         var candidates = candidateObjects(for: query.scope)
+        let belongs = trashFilter(for: query.scope)
 
         candidates = candidates.filter { object in
-            if query.scope.showsDeleted {
-                guard object.deletedAt != nil else { return false }
-            } else {
-                guard object.deletedAt == nil else { return false }
-            }
+            guard belongs(object) else { return false }
             if query.favoritesOnly && !object.isFavorite { return false }
             if !query.kinds.isEmpty && !query.kinds.contains(object.kind) { return false }
             return true
@@ -124,6 +136,9 @@ public extension LibraryService {
             // Hidden holds folders as well as objects, which is what makes it
             // a place rather than a list of loose things.
             folders = hiddenFolders(in: access)
+        case .trash:
+            // So does the Trash: a folder goes there whole, and comes back whole.
+            folders = trashedFolders(in: access)
         case .allObjects, .inbox:
             folders = []
         default:
@@ -171,15 +186,15 @@ public extension LibraryService {
     func objectCount(in scope: LibraryScope, access: AccessContext = .standard) -> Int {
         let access = self.access(access, reading: scope)
         guard allowsReadingContents(of: scope, in: access) else { return 0 }
-        return candidateObjects(for: scope).count { object in
-            if scope.showsDeleted {
-                guard object.deletedAt != nil else { return false }
-            } else {
-                guard object.deletedAt == nil else { return false }
-            }
+        let belongs = trashFilter(for: scope)
+        let objects = candidateObjects(for: scope).count { object in
+            guard belongs(object) else { return false }
             let privacy = PrivacyResolver.effectivePrivacy(of: object)
             return broker.allowsDiscovery(of: privacy, in: access)
         }
+        // A folder in the Trash is one thing in it, however much it holds.
+        guard scope == .trash else { return objects }
+        return objects + trashedFolders(in: access).count
     }
 }
 
@@ -256,6 +271,26 @@ extension LibraryService {
         return unlocked.intersection(chain)
     }
 
+    /// Whether an object belongs to what a scope shows, as far as the Trash is
+    /// concerned.
+    ///
+    /// The top of the Trash is what was moved there in its own right. Inside a
+    /// folder in the Trash is what that folder held. Everywhere else is the
+    /// live library, which nothing in the Trash is part of — including what
+    /// sits in a folder there.
+    func trashFilter(for scope: LibraryScope) -> (LibraryObject) -> Bool {
+        if scope.showsDeleted { return { $0.deletedAt != nil } }
+        switch scope {
+        case .folder(let id), .folderTree(let id):
+            if folder(withIdentifier: id.uuid)?.isInTrash == true {
+                return { $0.deletedAt == nil }
+            }
+        default:
+            break
+        }
+        return { !$0.isInTrash }
+    }
+
     func hasHiddenAncestor(_ folder: Folder?) -> Bool {
         guard let folder else { return false }
         return PrivacyResolver.effectivePrivacy(of: folder).isHidden
@@ -272,7 +307,7 @@ extension LibraryService {
     /// search and sort are applied.
     func candidateObjects(for scope: LibraryScope) -> [LibraryObject] {
         switch scope {
-        case .allObjects, .recent, .recentlyDeleted:
+        case .allObjects, .recent, .trash:
             return (try? context.fetch(FetchDescriptor<LibraryObject>())) ?? []
 
         case .inbox:
@@ -326,7 +361,7 @@ extension LibraryService {
         while let folder = queue.popLast() {
             guard seen.insert(folder.identifier).inserted else { continue }
             result.append(contentsOf: folder.containedObjects)
-            queue.append(contentsOf: folder.childFolders)
+            queue.append(contentsOf: folder.childFolders.filter { $0.deletedAt == nil })
         }
         return result
     }
@@ -404,6 +439,7 @@ extension LibraryService {
             dateAdded: object.dateAdded,
             dateCreated: full ? object.dateCreated : nil,
             deletedAt: object.deletedAt,
+            isInTrash: object.isInTrash,
             isFavorite: object.isFavorite,
             isHidden: privacy.isHidden,
             isLocked: privacy.isLocked,
@@ -435,7 +471,7 @@ extension LibraryService {
         // in order to authenticate. What it contains stays withheld.
         let full = visibility == .full
         let discoverableChildren = folder.childFolders.count {
-            broker.allowsDiscovery(
+            $0.deletedAt == nil && broker.allowsDiscovery(
                 of: PrivacyResolver.effectivePrivacy(of: $0),
                 in: access
             )
@@ -457,7 +493,8 @@ extension LibraryService {
             hiddenSource: privacy.hiddenSource,
             lockedSource: privacy.lockedSource,
             visibility: visibility,
-            dateAdded: folder.dateAdded
+            dateAdded: folder.dateAdded,
+            isInTrash: folder.isInTrash
         )
     }
 
@@ -474,7 +511,7 @@ extension LibraryService {
                                          symbolName: collection.symbolName,
                                          emoji: collection.emoji),
             memberCount: full
-                ? collection.orderedObjects.count { $0.deletedAt == nil && isDiscoverable($0, in: access) }
+                ? collection.orderedObjects.count { !$0.isInTrash && isDiscoverable($0, in: access) }
                 : 0,
             isSmart: collection.isSmart,
             isHidden: privacy.isHidden,
@@ -494,7 +531,7 @@ extension LibraryService {
                                          symbolName: tag.symbolName,
                                          emoji: tag.emoji),
             objectCount: tag.taggedObjects.count {
-                $0.deletedAt == nil && isDiscoverable($0, in: access)
+                !$0.isInTrash && isDiscoverable($0, in: access)
             }
         )
     }

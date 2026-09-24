@@ -154,12 +154,12 @@ struct SidebarView: View {
     /// sidebar, separate from the library's destinations.
     private var footer: some View {
         HStack(spacing: 2) {
-            footerButton(title: "Recently Deleted",
+            footerButton(title: "Trash",
                          symbol: "trash",
-                         isCurrent: model.scope == .recentlyDeleted,
-                         count: model.counts[.recentlyDeleted],
+                         isCurrent: model.scope == .trash,
+                         count: model.counts[.trash],
                          dropTarget: .trash) {
-                model.navigate(to: .scope(.recentlyDeleted), startingPageStack: true)
+                model.navigate(to: .scope(.trash), startingPageStack: true)
             }
             // No count on this one. How much someone is keeping out of sight
             // is itself something they are keeping out of sight.
@@ -287,8 +287,8 @@ struct SidebarView: View {
                              hide: { await model.setHidden($0, forFolder: folder) },
                              lock: { await model.setLocked($0, forFolder: folder) })
             Divider()
-            Button("Delete Folder", role: .destructive) {
-                Task { await model.deleteFolder(folder.id) }
+            Button("Move to Trash", role: .destructive) {
+                model.requestMoveToTrash(folder)
             }
         }
         // The dedicated modifier establishes a concrete full-row surface.

@@ -129,7 +129,7 @@ struct MotionTests {
         _ = second
         #expect(model.contentsChange.inserts)
 
-        await model.delete([first.id])
+        await model.moveToTrash([first.id])
         #expect(model.contentsChange.removes)
         #expect(!model.contentsChange.inserts)
     }

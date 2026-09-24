@@ -39,8 +39,8 @@ struct SearchScopeToken: Identifiable, Hashable {
             self.init(scope: scope, name: "Favorites", symbolName: "star")
         case .recent:
             self.init(scope: scope, name: "Recent", symbolName: "clock")
-        case .recentlyDeleted:
-            self.init(scope: scope, name: "Recently Deleted", symbolName: "trash")
+        case .trash:
+            self.init(scope: scope, name: "Trash", symbolName: "trash")
         case .hidden:
             self.init(scope: scope, name: "Hidden", symbolName: "eye.slash")
         }

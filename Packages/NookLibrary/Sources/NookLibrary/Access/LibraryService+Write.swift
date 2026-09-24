@@ -66,30 +66,23 @@ public extension LibraryService {
         try didMutate()
     }
 
-    /// Deletes a folder and its subfolders. Contained objects are sent to
-    /// Recently Deleted rather than removed, so the deletion stays reversible
-    /// for the retention window.
+    /// Moves a folder to the Trash, whole: it keeps its place, its subfolders
+    /// and everything in them, so putting it back returns all of it to where
+    /// it was.
     ///
-    /// Nothing explicitly hidden is ever contained here: hiding an object
-    /// detaches it from its folder the moment it happens, so a folder never
-    /// holds anything the user could not currently see when they chose to
-    /// delete it.
-    func deleteFolder(_ id: FolderID) throws {
+    /// The Trash is not a hidden place, so a hidden folder comes out of hiding
+    /// to go there, and remembers to go back into hiding when it is put back.
+    /// One hidden only because a folder above it is leaves that folder behind:
+    /// the Trash has to be able to show it without showing its parent.
+    func moveFolderToTrash(_ id: FolderID) throws {
         guard let target = folder(withIdentifier: id.uuid) else { throw LibraryError.folderNotFound(id) }
-
-        var queue: [Folder] = [target]
-        var seen: Set<UUID> = []
-        let now = Date.now
-        while let current = queue.popLast() {
-            guard seen.insert(current.identifier).inserted else { continue }
-            for object in current.containedObjects where object.deletedAt == nil {
-                object.deletedAt = now
-                object.folder = nil
-            }
-            queue.append(contentsOf: current.childFolders)
+        guard target.deletedAt == nil else { return }
+        if PrivacyResolver.effectivePrivacy(of: target).isHidden {
+            target.wasHiddenBeforeTrash = true
+            target.isHidden = false
+            target.parent = nil
         }
-
-        context.delete(target)
+        target.deletedAt = .now
         try didMutate()
     }
 
@@ -184,19 +177,50 @@ public extension LibraryService {
 
     // MARK: Deletion
 
-    /// Sends objects to Recently Deleted. Their folder location is remembered
-    /// nowhere, so a restore returns them to the Inbox.
+    /// Moves objects to the Trash. They keep their folder, so putting them
+    /// back returns them there. Hiding works as it does for a folder.
     func delete(_ ids: [ObjectID]) throws {
         let now = Date.now
         for object in objects(withIdentifiers: ids.map(\.uuid)) where object.deletedAt == nil {
+            if PrivacyResolver.effectivePrivacy(of: object).isHidden {
+                object.wasHiddenBeforeTrash = true
+                object.isHidden = false
+                object.folder = nil
+            }
             object.deletedAt = now
         }
         try didMutate()
     }
 
+    /// Puts objects back where they came from. Something taken out of a folder
+    /// that is still in the Trash goes to the Inbox instead, as does anything
+    /// whose folder is gone for good.
     func restore(_ ids: [ObjectID]) throws {
         for object in objects(withIdentifiers: ids.map(\.uuid)) {
             object.deletedAt = nil
+            if object.wasHiddenBeforeTrash {
+                object.wasHiddenBeforeTrash = false
+                object.isHidden = true
+            } else if object.folder?.isInTrash == true {
+                object.folder = nil
+            }
+        }
+        try didMutate()
+    }
+
+    /// Puts folders back where they came from, with everything still in them.
+    /// One whose parent is still in the Trash comes back to the top level.
+    func restoreFolders(_ ids: [FolderID]) throws {
+        for id in ids {
+            guard let target = folder(withIdentifier: id.uuid) else { continue }
+            target.deletedAt = nil
+            if target.wasHiddenBeforeTrash {
+                target.wasHiddenBeforeTrash = false
+                target.isHidden = true
+                target.parent = nil
+            } else if target.parent?.isInTrash == true {
+                target.parent = nil
+            }
         }
         try didMutate()
     }
@@ -209,11 +233,20 @@ public extension LibraryService {
         try await collectOrphanedBlobs()
     }
 
-    func emptyRecentlyDeleted() async throws {
-        let descriptor = FetchDescriptor<LibraryObject>(
-            predicate: #Predicate { $0.deletedAt != nil }
-        )
-        for object in (try? context.fetch(descriptor)) ?? [] {
+    /// Deletes folders for good, with everything in them.
+    func permanentlyDeleteFolders(_ ids: [FolderID]) async throws {
+        removeForGood(ids.compactMap { folder(withIdentifier: $0.uuid) })
+        try didMutate()
+        try await collectOrphanedBlobs()
+    }
+
+    /// Deletes everything in the Trash for good: what was moved there, and
+    /// everything inside the folders that were.
+    func emptyTrash() async throws {
+        let folders = FetchDescriptor<Folder>(predicate: #Predicate { $0.deletedAt != nil })
+        removeForGood((try? context.fetch(folders)) ?? [])
+        let objects = FetchDescriptor<LibraryObject>(predicate: #Predicate { $0.deletedAt != nil })
+        for object in (try? context.fetch(objects)) ?? [] where !object.isDeleted {
             context.delete(object)
         }
         try didMutate()
@@ -228,14 +261,36 @@ public extension LibraryService {
         )
         let expired = ((try? context.fetch(descriptor)) ?? [])
             .filter { ($0.deletedAt ?? .distantFuture) < cutoff }
-        guard !expired.isEmpty else { return }
-        for object in expired { context.delete(object) }
+        let folders = FetchDescriptor<Folder>(predicate: #Predicate { $0.deletedAt != nil })
+        let expiredFolders = ((try? context.fetch(folders)) ?? [])
+            .filter { ($0.deletedAt ?? .distantFuture) < cutoff }
+        guard !expired.isEmpty || !expiredFolders.isEmpty else { return }
+        removeForGood(expiredFolders)
+        for object in expired where !object.isDeleted { context.delete(object) }
         try didMutate()
         try await collectOrphanedBlobs()
     }
 
+    /// Deletes folders, their subfolders and every object anywhere beneath
+    /// them. The objects have to go by hand: a folder only nullifies its
+    /// link to them, which would drop them loose into the Inbox.
+    private func removeForGood(_ folders: [Folder]) {
+        var queue = folders
+        var seen: Set<UUID> = []
+        while let current = queue.popLast() {
+            guard seen.insert(current.identifier).inserted else { continue }
+            for object in current.containedObjects { context.delete(object) }
+            queue.append(contentsOf: current.childFolders)
+        }
+        // The outermost ones only: deleting a folder takes its subfolders with
+        // it, and deleting one twice is not something to ask SwiftData for.
+        for folder in folders where !folder.ancestors.contains(where: { seen.contains($0.identifier) }) {
+            context.delete(folder)
+        }
+    }
+
     /// Reclaims stored bytes once nothing durable points at them — including
-    /// objects still sitting in Recently Deleted, which can still be restored.
+    /// objects still sitting in the Trash, which can still be put back.
     func collectOrphanedBlobs() async throws {
         let descriptor = FetchDescriptor<Blob>()
         let blobs = (try? context.fetch(descriptor)) ?? []

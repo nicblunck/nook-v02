@@ -6,8 +6,10 @@ import SwiftUI
 enum PreviewKey: Equatable {
     /// Esc: back to the gallery.
     case escape
-    /// Space: back to the gallery too, except where a web page scrolls.
+    /// Space: back to the gallery too.
     case space
+    /// Delete: to the Trash, after asking.
+    case delete
     /// Option-Space: play or pause a video.
     case playPause
     /// Left or Right Arrow: the previous or next object.
@@ -78,6 +80,7 @@ struct PreviewKeyMonitor: NSViewRepresentable {
             switch (event.keyCode, modifiers) {
             case (53, []): return .escape
             case (49, []): return .space
+            case (51, []): return .delete
             case (49, .option): return .playPause
             case (123, []): return .step(-1)
             case (124, []): return .step(1)

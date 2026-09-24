@@ -73,7 +73,7 @@ struct PreferencesTests {
         let harness = try await TestLibrary()
         defer { harness.cleanUp() }
 
-        for scope: LibraryScope in [.inbox, .recent, .favorites, .allObjects, .recentlyDeleted, .kind(.image)] {
+        for scope: LibraryScope in [.inbox, .recent, .favorites, .allObjects, .trash, .kind(.image)] {
             #expect(await harness.service.canRememberPreferences(for: scope) == false)
             // Asking anyway is a no-op rather than an error.
             try await harness.service.rememberPreferences(.systemDefault, for: scope)

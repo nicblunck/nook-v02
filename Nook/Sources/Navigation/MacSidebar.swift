@@ -548,8 +548,21 @@ extension MacSidebar {
             case MacKey.right: model.expandOrEnterCanvas()
             case MacKey.return, MacKey.keypadEnter: model.enterCanvas()
             case MacKey.tab, MacKey.escape: model.focus(.canvas)
+            case MacKey.delete: return trashSelectedFolder()
             default: return false
             }
+            return true
+        }
+
+        /// Delete on a folder row asks to move that folder to the Trash.
+        /// Collections and tags are only ways of gathering things; deleting
+        /// one is a different question, asked from its menu.
+        private func trashSelectedFolder() -> Bool {
+            guard let outline, outline.selectedRow >= 0,
+                  let item = outline.item(atRow: outline.selectedRow) as? SidebarItem,
+                  case .folder(let folder) = item.row.subject
+            else { return false }
+            model.requestMoveToTrash(folder)
             return true
         }
 
@@ -897,7 +910,7 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                             hide: { [model] in await model.setHidden($0, forFolder: folder) },
                             lock: { [model] in await model.setLocked($0, forFolder: folder) })
             menu.addItem(.separator())
-            menu.add("Delete Folder") { [model] in Task { await model.deleteFolder(folder.id) } }
+            menu.add("Move to Trash") { [model] in model.requestMoveToTrash(folder) }
         case .collection(let collection):
             menu.add("Rename…") { [model] in model.namingPrompt = .renameCollection(collection.id) }
             menu.add("Customize…") { [onEditAppearance] in

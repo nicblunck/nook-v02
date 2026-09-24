@@ -771,7 +771,7 @@ struct BrowseView: View {
         switch model.scope {
         case .inbox: return "Inbox Zero"
         case .favorites: return "No Favorites"
-        case .recentlyDeleted: return "Nothing Deleted"
+        case .trash: return "Trash Is Empty"
         case .hidden: return "Nothing Hidden"
         case .collection: return "Empty Collection"
         default: return "Nothing Here Yet"
@@ -785,7 +785,7 @@ struct BrowseView: View {
         switch model.scope {
         case .inbox: return "tray"
         case .favorites: return "star"
-        case .recentlyDeleted: return "trash"
+        case .trash: return "trash"
         case .hidden: return "eye.slash"
         case .collection: return "rectangle.stack"
         default: return "square.grid.2x2"
@@ -978,6 +978,11 @@ private struct CanvasKeyboard: ViewModifier {
                 model.deselectAll()
                 return .handled
             }
+            // Delete asks before anything goes: to the Trash, or — for what
+            // is in the Trash already — out of it for good.
+            .onKeyPress(.delete) {
+                model.requestTrashForKeyboard() ? .handled : .ignored
+            }
     }
 }
 
@@ -992,10 +997,44 @@ enum OpenExternally {
     }
 }
 
+#if canImport(UIKit)
+/// iOS's own in-app browser, presented modally over whatever is showing, as
+/// Apple asks `SFSafariViewController` to be. Its Done button and edge swipe
+/// close it again.
+enum SafariSheet {
+    @MainActor
+    static func present(_ url: URL) {
+        // It only takes web pages; anything else still goes to its own app.
+        guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let presenter = topViewController()
+        else {
+            OpenExternally.open(url)
+            return
+        }
+        presenter.present(SFSafariViewController(url: url), animated: true)
+    }
+
+    @MainActor
+    private static func topViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        var top = scene?.keyWindow?.rootViewController
+        while let presented = top?.presentedViewController { top = presented }
+        return top
+    }
+}
+#else
+enum SafariSheet {
+    @MainActor
+    static func present(_ url: URL) { OpenExternally.open(url) }
+}
+#endif
+
 #if canImport(AppKit)
 import AppKit
 #elseif canImport(UIKit)
 import UIKit
+import SafariServices
 #endif
 
 #if DEBUG

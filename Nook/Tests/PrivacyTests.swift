@@ -92,12 +92,12 @@ struct PrivacyTests {
     }
 
     /// Deleting a folder still sends what it visibly contains to Recently
-    /// Deleted, even when the folder itself is hidden — the user was looking
-    /// right at it, inside Hidden, when they chose to delete it. Nothing
-    /// hidden in its own right is ever at risk here: hiding always detaches,
-    /// so a folder never holds anything the user could not currently see.
-    @Test("Deleting a hidden folder sends its visible contents to Recently Deleted")
-    func deletingAHiddenFolderTrashesItsContents() async throws {
+    /// Moved to the Trash whole, even when the folder itself is hidden — the
+    /// user was looking right at it, inside Hidden, when they chose to. The
+    /// Trash is not a hidden place, so the folder comes out of hiding to be
+    /// seen there, and goes back into it if it is put back.
+    @Test("Moving a hidden folder to the Trash shows it there, contents and all")
+    func trashingAHiddenFolderShowsItInTheTrash() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -109,11 +109,16 @@ struct PrivacyTests {
         await model.move([object.id], to: folder.id)
         await model.setHidden(true, forFolder: folder)
 
-        await model.deleteFolder(folder.id)
+        await model.moveFolderToTrash(folder.id)
 
-        model.navigate(to: .scope(.recentlyDeleted))
+        model.navigate(to: .scope(.trash))
         await model.loadPreferences()
         await model.refreshContents()
+        #expect(model.contents.folders.map(\.id) == [folder.id])
+
+        model.navigate(to: .scope(.folder(folder.id)))
+        await model.refreshContents()
+        #expect(model.isShowingDeleted)
         #expect(model.contents.objects.map(\.id) == [object.id])
     }
 

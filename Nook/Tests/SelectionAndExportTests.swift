@@ -165,9 +165,119 @@ struct ActionConfirmationTests {
         #expect(model.toast?.systemImage == "star.fill")
         #expect(model.toast?.tint == .yellow)
 
-        await model.delete([object.id])
-        #expect(model.toast?.message == LocalizedStringResource("Moved to Recently Deleted"))
+        await model.moveToTrash([object.id])
+        #expect(model.toast?.message == LocalizedStringResource("Moved to Trash"))
         #expect(model.toast?.systemImage == "trash.fill")
         #expect(model.toast?.tint == .red)
+    }
+}
+
+@MainActor
+@Suite("Trash")
+struct TrashTests {
+
+    @Test("Delete asks before moving the selection to the Trash, naming what it is")
+    func deleteKeyAsksFirst() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+        let object = try #require(try await harness.importFile(named: "Receipt.txt"))
+        model.selection = [object.id]
+
+        #expect(model.requestTrashForKeyboard())
+        let request = try #require(model.trashRequest)
+        #expect(request.title == "Move “\(object.title)” to Trash?")
+        #expect(request.message == nil)
+        #expect(request.confirmTitle == "Move to Trash")
+        // Nothing has gone anywhere until the answer is yes.
+        #expect(model.contents.objects.map(\.id) == [object.id])
+
+        await model.confirm(request)
+        #expect(model.trashRequest == nil)
+        #expect(model.contents.objects.isEmpty)
+        #expect(model.counts[.trash] == 1)
+    }
+
+    @Test("Delete on something already in the Trash asks to delete it for good")
+    func deleteKeyInTheTrashDeletesImmediately() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+        let object = try #require(try await harness.importFile(named: "old.txt"))
+        await model.moveToTrash([object.id])
+
+        model.navigate(to: .scope(.trash))
+        await model.refreshContents()
+        model.selection = [object.id]
+        #expect(model.requestTrashForKeyboard())
+        let request = try #require(model.trashRequest)
+        #expect(request.title == "Delete “\(object.title)” Immediately?")
+        #expect(request.message == "Deleted items cannot be recovered.")
+
+        await model.confirm(request)
+        #expect(model.contents.isEmpty)
+        #expect(model.counts[.trash] == 0)
+    }
+
+    @Test("Delete with nothing chosen asks nothing")
+    func deleteKeyWithNothingChosen() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+        _ = try #require(try await harness.importFile(named: "loose.txt"))
+        model.deselectAll()
+
+        #expect(!model.requestTrashForKeyboard())
+        #expect(model.trashRequest == nil)
+    }
+
+    @Test("A folder in the Trash is put back whole")
+    func folderPutBack() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.createFolder(named: "Taxes", in: nil)
+        let taxes = try #require(model.folderTree.first?.folder)
+
+        model.requestMoveToTrash(taxes)
+        #expect(model.trashRequest?.title == "Move “Taxes” to Trash?")
+        await model.confirm(try #require(model.trashRequest))
+        #expect(model.folderTree.isEmpty)
+
+        model.navigate(to: .scope(.trash))
+        await model.refreshContents()
+        #expect(model.contents.folders.map(\.name) == ["Taxes"])
+        #expect(model.contents.folders.first?.isInTrash == true)
+
+        await model.restoreFolder(taxes.id)
+        #expect(model.folderTree.map(\.folder.name) == ["Taxes"])
+        #expect(model.contents.isEmpty)
+    }
+
+    @Test("Empty Trash asks, warns, and is only offered with something to empty")
+    func emptyTrash() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        model.requestEmptyTrash()
+        #expect(model.trashRequest == nil)
+
+        let object = try #require(try await harness.importFile(named: "gone.txt"))
+        await model.moveToTrash([object.id])
+        #expect(model.canEmptyTrash)
+
+        model.requestEmptyTrash()
+        let request = try #require(model.trashRequest)
+        #expect(request.title == "Empty Trash?")
+        #expect(request.message == "Deleted items cannot be recovered.")
+        #expect(request.confirmTitle == "Empty Trash")
+
+        await model.confirm(request)
+        #expect(!model.canEmptyTrash)
     }
 }

@@ -35,8 +35,13 @@ public final class LibraryObject {
     public var dateAdded: Date = Date.distantPast
     /// The original creation date where the source told us one.
     public var dateCreated: Date?
-    /// Set when the object is sent to Recently Deleted; nil while it is live.
+    /// Set when the object is moved to the Trash on its own; nil while it is
+    /// live. Something inside a folder in the Trash keeps nil here — it is in
+    /// the Trash because its folder is, and comes back with it.
     public var deletedAt: Date?
+    /// Something hidden comes out of hiding to go in the Trash and goes back
+    /// into hiding when it is put back. See `Folder.wasHiddenBeforeTrash`.
+    public var wasHiddenBeforeTrash: Bool = false
 
     // MARK: Source
 
@@ -103,6 +108,12 @@ public final class LibraryObject {
     }
 
     public var isDeleted_: Bool { deletedAt != nil }
+
+    /// Whether this object is in the Trash, in its own right or because the
+    /// folder it sits in is.
+    public var isInTrash: Bool {
+        deletedAt != nil || (folder?.isInTrash ?? false)
+    }
 
     public var privacyFlags: PrivacyFlags {
         PrivacyFlags(isHidden: isHidden, isLocked: false)

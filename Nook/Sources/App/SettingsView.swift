@@ -150,6 +150,7 @@ struct SettingsView: View {
         }
     }
 
+    #if os(iOS)
     private var linksSection: some View {
         Section {
             Picker("Open Links In", selection: $settings.linkOpening) {
@@ -160,9 +161,10 @@ struct SettingsView: View {
         } header: {
             Text("Links")
         } footer: {
-            Text("In Nook, a link opens as a page in the preview, with a button to take it to your browser.")
+            Text("In Nook, a link opens in Safari over the app. Done brings you back.")
         }
     }
+    #endif
 
     #if os(macOS)
     @ViewBuilder
@@ -175,8 +177,6 @@ struct SettingsView: View {
                 privacySection
             case .library:
                 librarySection
-            case .links:
-                linksSection
             }
         }
         .formStyle(.grouped)
@@ -204,7 +204,6 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case appearance
     case privacy
     case library
-    case links
 
     var id: Self { self }
 
@@ -213,7 +212,6 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Appearance"
         case .privacy: "Privacy"
         case .library: "Library"
-        case .links: "Links"
         }
     }
 
@@ -222,7 +220,6 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Choose how Nook looks"
         case .privacy: "Control how hidden items are protected"
         case .library: "Set the default order for your items"
-        case .links: "Choose where links open"
         }
     }
 
@@ -231,7 +228,6 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "paintbrush"
         case .privacy: "hand.raised"
         case .library: "books.vertical"
-        case .links: "link"
         }
     }
 }

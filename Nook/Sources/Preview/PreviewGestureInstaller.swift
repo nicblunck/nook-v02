@@ -4,8 +4,8 @@ import UIKit
 /// A tap that runs alongside whatever gestures the embedded content already
 /// owns, and toggles the preview's bars the way a tap does in Photos.
 ///
-/// `QLPreviewController`, `PDFView`, `AVPlayerViewController` and `WKWebView`
-/// each handle touches with their own recognizers, and by default a
+/// `QLPreviewController`, `PDFView` and `AVPlayerViewController` each handle
+/// touches with their own recognizers, and by default a
 /// recognizer on a subview wins over one on an ancestor — which is why a
 /// plain SwiftUI `.onTapGesture` layered outside them never sees the touch.
 /// Installing directly on the content's own view, with a delegate that always

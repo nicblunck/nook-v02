@@ -47,7 +47,7 @@ struct MediaTypeRowsTests {
         let image = try #require(try await harness.importFile(named: "shot.png", as: .png))
         #expect(model.mediaTypes == [.image])
 
-        await model.delete([image.id])
+        await model.moveToTrash([image.id])
         #expect(model.mediaTypes.isEmpty)
     }
 
@@ -61,7 +61,7 @@ struct MediaTypeRowsTests {
 
         let image = try #require(try await harness.importFile(named: "shot.png", as: .png))
         model.navigate(to: .scope(.kind(.image)))
-        await model.delete([image.id])
+        await model.moveToTrash([image.id])
 
         #expect(model.mediaTypes == [.image])
         #expect(model.destination == .scope(.kind(.image)))
@@ -77,7 +77,7 @@ struct MediaTypeRowsTests {
         model.navigate(to: .scope(.kind(.image)))
         model.navigate(to: .scope(.inbox))
 
-        await model.delete([image.id])
+        await model.moveToTrash([image.id])
         model.goBack()
 
         #expect(model.destination != .scope(.kind(.image)))

@@ -91,26 +91,25 @@ struct ObjectPreviewView: View {
         .onKeyPress(.leftArrow) { step(-1); return .handled }
         .onKeyPress(.rightArrow) { step(1); return .handled }
         .onKeyPress(.space) { close(); return .handled }
+        .onKeyPress(.delete) { model.requestTrashForKeyboard() ? .handled : .ignored }
         #endif
     }
 
     #if os(macOS)
     /// Photos' keys: Esc and Space go back, Option-Space plays a video, the
-    /// arrows step, Z and Command-Plus and -Minus zoom a photo. A link's live
-    /// page keeps Space and the arrows for its own scrolling.
+    /// arrows step, Z and Command-Plus and -Minus zoom a photo, and Delete
+    /// asks before moving it to the Trash.
     private func handle(_ key: PreviewKey) -> Bool {
         let keys = pageKeys.pages[object.id]
         switch key {
-        case .escape:
+        case .escape, .space:
             close()
-        case .space:
-            guard object.kind != .link else { return false }
-            close()
+        case .delete:
+            return model.requestTrashForKeyboard()
         case .playPause:
             guard let playPause = keys?.playPause else { return false }
             playPause()
         case .step(let offset):
-            guard object.kind != .link else { return false }
             step(offset)
         case .zoomToActualSize:
             guard let zoom = keys?.zoomToActualSize else { return false }
@@ -243,13 +242,15 @@ private struct PreviewPage: View {
     @ViewBuilder
     private var content: some View {
         if object.kind == .link {
-            #if os(iOS)
-            LinkPreviewView(model: model, object: object, onTap: onTap, chromeInsets: chromeInsets)
+            // The link's card, kept clear of the bars that float over the
+            // full-bleed pages; a tap beside its Open button shows or hides
+            // them, as on any other page.
+            LinkPreviewView(model: model, object: object)
+                .padding(.top, chromeInsets.top)
+                .padding(.bottom, chromeInsets.bottom)
+                .contentShape(.rect)
+                .onTapGesture(perform: onTap)
                 .transition(swapTransition)
-            #else
-            LinkPreviewView(model: model, object: object, chromeInsets: chromeInsets)
-                .transition(swapTransition)
-            #endif
         } else if let loadFailure {
             ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
                                    description: Text(loadFailure))

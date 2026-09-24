@@ -363,7 +363,7 @@ struct KeyboardNavigationTests {
 
         model.moveCursor(.down)
         let id = try #require(model.cursor?.objectID)
-        await model.delete([id])
+        await model.moveToTrash([id])
         #expect(model.cursor == nil)
     }
 

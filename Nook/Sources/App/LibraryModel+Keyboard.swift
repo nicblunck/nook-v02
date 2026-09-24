@@ -142,8 +142,8 @@ extension LibraryModel {
     }
 
     /// Opening a thing. A link points at the live web rather than at stored
-    /// content, so unless Settings asks for it to stay in Nook it opens where
-    /// the user's browsing actually happens.
+    /// content, so it opens where the user's browsing actually happens — or,
+    /// on iOS when Settings asks for it, in Safari's own sheet over Nook.
     ///
     /// Objects can no longer be individually locked — an object never reaches
     /// here unless the folder it lives in is already open, so there is no
@@ -162,13 +162,20 @@ extension LibraryModel {
     /// browser changes no selection.
     private func reveal(_ object: ObjectSnapshot,
                         selecting select: (ObjectSnapshot) -> Void) {
-        if object.kind == .link, settings.linkOpening == .defaultBrowser,
-           let url = object.sourceURL {
-            OpenExternally.open(url)
+        if object.kind == .link, let url = object.sourceURL {
+            openLink(url)
             return
         }
         select(object)
         previewedObjectID = object.id
+    }
+
+    /// A link's page, wherever Settings says links go.
+    func openLink(_ url: URL) {
+        switch settings.effectiveLinkOpening {
+        case .defaultBrowser: OpenExternally.open(url)
+        case .inApp: SafariSheet.present(url)
+        }
     }
 
     /// Space: Quick Look, as everywhere else on the Mac.

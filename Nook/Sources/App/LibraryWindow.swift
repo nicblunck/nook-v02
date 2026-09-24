@@ -184,6 +184,7 @@ struct LibraryWindow: View {
                 }
             }
             .modifier(NamingPromptModifier(model: model))
+            .modifier(TrashConfirmationModifier(model: model))
             .focusedSceneValue(\.libraryModel, model)
             // The standard Edit > Paste command reaches this hook when the
             // library surface owns the keyboard. Text fields keep their own
@@ -669,13 +670,19 @@ struct NookCommands: Commands {
                 .keyboardShortcut("i")
                 .disabled(model == nil)
 
-            Button("Delete") {
-                guard let model else { return }
-                let ids = Array(model.selectedObjectIDs)
-                Task { await model.delete(ids) }
+            // No shortcut here: the Delete key belongs to the canvas, the
+            // sidebar and the preview, which answer it themselves. As a bare
+            // key on a menu command it would outrank the field editor and
+            // take Delete away from every text field in the app.
+            Button(model?.isShowingDeleted == true ? "Delete Immediately…" : "Move to Trash") {
+                model?.requestTrashForKeyboard()
             }
-            .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(!(model?.hasSelection ?? false))
+            .disabled(model.map {
+                $0.isTypingText || ($0.previewedObject == nil && !$0.hasSelection && $0.cursorFolder == nil)
+            } ?? true)
+
+            Button("Empty Trash…") { model?.requestEmptyTrash() }
+                .disabled(!(model?.canEmptyTrash ?? false))
 
             Button("Toggle Favorite") {
                 guard let model else { return }
@@ -762,7 +769,7 @@ struct NookCommands: Commands {
             .keyboardShortcut("h", modifiers: [.command, .shift])
             .disabled(model == nil)
 
-            Button("Recently Deleted") { model?.navigate(to: .scope(.recentlyDeleted)) }
+            Button("Trash") { model?.navigate(to: .scope(.trash)) }
                 .disabled(model == nil)
 
             Divider()

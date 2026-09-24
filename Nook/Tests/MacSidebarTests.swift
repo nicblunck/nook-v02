@@ -130,7 +130,7 @@ struct MacSidebarTests {
         #expect(sidebar.item(workBefore.id) === workBefore)
 
         let archive = try #require(model.folderTree.first { $0.folder.name == "Archive" }?.folder)
-        await model.deleteFolder(archive.id)
+        await model.moveFolderToTrash(archive.id)
         await sidebar.settle()
         #expect(sidebar.titles(under: .section(.folders)) == ["Work"])
     }
@@ -159,7 +159,7 @@ struct MacSidebarTests {
 
         // Leaving: the row fades where it stands before the rows below close
         // up behind it, so it is still in the outline just after the change.
-        await model.deleteFolder(work.id)
+        await model.moveFolderToTrash(work.id)
         await sidebar.settle()
         #expect(sidebar.titles(under: .section(.folders)) == ["Archive", "Work"])
         try? await Task.sleep(for: .seconds(1.2))
@@ -317,7 +317,7 @@ struct MacSidebarTests {
         let sidebar = try await HostedSidebar(model: model)
         let menu = try #require(sidebar.menu(for: .destination(.scope(.folder(work.id)))))
         #expect(menu.items.map(\.title).filter { !$0.isEmpty }
-                == ["Rename…", "New Subfolder…", "Customize…", "Hide", "Lock", "Delete Folder"])
+                == ["Rename…", "New Subfolder…", "Customize…", "Hide", "Lock", "Move to Trash"])
         #expect(sidebar.menu(for: .destination(.scope(.inbox))) == nil)
     }
 }
