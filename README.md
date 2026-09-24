@@ -133,11 +133,11 @@ than a bare flag.
 
 ## Not on yet
 
-**iCloud sync** is a one-line switch — `Library.bootstrap(locations:syncMode:)` —
-rather than a migration, because the schema has been CloudKit-shaped from the
-start. Turning it on needs a CloudKit container provisioned under the developer
-account plus the iCloud entitlement, so it stays `.local` until then. Mirroring
-would cover the metadata store only; originals stay behind `BlobStore`.
+**iCloud sync in TestFlight and App Store builds** needs the CloudKit schema
+deployed to Production first (container `iCloud.com.nicolasblunck.nook.app`);
+Debug builds sync against Development. See
+[`Documentation/releasing.md`](Documentation/releasing.md). Mirroring covers the
+metadata store only; originals stay behind `BlobStore`.
 
 **The app group** (`group.com.nicolasblunck.nook`) has to exist for the share
 extension to write into the app's library. Until it does, both fall back to
@@ -185,5 +185,5 @@ xcodebuild -project Nook.xcodeproj \
   model integrations.
 - Do not hand-edit the generated Xcode project. Do not commit build products,
   user-specific Xcode state or local library data.
-- The project does not currently publish a release build or enable iCloud; see
-  **Not on yet** above for the capabilities still requiring provisioning.
+- Releases go through Xcode Cloud to TestFlight; see
+  [`Documentation/releasing.md`](Documentation/releasing.md).

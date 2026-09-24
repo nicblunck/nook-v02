@@ -21,3 +21,4 @@ xcuserdata/
 # Swift Package Manager
 # NOTE: Packages/ is NOT ignored - Packages/NookLibrary is this project's source.
 .build/
+TestFlight/

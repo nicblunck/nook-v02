@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		185F3B2E41A37BDBBD53992A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
+		1EEE6C86E63C07EA036BE586 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
+		38BC82F8AEFE6242CE2F6F34 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
+		717666660CF926DD478E87B3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
 		01B7CC45ACB52C30E0584719 /* LocationMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AECA0A6669F9633F77963BBA /* LocationMenu.swift */; };
 		02C68817C51BB66995D6FCC4 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53549678390B5259BB4DF7D4 /* Accessibility.swift */; };
 		02FBDF9621B40E1228A1FDB0 /* MacSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F210F6A8865D75F169D982AD /* MacSidebar.swift */; };
@@ -230,6 +234,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarKeyboard.swift; sourceTree = "<group>"; };
 		096B7BC6789F61E6137CB603 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		0A0D4665C495D3CB70F0276F /* LibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryModel.swift; sourceTree = "<group>"; };
@@ -523,6 +528,7 @@
 			children = (
 				DD0B520BDCC66E3B763E2C20 /* AppIcon.icon */,
 				859CD1B6A1B80930666ADA7A /* Assets.xcassets */,
+				62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */,
 			);
 			name = Resources;
 			path = Nook/Resources;
@@ -684,6 +690,7 @@
 			buildPhases = (
 				9258A03AB640465A8DB60159 /* Sources */,
 				CEA4CBC901D5AB5D38FDA7A1 /* Frameworks */,
+				C1AA4AEA5892D3D30495AD7E /* Resources */,
 			);
 			buildRules = (
 			);
@@ -801,6 +808,7 @@
 			files = (
 				AB0D3AF1F58E9CA55613E5C5 /* AppIcon.icon in Resources */,
 				7E01157462720C1AB5DF7874 /* Assets.xcassets in Resources */,
+				185F3B2E41A37BDBBD53992A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -810,6 +818,7 @@
 			files = (
 				7ED24106077E32B8ADD2D3D3 /* AppIcon.icon in Resources */,
 				27757C92C06C4A0A92D1BD8C /* Assets.xcassets in Resources */,
+				1EEE6C86E63C07EA036BE586 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -819,6 +828,15 @@
 			files = (
 				E732AC9B2FD07C40E272BDB0 /* ShareViewController.xib in Resources */,
 				7227FF8EF460D820EFDBBBF8 /* icon.icns in Resources */,
+				38BC82F8AEFE6242CE2F6F34 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1AA4AEA5892D3D30495AD7E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				717666660CF926DD478E87B3 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1041,7 +1059,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.share;
 				PRODUCT_NAME = "Save to Nook";
 				SDKROOT = iphoneos;
@@ -1062,7 +1080,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.share;
 				PRODUCT_NAME = "Save to Nook";
 				SDKROOT = iphoneos;
@@ -1103,7 +1121,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
 				PRODUCT_NAME = Nook;
 				REGISTER_APP_GROUPS = YES;
@@ -1187,7 +1205,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macshare;
 				PRODUCT_NAME = NookMacShare;
 				REGISTER_APP_GROUPS = YES;
@@ -1211,7 +1229,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
 				PRODUCT_NAME = Nook;
 				REGISTER_APP_GROUPS = YES;
@@ -1250,7 +1268,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
 				PRODUCT_NAME = Nook;
 				SDKROOT = iphoneos;
@@ -1337,7 +1355,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app;
 				PRODUCT_NAME = Nook;
 				SDKROOT = iphoneos;
@@ -1362,7 +1380,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macshare;
 				PRODUCT_NAME = NookMacShare;
 				REGISTER_APP_GROUPS = YES;
