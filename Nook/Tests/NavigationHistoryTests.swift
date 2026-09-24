@@ -357,6 +357,30 @@ struct NavigationHistoryTests {
         #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).startPage == .library)
     }
 
+    @Test("Links open in the default browser until told to stay in Nook, and that is remembered")
+    func linkOpeningPersists() {
+        let suite = "nook.tests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).linkOpening == .defaultBrowser)
+        AppSettings(defaults: UserDefaults(suiteName: suite)!).linkOpening = .inApp
+        #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).linkOpening == .inApp)
+    }
+
+    @Test("A link set to open in Nook opens as a preview")
+    func linkOpensInApp() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.settings.linkOpening = .inApp
+        await model.importItems([.link(URL(string: "https://example.invalid/page")!)])
+        let link = try #require(model.contents.objects.first { $0.kind == .link })
+
+        model.openObject(link)
+
+        #expect(model.previewedObjectID == link.id)
+        #expect(model.selection == [link.id])
+    }
+
     @Test("A deleted folder's page is taken out of the stack")
     func deletedFolderPageIsPruned() async throws {
         let harness = try await TestModel()

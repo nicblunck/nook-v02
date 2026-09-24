@@ -42,6 +42,7 @@ struct SettingsView: View {
             appearanceSection
             privacySection
             librarySection
+            linksSection
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
@@ -149,6 +150,20 @@ struct SettingsView: View {
         }
     }
 
+    private var linksSection: some View {
+        Section {
+            Picker("Open Links In", selection: $settings.linkOpening) {
+                ForEach(LinkOpening.allCases) { opening in
+                    Text(opening.displayName).tag(opening)
+                }
+            }
+        } header: {
+            Text("Links")
+        } footer: {
+            Text("In Nook, a link opens as a page in the preview, with a button to take it to your browser.")
+        }
+    }
+
     #if os(macOS)
     @ViewBuilder
     private var selectedPane: some View {
@@ -160,6 +175,8 @@ struct SettingsView: View {
                 privacySection
             case .library:
                 librarySection
+            case .links:
+                linksSection
             }
         }
         .formStyle(.grouped)
@@ -187,6 +204,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case appearance
     case privacy
     case library
+    case links
 
     var id: Self { self }
 
@@ -195,6 +213,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Appearance"
         case .privacy: "Privacy"
         case .library: "Library"
+        case .links: "Links"
         }
     }
 
@@ -203,6 +222,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Choose how Nook looks"
         case .privacy: "Control how hidden items are protected"
         case .library: "Set the default order for your items"
+        case .links: "Choose where links open"
         }
     }
 
@@ -211,6 +231,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "paintbrush"
         case .privacy: "hand.raised"
         case .library: "books.vertical"
+        case .links: "link"
         }
     }
 }

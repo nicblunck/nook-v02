@@ -58,6 +58,23 @@ enum HiddenRevealTimeout: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where a link goes when it is opened.
+enum LinkOpening: String, CaseIterable, Identifiable {
+    /// Out to wherever the user's browsing actually happens.
+    case defaultBrowser
+    /// Into Nook's own preview, alongside everything else in the library.
+    case inApp
+
+    var id: String { rawValue }
+
+    var displayName: LocalizedStringResource {
+        switch self {
+        case .defaultBrowser: "Default Browser"
+        case .inApp: "Nook"
+        }
+    }
+}
+
 /// Where the iPhone opens, and where its Home button goes back to.
 ///
 /// Anything other than the Library list is pushed on top of it, so the back
@@ -134,6 +151,7 @@ final class AppSettings {
         static let hiddenRevealTimeout = "nook.hiddenRevealTimeout"
         static let rehidesOnFocusLoss = "nook.rehidesOnFocusLoss"
         static let startPage = "nook.startPage"
+        static let linkOpening = "nook.linkOpening"
     }
 
     private let defaults: UserDefaults
@@ -184,6 +202,10 @@ final class AppSettings {
         didSet { defaults.set(startPage.rawValue, forKey: Key.startPage) }
     }
 
+    var linkOpening: LinkOpening {
+        didSet { defaults.set(linkOpening.rawValue, forKey: Key.linkOpening) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.defaultPreferences = Self.load(from: defaults, key: Key.defaultPreferences)
@@ -199,6 +221,8 @@ final class AppSettings {
             : defaults.bool(forKey: Key.rehidesOnFocusLoss)
         self.startPage = defaults.string(forKey: Key.startPage)
             .flatMap(StartPage.init(rawValue:)) ?? .all
+        self.linkOpening = defaults.string(forKey: Key.linkOpening)
+            .flatMap(LinkOpening.init(rawValue:)) ?? .defaultBrowser
     }
 
     var accentColor: Color? { Color(hex: accentColorHex) }
