@@ -351,9 +351,20 @@ struct ObjectItemBehavior: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .itemClick(select: select, open: open)
+            // While selecting, a tap picks the item instead of opening it,
+            // the way it does in Photos and Files.
+            .itemClick(select: select, open: model.isSelecting ? toggle : open)
+            .selectionMark(isSelecting: model.isSelecting, isSelected: isSelected, mode: model.viewMode)
             .contextMenu {
-                ObjectMenu(model: model, objects: targets) { select([]) }
+                // Part of a selection that also holds folders: the menu is
+                // the selection's, and offers only what suits both.
+                if isSelected, !model.folderSelection.isEmpty {
+                    SelectionMenu(model: model,
+                                  objects: model.selectedObjects,
+                                  folders: model.selectedFolders)
+                } else {
+                    ObjectMenu(model: model, objects: targets) { select([]) }
+                }
             }
             .draggable(transfer)
     }
@@ -371,6 +382,49 @@ struct ObjectItemBehavior: ViewModifier {
     /// selection; opened on anything else it acts on that one thing.
     private var targets: [ObjectSnapshot] {
         isSelected ? model.selectedObjects : [object]
+    }
+
+    private func toggle() {
+        model.toggleSelection(object.id)
+    }
+}
+
+extension View {
+    /// Rings every item while selecting, and ticks the ones picked. Folders
+    /// and objects wear the same mark, since either can be chosen.
+    func selectionMark(isSelecting: Bool, isSelected: Bool, mode: LibraryViewMode) -> some View {
+        overlay(alignment: mode == .list ? .trailing : .bottomTrailing) {
+            if isSelecting {
+                SelectionMark(isSelected: isSelected)
+                    .padding(mode == .list ? 14 : 8)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .motionAware(NookMotion.interaction, value: isSelecting)
+    }
+}
+
+/// The tick Select puts on each item: an empty ring until it is picked, then
+/// filled — the mark Photos and Files use, so what a tap will do is visible
+/// before it is done.
+struct SelectionMark: View {
+    let isSelected: Bool
+
+    var body: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.title3)
+            .symbolRenderingMode(isSelected ? .palette : .monochrome)
+            .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.white.opacity(0.9)),
+                             Color.accentColor)
+            .background {
+                Circle()
+                    .fill(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.2)))
+                    .padding(2)
+            }
+            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+            .contentTransition(.symbolEffect(.replace))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
@@ -838,19 +892,26 @@ struct GalleryToolbar: ToolbarContent {
             }
             #endif
 
-            if model.isShowingTrash {
-                ToolbarItem {
-                    Button("Empty Trash") { model.requestEmptyTrash() }
-                        .disabled(!model.canEmptyTrash)
+            #if os(iOS)
+            if model.isSelecting {
+                // Where Files and Photos put them: Select All where Back was,
+                // Done where the options were.
+                ToolbarItem(placement: .topBarLeading) {
+                    if model.isEverythingSelected {
+                        Button("Deselect All") { model.deselectAll() }
+                    } else {
+                        Button("Select All") { model.selectAll() }
+                    }
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", role: .confirm) { model.endSelecting() }
+                }
+            } else {
+                viewAndTrashItems
             }
-
-            // On iOS the view picker moves into the same popover as the sort
-            // and other view options, behind one ellipsis button — one
-            // control instead of two on iPhone's narrower bar.
-            ToolbarItem {
-                GalleryViewOptionsButton(model: model)
-            }
+            #else
+            viewAndTrashItems
+            #endif
 
             #if os(macOS)
             // On iOS Get Info lives in each item's long-press menu. The
@@ -862,6 +923,23 @@ struct GalleryToolbar: ToolbarContent {
         }
     }
 
+    @ToolbarContentBuilder
+    private var viewAndTrashItems: some ToolbarContent {
+        if model.isShowingTrash {
+            ToolbarItem {
+                Button("Empty Trash") { model.requestEmptyTrash() }
+                    .disabled(!model.canEmptyTrash)
+            }
+        }
+
+        // On iOS the view picker moves into the same popover as the sort
+        // and other view options, behind one ellipsis button — one
+        // control instead of two on iPhone's narrower bar.
+        ToolbarItem {
+            GalleryViewOptionsButton(model: model)
+        }
+    }
+
     #if os(macOS)
     private var viewModeBinding: Binding<LibraryViewMode> {
         Binding(get: { model.viewMode },
@@ -869,6 +947,92 @@ struct GalleryToolbar: ToolbarContent {
     }
     #endif
 }
+
+#if os(iOS)
+/// What Select can do with what it has picked, laid along the bottom the way
+/// Photos lays it: Share at one end, the count in the middle, Trash and the
+/// rest of the actions at the other.
+///
+/// It stands in for the add-content bar while it is up — adding things and
+/// choosing among them are different errands — and on iPad, which has no
+/// bottom bar otherwise, it brings one of its own.
+struct SelectionActionsToolbar: ToolbarContent {
+    let model: LibraryModel
+
+    @ToolbarContentBuilder
+    var body: some ToolbarContent {
+        if model.isShowingDeleted {
+            ToolbarItem(placement: .bottomBar) {
+                Button("Put Back", systemImage: "arrow.uturn.backward") {
+                    let ids = objects.map(\.id)
+                    let folderIDs = folders.map(\.id)
+                    Task { await model.restore(objects: ids, folders: folderIDs) }
+                }
+                .disabled(isEmpty)
+            }
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            countItem
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            ToolbarItem(placement: .bottomBar) {
+                Button("Delete Immediately…", systemImage: "trash.slash", role: .destructive) {
+                    model.requestDeleteImmediately(objects: objects, folders: folders)
+                }
+                .disabled(isEmpty)
+            }
+        } else {
+            ToolbarItem(placement: .bottomBar) {
+                ShareLink(items: urls) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .disabled(urls.isEmpty)
+            }
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            countItem
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                    model.requestMoveToTrash(objects: objects, folders: folders)
+                }
+                .disabled(isEmpty)
+                // Everything else the long-press menu offers, so a selection
+                // of many can be favourited, moved, tagged or hidden at once.
+                Menu("More", systemImage: "ellipsis") {
+                    SelectionMenu(model: model, objects: objects, folders: folders)
+                }
+                .disabled(isEmpty)
+            }
+        }
+    }
+
+    private var objects: [ObjectSnapshot] { model.selectedObjects }
+
+    private var folders: [FolderSnapshot] { model.selectedFolders }
+
+    private var isEmpty: Bool { objects.isEmpty && folders.isEmpty }
+
+    private var urls: [URL] { model.localURLs(for: objects) }
+
+    private var countItem: some ToolbarContent {
+        ToolbarItem(placement: .bottomBar) {
+            Text(countTitle)
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .fixedSize()
+                .contentTransition(.numericText())
+                .motionAware(NookMotion.interaction, value: model.selectedItemCount)
+        }
+        .sharedBackgroundVisibility(.hidden)
+    }
+
+    private var countTitle: String {
+        switch model.selectedItemCount {
+        case 0: String(localized: "Select Items")
+        case 1: String(localized: "1 Item Selected")
+        case let count: String(localized: "\(count) Items Selected")
+        }
+    }
+}
+#endif
 
 /// Info is a popover hung on its own button, rather than a panel beside the
 /// canvas.
@@ -1080,7 +1244,26 @@ private struct GalleryViewOptionsButton: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }
+                #if os(iOS)
+                Divider()
+                #endif
             }
+
+            #if os(iOS)
+            // Last, below the options that shape the view. A touch screen
+            // picks several things through a mode rather than a modifier key.
+            Button {
+                isPresented = false
+                model.beginSelecting()
+            } label: {
+                Label("Select Multiple", systemImage: "checkmark.circle")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(model.canBeginSelecting ? Color.primary : Color.secondary)
+            .disabled(!model.canBeginSelecting)
+            #endif
         }
         .padding(14)
         #if os(iOS)

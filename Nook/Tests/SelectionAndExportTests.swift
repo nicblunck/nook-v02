@@ -73,6 +73,99 @@ struct SelectionTests {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         #expect(!harness.model.canSelectAll)
+        #expect(!harness.model.canBeginSelecting)
+    }
+}
+
+/// iOS picks several things through Select rather than a modifier key: a tap
+/// ticks an item instead of opening it, until Done.
+@MainActor
+@Suite("Select mode")
+struct SelectModeTests {
+
+    @Test("Select starts with nothing picked, and a tap picks and puts back")
+    func startsEmptyAndToggles() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let one = try #require(try await harness.importFile(named: "one.txt", contents: "one"))
+        let two = try #require(try await harness.importFile(named: "two.txt", contents: "two"))
+        #expect(model.canBeginSelecting)
+
+        // What was last opened stays selected on iOS; Select must not
+        // start with it already ticked.
+        model.selection = [one.id]
+        model.beginSelecting()
+        #expect(model.isSelecting)
+        #expect(model.selection.isEmpty)
+
+        model.toggleSelection(one.id)
+        model.toggleSelection(two.id)
+        #expect(model.selection == [one.id, two.id])
+        #expect(model.isEverythingSelected)
+
+        model.toggleSelection(one.id)
+        #expect(model.selection == [two.id])
+        #expect(!model.isEverythingSelected)
+
+        model.endSelecting()
+        #expect(!model.isSelecting)
+        #expect(model.selection.isEmpty)
+    }
+
+    @Test("Leaving for another place leaves Select")
+    func leavingThePlaceEndsSelecting() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let one = try #require(try await harness.importFile(named: "one.txt"))
+        model.beginSelecting()
+        model.toggleSelection(one.id)
+
+        model.navigate(to: .scope(.favorites))
+        await model.refreshContents()
+        #expect(!model.isSelecting)
+        #expect(model.selection.isEmpty)
+    }
+
+    @Test("A tap while selecting picks a folder instead of going in")
+    func picksFolders() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.createFolder(named: "Papers", in: nil)
+        let papers = try #require(model.folderTree.first?.folder)
+        model.navigate(to: .scope(.folder(papers.id)))
+        await model.refreshContents()
+        await model.createFolder(named: "Drafts", in: papers.id)
+        await model.refreshContents()
+        let drafts = try #require(model.contents.folders.first)
+
+        // A place holding only folders still has something to select.
+        #expect(model.canBeginSelecting)
+        model.beginSelecting()
+        model.toggleSelection(.folder(drafts.id))
+        #expect(model.folderSelection == [drafts.id])
+        #expect(model.selectedItemCount == 1)
+        #expect(model.isEverythingSelected)
+    }
+
+    @Test("Opening something leaves Select")
+    func openingEndsSelecting() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        let one = try #require(try await harness.importFile(named: "one.txt"))
+        model.beginSelecting()
+        model.openObject(one)
+        #expect(!model.isSelecting)
+        #expect(model.previewedObjectID == one.id)
     }
 }
 

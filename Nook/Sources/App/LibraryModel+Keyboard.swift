@@ -56,24 +56,15 @@ extension LibraryModel {
     private func place(_ target: CanvasItemID, extendingSelection: Bool) {
         cursor = target
 
-        guard let id = target.objectID else {
-            // The cursor has come to rest on a folder. Extending a selection
-            // steps over it rather than through it, because a place cannot be
-            // part of a selection the batch actions will be handed.
-            if !extendingSelection {
-                selection = []
-                selectionAnchor = nil
-            }
-            return
-        }
-
+        // Folders are selected like anything else, the way the Finder
+        // selects them, so a range runs through them rather than over them.
         if extendingSelection {
-            let anchor = selectionAnchor ?? id
+            let anchor = selectionAnchor ?? target
             selectionAnchor = anchor
-            selection = objectRange(from: anchor, to: id)
+            setSelection(itemRange(from: anchor, to: target))
         } else {
-            selectionAnchor = id
-            selection = [id]
+            selectionAnchor = target
+            setSelection([target])
         }
     }
 
@@ -81,47 +72,41 @@ extension LibraryModel {
 
     /// One selection policy, whichever input asked for it.
     func select(_ id: ObjectID, modifiers: EventModifiers) {
+        select(.object(id), modifiers: modifiers)
+    }
+
+    /// A folder is clicked into a selection exactly as an object is:
+    /// Command adds or removes it, Shift runs a range through it.
+    func selectFolder(_ id: FolderID, modifiers: EventModifiers = []) {
+        select(.folder(id), modifiers: modifiers)
+    }
+
+    private func select(_ item: CanvasItemID, modifiers: EventModifiers) {
         // Clicking an item is another way of saying the keyboard belongs to
         // the canvas.
         focus(.canvas)
-        cursor = .object(id)
+        cursor = item
 
         if modifiers.contains(.command) {
-            if selection.contains(id) {
-                selection.remove(id)
-            } else {
-                selection.insert(id)
-            }
-            selectionAnchor = id
-        } else if modifiers.contains(.shift), let anchor = selectionAnchor ?? selection.first {
+            toggleSelection(item)
+        } else if modifiers.contains(.shift),
+                  let anchor = selectionAnchor ?? canvasOrder.first(where: isSelected) {
             selectionAnchor = anchor
-            selection.formUnion(objectRange(from: anchor, to: id))
+            for member in itemRange(from: anchor, to: item) { insertIntoSelection(member) }
         } else {
-            selection = [id]
-            selectionAnchor = id
+            setSelection([item])
+            selectionAnchor = item
         }
     }
 
-    /// Clicking a folder is another way of saying the keyboard belongs to
-    /// the canvas — the same thing clicking an object says. A folder never
-    /// joins a selection of objects, the rule an arrow key that lands on one
-    /// already follows, so this always clears whatever was selected and
-    /// rests the cursor here rather than trying to make sense of a modifier.
-    func selectFolder(_ id: FolderID, modifiers: EventModifiers = []) {
-        focus(.canvas)
-        cursor = .folder(id)
-        selection = []
-        selectionAnchor = nil
-    }
-
-    /// Every object between two others, in the order the destination on
-    /// screen reads.
-    func objectRange(from anchor: ObjectID, to target: ObjectID) -> Set<ObjectID> {
-        let ids = visibleObjects.map(\.id)
-        guard let start = ids.firstIndex(of: anchor), let end = ids.firstIndex(of: target) else {
+    /// Every item between two others, folders included, in the order the
+    /// destination on screen reads.
+    func itemRange(from anchor: CanvasItemID, to target: CanvasItemID) -> [CanvasItemID] {
+        let order = canvasOrder
+        guard let start = order.firstIndex(of: anchor), let end = order.firstIndex(of: target) else {
             return [target]
         }
-        return Set(ids[min(start, end)...max(start, end)])
+        return Array(order[min(start, end)...max(start, end)])
     }
 
     // MARK: Opening
@@ -151,8 +136,7 @@ extension LibraryModel {
     func openObject(_ object: ObjectSnapshot) {
         cursor = .object(object.id)
         reveal(object) { [self] opened in
-            selection = [opened.id]
-            selectionAnchor = opened.id
+            selectOnly(opened.id)
         }
     }
 
@@ -185,8 +169,7 @@ extension LibraryModel {
     /// the user did not ask for.
     func previewCursorItem() {
         guard let object = cursorObject, object.kind != .link else { return }
-        selection = [object.id]
-        selectionAnchor = object.id
+        selectOnly(object.id)
         previewedObjectID = object.id
     }
 

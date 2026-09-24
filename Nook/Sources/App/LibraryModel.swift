@@ -123,19 +123,35 @@ final class LibraryModel {
     var scope: LibraryScope = .inbox { didSet { onScopeChanged(from: oldValue) } }
     var searchText: String = "" { didSet { scheduleSearchRefresh() } }
     var selection: Set<ObjectID> = []
+    /// The folders chosen alongside `selection`. Kept as a set of its own
+    /// because most batch actions — favourite, tag, share — only mean
+    /// something for objects, and they read `selection` alone; the actions
+    /// that suit both (move, hide, trash) read the two together.
+    var folderSelection: Set<FolderID> = []
     /// Where the keyboard is on the canvas.
     ///
     /// Kept apart from the selection because the two answer different
     /// questions: the selection is what the batch actions act on, the cursor
-    /// is where the next arrow key starts from. A folder can hold the cursor
-    /// without ever joining a selection — folders are places, not things.
+    /// is where the next arrow key starts from.
     var cursor: CanvasItemID?
     /// Where a shift-extended selection is measured from, so extending stays
     /// anchored to the item the user actually started at rather than to
     /// whichever element an unordered set happens to yield first.
-    var selectionAnchor: ObjectID?
+    var selectionAnchor: CanvasItemID?
+    /// Whether a tap picks items rather than opening them — iOS's Select, the
+    /// way Photos and Files have it. A Mac selects with the pointer and never
+    /// needs a mode for it.
+    ///
+    /// It belongs to the place it was started in: arriving somewhere else, or
+    /// opening something, leaves it.
+    private(set) var isSelecting = false
 
-    var previewedObjectID: ObjectID? { didSet { previewDidChange(from: oldValue) } }
+    var previewedObjectID: ObjectID? {
+        didSet {
+            if previewedObjectID != nil { isSelecting = false }
+            previewDidChange(from: oldValue)
+        }
+    }
     var isInspectorPresented = false
 
     /// Shows or hides the metadata panel.
@@ -271,7 +287,9 @@ final class LibraryModel {
     /// so leaving for somewhere else reads as one place giving way to
     /// another, while a search, a filter or a deletion within the same place
     /// reads as items coming and going.
-    private(set) var contentsDestination: LibraryDestination?
+    private(set) var contentsDestination: LibraryDestination? {
+        didSet { if contentsDestination != oldValue { isSelecting = false } }
+    }
 
     /// Which stages the latest change to `contents` needs — whether anything
     /// left, whether what stayed moved, whether anything arrived — so the
@@ -748,7 +766,9 @@ final class LibraryModel {
     private func pruneSelection() {
         let objects = Set(contents.objects.map(\.id))
         selection = selection.filter { objects.contains($0) }
-        if let anchor = selectionAnchor, !selection.contains(anchor) { selectionAnchor = nil }
+        let folders = Set(contents.folders.map(\.id))
+        folderSelection = folderSelection.filter { folders.contains($0) }
+        if let anchor = selectionAnchor, !isSelected(anchor) { selectionAnchor = nil }
     }
 
     private func refreshCounts() async {
@@ -775,8 +795,7 @@ final class LibraryModel {
         // going back, is refused by `pushHistory` while it is being applied.
         pushHistory(.scope(previous))
         if !isTraversingHistory { pushPage() }
-        selection = []
-        selectionAnchor = nil
+        deselectAll()
         cursor = nil
         searchText = ""
         scheduleNavigationRefresh()
@@ -1289,17 +1308,87 @@ final class LibraryModel {
     /// a field.
     var isTypingText: Bool { isTextEntryFocused || namingPrompt != nil }
 
-    var canSelectAll: Bool { !isTypingText && !visibleObjects.isEmpty }
+    var canSelectAll: Bool { !isTypingText && !canvasItems.isEmpty }
 
-    /// Selects what is on screen. Folders are places rather than things, so
-    /// they are not part of a selection the batch actions can act on.
+    /// Selects everything on screen, folders included.
     func selectAll() {
         selection = Set(contents.objects.map(\.id))
+        folderSelection = Set(contents.folders.map(\.id))
     }
 
     func deselectAll() {
         selection = []
+        folderSelection = []
         selectionAnchor = nil
+    }
+
+    func isSelected(_ item: CanvasItemID) -> Bool {
+        switch item {
+        case .object(let id): selection.contains(id)
+        case .folder(let id): folderSelection.contains(id)
+        }
+    }
+
+    /// Replaces the selection with exactly these items.
+    func setSelection(_ items: some Sequence<CanvasItemID>) {
+        selection = []
+        folderSelection = []
+        for item in items { insertIntoSelection(item) }
+    }
+
+    func insertIntoSelection(_ item: CanvasItemID) {
+        switch item {
+        case .object(let id): selection.insert(id)
+        case .folder(let id): folderSelection.insert(id)
+        }
+    }
+
+    /// Selects one object and nothing else — what opening or previewing it
+    /// leaves behind.
+    func selectOnly(_ id: ObjectID) {
+        selection = [id]
+        folderSelection = []
+        selectionAnchor = .object(id)
+    }
+
+    /// Whether Select has anything to pick from.
+    var canBeginSelecting: Bool { !canvasItems.isEmpty }
+
+    /// Starts Select with nothing picked. iOS leaves the last thing opened
+    /// selected, and starting with it already ticked would read as a choice
+    /// the user never made.
+    func beginSelecting() {
+        deselectAll()
+        cursor = nil
+        isSelecting = true
+    }
+
+    /// Done: leaves Select, and lets go of what was picked with it.
+    func endSelecting() {
+        isSelecting = false
+        deselectAll()
+    }
+
+    /// A tap while selecting, or a Command-click: picks the item, or puts it
+    /// back.
+    func toggleSelection(_ item: CanvasItemID) {
+        switch item {
+        case .object(let id):
+            if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+        case .folder(let id):
+            if folderSelection.contains(id) { folderSelection.remove(id) } else { folderSelection.insert(id) }
+        }
+        selectionAnchor = item
+    }
+
+    func toggleSelection(_ id: ObjectID) {
+        toggleSelection(.object(id))
+    }
+
+    /// Whether everything on screen is already picked, which turns Select All
+    /// into Deselect All.
+    var isEverythingSelected: Bool {
+        !canvasItems.isEmpty && canvasItems.allSatisfy { isSelected($0.itemID) }
     }
 
     // MARK: Import
@@ -1739,6 +1828,30 @@ final class LibraryModel {
         }
     }
 
+    /// Moves a selection that holds folders as well as objects: the objects
+    /// are filed there, the folders become its children. A folder is never
+    /// moved inside itself — the store would refuse it, and the menu offering
+    /// the move already leaves those destinations out.
+    func move(objects ids: [ObjectID], folders: [FolderID], to destination: FolderID?) async {
+        await move(ids, to: destination)
+        for folder in folders where folderCanBeDropped(folder, into: destination) {
+            await moveFolder(folder, to: destination)
+        }
+    }
+
+    /// Put Back, for a selection in the Trash that holds folders too.
+    func restore(objects ids: [ObjectID], folders: [FolderID]) async {
+        await restore(ids)
+        guard !folders.isEmpty else { return }
+        let message: LocalizedStringResource = folders.count == 1
+            ? "Restored folder"
+            : "Restored \(folders.count) folders"
+        await perform(successToast: message,
+                      systemImage: "arrow.uturn.backward.circle.fill", tint: .green) {
+            try await self.library.service.restoreFolders(folders)
+        }
+    }
+
     func setFavorite(_ isFavorite: Bool, for ids: [ObjectID]) async {
         guard !ids.isEmpty else { return }
         let message: LocalizedStringResource
@@ -2062,7 +2175,17 @@ final class LibraryModel {
     }
 
     var hasSelection: Bool {
-        !selection.isEmpty
+        !selection.isEmpty || !folderSelection.isEmpty
+    }
+
+    /// Folders and objects together — what a count of "items selected" means.
+    var selectedItemCount: Int {
+        selectedObjects.count + selectedFolders.count
+    }
+
+    /// The folders the selection names, in the order the canvas shows them.
+    var selectedFolders: [FolderSnapshot] {
+        contents.folders.filter { folderSelection.contains($0.id) }
     }
 
     var selectedObjects: [ObjectSnapshot] {
@@ -2152,8 +2275,7 @@ final class LibraryModel {
 
     /// Puts the selection and cursor on whatever preview has moved to.
     func selectPreviewed(_ object: ObjectSnapshot) {
-        selection = [object.id]
-        selectionAnchor = object.id
+        selectOnly(object.id)
         cursor = .object(object.id)
     }
 }

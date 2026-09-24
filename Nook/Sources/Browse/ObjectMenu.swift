@@ -146,3 +146,80 @@ struct ObjectMenu: View {
         objects.count == 1 ? verb : "\(verb) \(objects.count) Items"
     }
 }
+
+/// The actions for whatever is selected, folders included.
+///
+/// A selection of objects alone gets the full object menu, and a single
+/// folder its own menu. Once folders and objects are chosen together — or
+/// several folders — only what suits all of them is offered: moving, hiding
+/// and the Trash. Favourites, tags, collections and sharing belong to objects,
+/// and offering them on a selection that is partly folders would promise more
+/// than they do.
+struct SelectionMenu: View {
+    let model: LibraryModel
+    let objects: [ObjectSnapshot]
+    let folders: [FolderSnapshot]
+
+    var body: some View {
+        if folders.isEmpty {
+            ObjectMenu(model: model, objects: objects)
+        } else if objects.isEmpty, folders.count == 1, let folder = folders.first {
+            FolderMenu(model: model, folder: folder) {
+                Task { await model.openFolder(folder.id) }
+            }
+        } else if model.isShowingDeleted {
+            Button("Put Back", systemImage: "arrow.uturn.backward") {
+                Task { await model.restore(objects: objectIDs, folders: folderIDs) }
+            }
+            Button("Delete Immediately…", systemImage: "trash.slash", role: .destructive) {
+                model.requestDeleteImmediately(objects: objects, folders: folders)
+            }
+        } else {
+            Menu("Move To", systemImage: "folder") {
+                // A folder's way out of every other folder is the top level;
+                // an object's is the Inbox. With both chosen there is no one
+                // name for "out", so only folders are offered.
+                if objects.isEmpty {
+                    Button("Top Level") { move(to: nil) }
+                    if !model.allFolders.isEmpty { Divider() }
+                }
+                ForEach(model.allFolders, id: \.folder.id) { entry in
+                    Button(String(repeating: "   ", count: entry.depth) + entry.folder.name) {
+                        move(to: entry.folder.id)
+                    }
+                    // Nothing moves inside itself.
+                    .disabled(!folders.allSatisfy { model.folderCanBeDropped($0.id, into: entry.folder.id) })
+                }
+            }
+
+            Divider()
+
+            Button(shouldHide ? "Hide \(count) Items" : "Unhide \(count) Items",
+                   systemImage: shouldHide ? "eye.slash" : "eye") {
+                let hide = shouldHide
+                Task {
+                    await model.setHidden(hide, for: objects)
+                    for folder in folders { await model.setHidden(hide, forFolder: folder) }
+                }
+            }
+
+            Divider()
+
+            Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                model.requestMoveToTrash(objects: objects, folders: folders)
+            }
+        }
+    }
+
+    private var objectIDs: [ObjectID] { objects.map(\.id) }
+    private var folderIDs: [FolderID] { folders.map(\.id) }
+    private var count: Int { objects.count + folders.count }
+
+    private var shouldHide: Bool {
+        !(objects.allSatisfy(\.isExplicitlyHidden) && folders.allSatisfy(\.isExplicitlyHidden))
+    }
+
+    private func move(to destination: FolderID?) {
+        Task { await model.move(objects: objectIDs, folders: folderIDs, to: destination) }
+    }
+}
