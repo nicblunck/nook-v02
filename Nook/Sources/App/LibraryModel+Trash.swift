@@ -100,6 +100,16 @@ extension LibraryModel {
         request(.deleteImmediately(TrashItems(folders: [folder])))
     }
 
+    /// A selection can hold folders and objects together, and goes to the
+    /// Trash — or out of it — as one question.
+    func requestMoveToTrash(objects: [ObjectSnapshot], folders: [FolderSnapshot]) {
+        request(.moveToTrash(TrashItems(objects: objects, folders: folders)))
+    }
+
+    func requestDeleteImmediately(objects: [ObjectSnapshot], folders: [FolderSnapshot]) {
+        request(.deleteImmediately(TrashItems(objects: objects, folders: folders)))
+    }
+
     func requestEmptyTrash() {
         guard canEmptyTrash else { return }
         trashRequest = .emptyTrash
@@ -116,9 +126,9 @@ extension LibraryModel {
         if let previewed = previewedObject {
             objects = [previewed]
             folders = []
-        } else if !selectedObjects.isEmpty {
+        } else if hasSelection {
             objects = selectedObjects
-            folders = []
+            folders = selectedFolders
         } else if let folder = cursorFolder {
             objects = []
             folders = [folder]

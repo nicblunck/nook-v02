@@ -692,8 +692,10 @@ struct NookCommands: Commands {
                 Task { await model.setFavorite(shouldFavorite, for: objects.map(\.id)) }
             }
             .keyboardShortcut(".", modifiers: [])
+            // Only objects can be favourites, so a selection of folders
+            // alone has nothing for this to act on.
             .disabled(model.map {
-                $0.isTypingText || ($0.previewedObject == nil && !$0.hasSelection)
+                $0.isTypingText || ($0.previewedObject == nil && $0.selectedObjects.isEmpty)
             } ?? true)
         }
 

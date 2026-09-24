@@ -292,11 +292,10 @@ struct KeyboardNavigationTests {
         #expect(model.cursor == order.first)
     }
 
-    /// A folder is a place rather than a thing, so the cursor can rest on one
-    /// while the selection — which is what the batch actions are handed —
-    /// stays empty.
-    @Test("The cursor rests on a folder without selecting it")
-    func doesNotSelectFolders() async throws {
+    /// Folders are selected the way the Finder selects them: arrowing onto
+    /// one selects it in place of whatever was selected before.
+    @Test("Arrowing onto a folder selects it")
+    func selectsFolders() async throws {
         let (harness, _, drafts) = try await harnessInAFolder()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -309,6 +308,69 @@ struct KeyboardNavigationTests {
         model.moveCursorToEdge(.up)
         #expect(model.cursor == .folder(drafts.id))
         #expect(model.selection.isEmpty)
+        #expect(model.folderSelection == [drafts.id])
+    }
+
+    @Test("Shift runs a selection through folders and objects alike")
+    func extendsThroughFolders() async throws {
+        let (harness, _, drafts) = try await harnessInAFolder()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        let object = try #require(model.contents.objects.first)
+
+        model.selectFolder(drafts.id)
+        model.select(object.id, modifiers: .shift)
+        #expect(model.folderSelection == [drafts.id])
+        #expect(model.selection == [object.id])
+        #expect(model.selectedItemCount == 2)
+
+        // Command takes the folder back out and leaves the object.
+        model.selectFolder(drafts.id, modifiers: .command)
+        #expect(model.folderSelection.isEmpty)
+        #expect(model.selection == [object.id])
+    }
+
+    @Test("Select All takes folders too, and Delete throws both away")
+    func selectAllIncludesFolders() async throws {
+        let (harness, _, drafts) = try await harnessInAFolder()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        let object = try #require(model.contents.objects.first)
+
+        model.selectAll()
+        #expect(model.folderSelection == [drafts.id])
+        #expect(model.selection == [object.id])
+        #expect(model.isEverythingSelected)
+
+        #expect(model.requestTrashForKeyboard())
+        guard case .moveToTrash(let items) = model.trashRequest else {
+            Issue.record("Expected a move to the Trash")
+            return
+        }
+        #expect(items.folders == [drafts.id])
+        #expect(items.objects == [object.id])
+    }
+
+    @Test("A folder and an object move together, and a folder never into itself")
+    func movesAMixedSelection() async throws {
+        let (harness, papers, drafts) = try await harnessInAFolder()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        let object = try #require(model.contents.objects.first)
+        await model.createFolder(named: "Archive", in: nil)
+        let archive = try #require(model.folderTree.first { $0.folder.name == "Archive" }?.folder)
+
+        await model.move(objects: [object.id], folders: [drafts.id], to: archive.id)
+        model.navigate(to: .scope(.folder(archive.id)))
+        await model.refreshContents()
+        #expect(model.contents.objects.map(\.id) == [object.id])
+        #expect(model.contents.folders.map(\.id) == [drafts.id])
+
+        // Moving Drafts into itself is left alone rather than refused loudly.
+        await model.move(objects: [], folders: [drafts.id], to: drafts.id)
+        await model.refreshContents()
+        #expect(model.contents.folders.map(\.id) == [drafts.id])
+        _ = papers
     }
 
     @Test("Return on a folder enters it")

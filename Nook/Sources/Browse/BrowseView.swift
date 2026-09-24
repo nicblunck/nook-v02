@@ -73,7 +73,7 @@ struct BrowseView: View {
     /// and Add, always there while browsing rather than summoned.
     private var docksSearchInBottomBar: Bool {
         #if os(iOS)
-        horizontalSizeClass == .compact && previewed == nil
+        horizontalSizeClass == .compact && previewed == nil && !model.isSelecting
         #else
         false
         #endif
@@ -152,6 +152,9 @@ struct BrowseView: View {
         .navigationSubtitle(navigationSubtitle)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        // Select All takes Back's place while selecting, and the edge swipe
+        // goes with it: leaving mid-selection would drop what was picked.
+        .navigationBarBackButtonHidden(model.isSelecting)
         #endif
         .toolbar {
             // A page on the stack goes back with the system's own back button.
@@ -161,7 +164,9 @@ struct BrowseView: View {
             #if os(iOS)
             // This screen's own copy rather than the root list's, since it
             // is the one with a search field to dock between Home and Add.
-            if docksSearchInBottomBar {
+            if model.isSelecting, previewed == nil {
+                SelectionActionsToolbar(model: model)
+            } else if docksSearchInBottomBar {
                 CompactAddContentToolbar(model: model, includesSearch: true)
             }
             #endif
@@ -542,19 +547,32 @@ struct BrowseView: View {
     private func canvasItem(_ item: CanvasItem, mode: LibraryViewMode, scale: Double) -> some View {
         switch item {
         case .folder(let folder):
-            let isSelected = model.cursor == .folder(folder.id)
-            let isCursor = isSelected
+            let isSelected = model.folderSelection.contains(folder.id)
+            let isCursor = model.cursor == .folder(folder.id)
             FolderItemView(folder: folder, mode: mode,
                            peeks: model.folderPeeks[folder.id] ?? [],
                            isSelected: isSelected, isCursor: isCursor,
                            scale: scale,
                            masonryCaptionDisplay: model.masonryCaptionDisplay,
                            select: { model.selectFolder(folder.id, modifiers: $0) }) {
-                Task { await model.openFolder(folder.id) }
-            }
-            .contextMenu {
-                FolderMenu(model: model, folder: folder) {
+                // While selecting, a tap picks the folder rather than going in.
+                if model.isSelecting {
+                    model.toggleSelection(.folder(folder.id))
+                } else {
                     Task { await model.openFolder(folder.id) }
+                }
+            }
+            .selectionMark(isSelecting: model.isSelecting, isSelected: isSelected, mode: mode)
+            .contextMenu {
+                // Part of a larger selection: the menu is the selection's.
+                if isSelected, model.selectedItemCount > 1 {
+                    SelectionMenu(model: model,
+                                  objects: model.selectedObjects,
+                                  folders: model.selectedFolders)
+                } else {
+                    FolderMenu(model: model, folder: folder) {
+                        Task { await model.openFolder(folder.id) }
+                    }
                 }
             }
             .draggable(FolderTransfer(id: folder.id))
