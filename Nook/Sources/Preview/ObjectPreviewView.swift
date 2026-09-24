@@ -34,7 +34,7 @@ struct ObjectPreviewView: View {
             #if os(iOS)
             .gesture(swipeGesture)
             // Only ever reaches content that isn't already an embedded Quick
-            // Look, PDFKit or web view — those install their own tap
+            // Look or PDFKit view — those install their own tap
             // recognizer directly so a tap still toggles the chrome even
             // while the UIKit view underneath owns the touch.
             .onTapGesture(perform: toggleChrome)
@@ -74,14 +74,20 @@ struct ObjectPreviewView: View {
     @ViewBuilder
     private var content: some View {
         if object.kind == .link {
-            #if os(iOS)
-            LinkPreviewView(model: model, object: object, onStep: step, onTap: toggleChrome)
-                .transition(swapTransition)
-            #else
+            // One view per link, so stepping from one to the next swaps the
+            // card rather than morphing the last one's picture and text into
+            // this one's.
             LinkPreviewView(model: model, object: object)
+                .id(object.id)
                 .transition(swapTransition)
-            #endif
-        } else if let loadFailure {
+        } else {
+            storedContent
+        }
+    }
+
+    @ViewBuilder
+    private var storedContent: some View {
+        if let loadFailure {
             ContentUnavailableView("Can't open this item", systemImage: "exclamationmark.triangle",
                                    description: Text(loadFailure))
                 .transition(swapTransition)

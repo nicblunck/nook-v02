@@ -58,11 +58,11 @@ enum HiddenRevealTimeout: String, CaseIterable, Identifiable {
     }
 }
 
-/// Where a link goes when it is opened.
+/// Where a link goes when it is opened on iOS.
 enum LinkOpening: String, CaseIterable, Identifiable {
     /// Out to wherever the user's browsing actually happens.
     case defaultBrowser
-    /// Into Nook's own preview, alongside everything else in the library.
+    /// Into Safari's own sheet over Nook, which Done closes again.
     case inApp
 
     var id: String { rawValue }
@@ -204,6 +204,16 @@ final class AppSettings {
 
     var linkOpening: LinkOpening {
         didSet { defaults.set(linkOpening.rawValue, forKey: Key.linkOpening) }
+    }
+
+    /// What opening a link actually does here. The Mac has no system in-app
+    /// browser, so there a link always leaves for the default one.
+    var effectiveLinkOpening: LinkOpening {
+        #if os(iOS)
+        linkOpening
+        #else
+        .defaultBrowser
+        #endif
     }
 
     init(defaults: UserDefaults = .standard) {

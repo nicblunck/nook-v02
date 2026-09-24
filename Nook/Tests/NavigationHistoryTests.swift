@@ -366,19 +366,29 @@ struct NavigationHistoryTests {
         #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).linkOpening == .inApp)
     }
 
-    @Test("A link set to open in Nook opens as a preview")
-    func linkOpensInApp() async throws {
+    @Test("On the Mac a link always goes to the default browser")
+    func macLinksLeaveForBrowser() {
+        let suite = "nook.tests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: UserDefaults(suiteName: suite)!)
+        settings.linkOpening = .inApp
+        #expect(settings.effectiveLinkOpening == .defaultBrowser)
+    }
+
+    @Test("Stepping onto a link shows it in preview rather than leaving")
+    func steppingOntoLinkStays() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
-        model.settings.linkOpening = .inApp
+        let note = try #require(try await harness.importFile(named: "note.txt"))
         await model.importItems([.link(URL(string: "https://example.invalid/page")!)])
         let link = try #require(model.contents.objects.first { $0.kind == .link })
+        model.openObject(note)
+        let offset = model.adjacentObject(to: note.id, offset: 1)?.id == link.id ? 1 : -1
 
-        model.openObject(link)
+        model.stepPreview(offset)
 
         #expect(model.previewedObjectID == link.id)
-        #expect(model.selection == [link.id])
     }
 
     @Test("A deleted folder's page is taken out of the stack")
