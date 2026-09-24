@@ -997,10 +997,44 @@ enum OpenExternally {
     }
 }
 
+#if canImport(UIKit)
+/// iOS's own in-app browser, presented modally over whatever is showing, as
+/// Apple asks `SFSafariViewController` to be. Its Done button and edge swipe
+/// close it again.
+enum SafariSheet {
+    @MainActor
+    static func present(_ url: URL) {
+        // It only takes web pages; anything else still goes to its own app.
+        guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let presenter = topViewController()
+        else {
+            OpenExternally.open(url)
+            return
+        }
+        presenter.present(SFSafariViewController(url: url), animated: true)
+    }
+
+    @MainActor
+    private static func topViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        var top = scene?.keyWindow?.rootViewController
+        while let presented = top?.presentedViewController { top = presented }
+        return top
+    }
+}
+#else
+enum SafariSheet {
+    @MainActor
+    static func present(_ url: URL) { OpenExternally.open(url) }
+}
+#endif
+
 #if canImport(AppKit)
 import AppKit
 #elseif canImport(UIKit)
 import UIKit
+import SafariServices
 #endif
 
 #if DEBUG
