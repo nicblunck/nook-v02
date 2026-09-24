@@ -57,7 +57,7 @@ struct ObjectCard: View {
         ThumbnailView(object: object, maximumSize: thumbnailResolution)
             .frame(width: iconImageSize.width, height: iconImageSize.height)
             .clipShape(.rect(cornerRadius: 4 * min(scale, 2)))
-            .previewZoomSource(for: object.id)
+            .previewZoomSource(for: object.id, cornerRadius: 4 * min(scale, 2))
             .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
             .frame(width: iconSize, height: iconSize)
             .padding(5)

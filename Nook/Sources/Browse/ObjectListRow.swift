@@ -136,7 +136,7 @@ struct ObjectListRow: View {
             ThumbnailView(object: object, maximumSize: 256)
                 .frame(width: thumbnailSize, height: thumbnailSize)
                 .clipShape(.rect(cornerRadius: ListCard.thumbnailRadius))
-                .previewZoomSource(for: object.id)
+                .previewZoomSource(for: object.id, cornerRadius: ListCard.thumbnailRadius)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(object.title)
@@ -337,7 +337,8 @@ struct ObjectMasonryCard: View {
                 onAspectRatioChange: thumbnailAspectRatioHandler,
                 appearance: thumbnailAppearance,
                 onAppearanceChange: { thumbnailAppearance = $0 },
-                showsTypeLabel: showsTypeLabel
+                showsTypeLabel: showsTypeLabel,
+                cornerRadius: radius
             ),
             caption: ObjectMasonryCaption(
                 object: object,
@@ -405,6 +406,8 @@ private struct ObjectMasonryMedia: View {
     let appearance: ThumbnailAppearance?
     let onAppearanceChange: (ThumbnailAppearance?) -> Void
     let showsTypeLabel: Bool
+    /// The card's rounding, which is the picture's where it meets the card.
+    let cornerRadius: CGFloat
 
     var body: some View {
         // The shape, not the picture, decides the media region's size: a plain
@@ -424,6 +427,7 @@ private struct ObjectMasonryMedia: View {
                 )
                 .clipped()
             }
+            .previewZoomSource(for: object.id, cornerRadius: cornerRadius)
             // An overlay receives the media region's size without contributing
             // its own ideal width, so a long URL cannot widen its masonry column.
             .overlay(alignment: .topTrailing) {

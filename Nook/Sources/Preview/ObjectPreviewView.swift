@@ -382,9 +382,10 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Marks a gallery tile as where its object's preview zooms from.
-    func previewZoomSource(for id: ObjectID) -> some View {
-        modifier(PreviewZoomSource(id: id))
+    /// Marks a gallery tile as where its object's preview zooms from, with
+    /// the corner rounding the tile draws its picture with.
+    func previewZoomSource(for id: ObjectID, cornerRadius: CGFloat = 0) -> some View {
+        modifier(PreviewZoomSource(id: id, cornerRadius: cornerRadius))
     }
 
     /// The system's zoom transition for a preview pushed onto the stack: it
@@ -397,7 +398,11 @@ extension View {
 
 private struct PreviewZoomSource: ViewModifier {
     let id: ObjectID
+    let cornerRadius: CGFloat
     @Environment(\.previewZoomNamespace) private var namespace
+    #if os(macOS)
+    @Environment(\.macPreviewZoom) private var macZoom
+    #endif
 
     func body(content: Content) -> some View {
         #if os(iOS)
@@ -407,7 +412,19 @@ private struct PreviewZoomSource: ViewModifier {
             content
         }
         #else
-        content
+        if let macZoom {
+            content
+                // While its picture is on the way it is not in two places.
+                .opacity(macZoom.flight?.object.id == id ? 0 : 1)
+                .onGeometryChange(for: CGRect.self) {
+                    $0.frame(in: .named(MacPreviewZoom.coordinateSpace))
+                } action: { frame in
+                    macZoom.tiles[id] = MacPreviewZoom.Tile(frame: frame, cornerRadius: cornerRadius)
+                }
+                .onDisappear { macZoom.tiles[id] = nil }
+        } else {
+            content
+        }
         #endif
     }
 }

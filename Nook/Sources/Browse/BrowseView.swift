@@ -45,12 +45,24 @@ struct BrowseView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #else
+    /// The picture that zooms out of its tile as an object opens and back in
+    /// as it closes.
+    @State private var macZoom = MacPreviewZoom()
+    /// What was open as of the last change, so a render can tell an object
+    /// just opened from the gallery from one stepped to.
+    @State private var shownPreviewID: ObjectID?
+    @Environment(\.thumbnailLoader) private var thumbnailLoader
     #endif
 
     var body: some View {
         content
             .onChange(of: model.previewedObject, initial: true) { _, object in
+                #if os(macOS)
+                if let object { lastPreviewed = object }
+                #else
                 if let object, stackPage?.previewedObjectID != nil { lastPreviewed = object }
+                #endif
             }
     }
 
@@ -92,6 +104,21 @@ struct BrowseView: View {
 
     private var content: some View {
         ZStack {
+            #if os(macOS)
+            // The gallery stays where it is under an open object, as it does
+            // in Photos: scrolled where it was left, with each tile there for
+            // the object's picture to zoom out of and back into.
+            browsingCanvas
+                .allowsHitTesting(previewed == nil)
+                .accessibilityHidden(previewed != nil)
+            if let previewed {
+                ObjectPreviewView(model: model, object: previewed, showsBackButton: true)
+                    // Held back while its picture zooms out of the tile.
+                    .opacity(isAwaitingZoom(previewed) ? 0 : 1)
+                    // The zoom is the whole transition when there is one.
+                    .transition(zooms(previewed) ? .identity : previewTransition)
+            }
+            #else
             if let previewed {
                 ObjectPreviewView(model: model, object: previewed, showsBackButton: stackPage == nil)
                     .transition(previewTransition)
@@ -99,37 +126,10 @@ struct BrowseView: View {
                 // A preview page whose object is no longer there to show.
                 Color.clear
             } else {
-                // Search only makes sense while browsing, and scoping it to
-                // the canvas rather than the shared container is what keeps
-                // it out of the detail view entirely — there's nothing here
-                // to search once an object is open.
-                canvas
-                    .searchable(
-                        text: $model.searchText,
-                        tokens: $model.searchTokens,
-                        isPresented: $isSearchPresented,
-                        prompt: searchPrompt
-                    ) { token in
-                        Label(token.name, systemImage: token.symbolName)
-                    }
-                    // Keep the system search field out of the toolbar until
-                    // Search or Command-F explicitly asks for it — except on
-                    // iPhone, where it's always docked in the bottom bar.
-                    // Passing nil restores the same default item without
-                    // branching the view and losing its identity.
-                    .toolbar(removing: isSearchPresented || docksSearchInBottomBar ? nil : .search)
-                    .searchFocused($isSearchFocused)
-                    .onChange(of: model.searchFieldFocusRequests) { presentSearch() }
-                    .onChange(of: isSearchFocused) { _, focused in
-                        model.isTextEntryFocused = focused
-                    }
-                    .onChange(of: isSearchPresented) { wasPresented, presented in
-                        guard wasPresented, !presented else { return }
-                        isSearchFocused = false
-                        model.searchText = ""
-                    }
+                browsingCanvas
                     .transition(previewTransition)
             }
+            #endif
 
             #if os(macOS)
             if model.previewedObjectID == nil {
@@ -146,6 +146,24 @@ struct BrowseView: View {
             }
             #endif
         }
+        #if os(macOS)
+        .coordinateSpace(.named(MacPreviewZoom.coordinateSpace))
+        .overlay { MacPreviewZoomOverlay(zoom: macZoom) }
+        .environment(\.macPreviewZoom, macZoom)
+        // Opening from the gallery and closing back to it; stepping from one
+        // object to the next is the pages' to show.
+        .onChange(of: model.previewedObjectID) { opened, current in
+            shownPreviewID = current
+            guard !reduceMotion else { return }
+            if opened == nil, let object = model.previewedObject, object.id == current {
+                macZoom.open(object)
+            } else if current == nil, let object = lastPreviewed, object.id == opened {
+                macZoom.close(object)
+            }
+            if let object = model.previewedObject { macZoom.prepare(object) }
+        }
+        .onAppear { macZoom.loader = thumbnailLoader }
+        #endif
         .animation(reduceMotion ? NookMotion.reduced : NookMotion.presentation,
                    value: previewed?.id)
         .navigationTitle(navigationTitle)
@@ -201,6 +219,56 @@ struct BrowseView: View {
             value: model.toast
         )
     }
+
+    /// Search only makes sense while browsing, and scoping it to the canvas
+    /// rather than the shared container is what keeps it out of the detail
+    /// view entirely — there's nothing here to search once an object is open.
+    private var browsingCanvas: some View {
+        canvas
+            .searchable(
+                text: $model.searchText,
+                tokens: $model.searchTokens,
+                isPresented: $isSearchPresented,
+                prompt: searchPrompt
+            ) { token in
+                Label(token.name, systemImage: token.symbolName)
+            }
+            // Keep the system search field out of the toolbar until
+            // Search or Command-F explicitly asks for it — except on
+            // iPhone, where it's always docked in the bottom bar.
+            // Passing nil restores the same default item without
+            // branching the view and losing its identity.
+            .toolbar(removing: isSearchPresented || docksSearchInBottomBar ? nil : .search)
+            .searchFocused($isSearchFocused)
+            // Under an open object there is nothing here to search.
+            .onChange(of: model.searchFieldFocusRequests) {
+                if previewed == nil { presentSearch() }
+            }
+            .onChange(of: isSearchFocused) { _, focused in
+                model.isTextEntryFocused = focused
+            }
+            .onChange(of: isSearchPresented) { wasPresented, presented in
+                guard wasPresented, !presented else { return }
+                isSearchFocused = false
+                model.searchText = ""
+            }
+    }
+
+    #if os(macOS)
+    /// Whether `object` opens or closes by zooming out of or back into its
+    /// tile rather than by the usual fade.
+    private func zooms(_ object: ObjectSnapshot) -> Bool {
+        guard !reduceMotion, macZoom.canZoom(object) else { return false }
+        return shownPreviewID == nil || macZoom.closes(object)
+    }
+
+    /// Whether the viewer for `object` is still waiting on its picture to
+    /// land — from the very render that opens it, before any change handler
+    /// has had a chance to say so.
+    private func isAwaitingZoom(_ object: ObjectSnapshot) -> Bool {
+        macZoom.isOpening || (shownPreviewID == nil && zooms(object))
+    }
+    #endif
 
     /// Browsing gives way to preview and preview gives way back to browsing:
     /// whichever is leaving settles out before the other settles in.

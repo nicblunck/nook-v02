@@ -168,6 +168,123 @@ struct PreviewViewerTests {
         #expect(closed == 1)
     }
 
+    @Test("A photo shown whole follows two fingers down and closes when let go far enough; a short drag springs back")
+    func swipeDownCloses() async throws {
+        let url = try Self.writePNG(width: 200, height: 100)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        let pages = SwipeRecorder(frame: NSRect(x: 0, y: 0, width: 400, height: 400))
+        let view = ZoomableImageView.ZoomingScrollView(frame: pages.bounds)
+        pages.addSubview(view)
+        window.contentView = pages
+        view.load(url)
+        try await Self.settle(until: { view.documentView?.frame.width == 200 }, view)
+        var closed = 0
+        view.onClose = { closed += 1 }
+
+        /// Two fingers moving down the trackpad by `fingers` points, or
+        /// sideways by `sideways`.
+        func swipe(_ phase: CGScrollPhase, fingers: Int32 = 0, sideways: Int32 = 0) throws {
+            let probe = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .pixel,
+                                             wheelCount: 2, wheel1: 0, wheel2: 0, wheel3: 0))
+            let inverted = try #require(NSEvent(cgEvent: probe)).isDirectionInvertedFromDevice
+            let event = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+                                             wheel1: inverted ? fingers : -fingers,
+                                             wheel2: sideways, wheel3: 0))
+            event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+            event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+            view.scrollWheel(with: try #require(NSEvent(cgEvent: event)))
+        }
+        func transformY() -> CGFloat { view.layer?.affineTransform().ty ?? 0 }
+
+        // A short drag down: the photo follows, then springs back.
+        try swipe(.began)
+        try swipe(.changed, fingers: 20)
+        try swipe(.changed, fingers: 20)
+        #expect(transformY() < -1, "the photo follows the fingers down")
+        try swipe(.ended)
+        #expect(closed == 0)
+
+        // A long one: let go and it closes.
+        try swipe(.began)
+        for _ in 0..<6 { try swipe(.changed, fingers: 20) }
+        try swipe(.ended)
+        #expect(closed == 1)
+        #expect(transformY() == 0, "the photo is put back for next time")
+        #expect(pages.swipes == 0, "a swipe down is not the pages'")
+
+        // Sideways: the pages get the whole gesture, from its start.
+        try swipe(.began)
+        try swipe(.changed, sideways: 30)
+        try swipe(.changed, sideways: 30)
+        try swipe(.ended)
+        #expect(pages.swipes == 4)
+        #expect(closed == 1)
+    }
+
+    @Test("Only a photo or video whose tile is on screen zooms; closing without its picture just fades")
+    func zoomNeedsATile() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+        let photo = try #require(try await harness.importFile(named: "zoom.png", as: .png))
+        let note = try #require(try await harness.importFile(named: "zoom.txt"))
+
+        let zoom = MacPreviewZoom()
+        #expect(!zoom.canZoom(photo), "no tile on screen to zoom from")
+        zoom.open(photo)
+        #expect(!zoom.isOpening)
+
+        zoom.tiles = [photo.id: .init(frame: CGRect(x: 10, y: 10, width: 80, height: 80), cornerRadius: 4),
+                      note.id: .init(frame: CGRect(x: 100, y: 10, width: 80, height: 80), cornerRadius: 4)]
+        #expect(!zoom.canZoom(note), "only photos and videos zoom")
+        #expect(zoom.canZoom(photo))
+
+        zoom.open(photo)
+        #expect(zoom.isOpening, "the viewer waits for the picture to land")
+
+        // Nothing loaded its picture, so there is nothing to shrink back.
+        #expect(!zoom.closes(photo))
+        zoom.close(photo)
+        #expect(!zoom.isOpening && zoom.flight == nil, "a plain fade instead")
+    }
+
+    @Test("Every kind of tile reports where its picture is actually drawn, so the zoom leaves from there")
+    func tilesReportTheirPicture() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+        let photo = try #require(try await harness.importFile(named: "tile.png", as: .png))
+
+        for mode in [LibraryViewMode.grid, .masonry, .list] {
+            let zoom = MacPreviewZoom()
+            let tile = ObjectItemView(object: photo, mode: mode, isSelected: false, isCursor: false)
+                .frame(width: 220)
+                .padding(.leading, 60)
+                .padding(.top, 40)
+                .frame(width: 500, height: 500, alignment: .topLeading)
+                .coordinateSpace(.named(MacPreviewZoom.coordinateSpace))
+                .environment(\.macPreviewZoom, zoom)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 500),
+                                  styleMask: [.titled], backing: .buffered, defer: false)
+            let hosting = NSHostingView(rootView: tile)
+            hosting.sizingOptions = []
+            hosting.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+            window.contentView = hosting
+            try await Self.settle(until: { zoom.tiles[photo.id] != nil }, hosting)
+
+            let frame = try #require(zoom.tiles[photo.id]?.frame, "\(mode) reported no frame")
+            // Inside the tile's own 220-point-wide box at (60, 40), and a
+            // real picture's size rather than nothing.
+            #expect(frame.minX >= 60 && frame.maxX <= 280.5, "\(mode) picture spans x \(frame.minX)...\(frame.maxX)")
+            #expect(frame.minY >= 40 && frame.minY < 100, "\(mode) picture starts at y \(frame.minY)")
+            #expect(frame.width > 20 && frame.height > 20, "\(mode) picture is \(frame.size)")
+        }
+    }
+
     private final class SwipeRecorder: NSView {
         var swipes = 0
         override func scrollWheel(with event: NSEvent) { swipes += 1 }

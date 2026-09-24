@@ -173,8 +173,25 @@ struct ZoomableImageView: NSViewRepresentable {
         /// The zoom at which the whole photo just fits.
         private var fitMagnification: CGFloat = 1
 
+        /// What a two-finger swipe over a photo shown whole turned out to be.
+        private enum Swipe {
+            /// Not moved far enough yet to tell.
+            case undecided(began: NSEvent)
+            /// Sideways: the pages' to follow.
+            case paging
+            /// Downward: the photo follows the fingers away.
+            case dismissing(offset: CGFloat)
+            /// Anything else, which nothing follows.
+            case ignored
+        }
+        private var swipe: Swipe?
+
+        /// How far the photo has to be dragged before letting go closes it.
+        private let dismissDistance: CGFloat = 80
+
         override init(frame: NSRect) {
             super.init(frame: frame)
+            wantsLayer = true
             contentView = CenteringClipView()
             drawsBackground = false
             hasHorizontalScroller = true
@@ -279,14 +296,90 @@ struct ZoomableImageView: NSViewRepresentable {
             }
         }
 
-        /// A photo shown whole — or not loaded at all — has nothing to scroll,
-        /// so a swipe across it belongs to the pages around it.
+        /// A photo shown whole — or not loaded at all — has nothing of its
+        /// own to scroll. A sideways swipe across it belongs to the pages
+        /// around it; a downward one takes hold of the photo, which follows
+        /// the fingers and closes when let go far enough down, as a swipe
+        /// down does in Photos on iPhone.
         override func scrollWheel(with event: NSEvent) {
-            if isFitted {
-                nextResponder?.scrollWheel(with: event)
-            } else {
+            guard isFitted || swipe != nil else {
                 super.scrollWheel(with: event)
+                return
             }
+            // A mouse's scroll wheel has no gesture to follow.
+            if event.phase.isEmpty, event.momentumPhase.isEmpty {
+                nextResponder?.scrollWheel(with: event)
+                return
+            }
+            if event.phase.contains(.began) {
+                swipe = .undecided(began: event)
+                return
+            }
+            switch swipe {
+            case .undecided(let began):
+                guard abs(event.scrollingDeltaX) + abs(event.scrollingDeltaY) > 0 else { return }
+                if abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX) {
+                    swipe = Self.fingersDown(event) > 0 ? .dismissing(offset: 0) : .ignored
+                    scrollWheel(with: event)
+                } else {
+                    swipe = .paging
+                    nextResponder?.scrollWheel(with: began)
+                    nextResponder?.scrollWheel(with: event)
+                }
+            case .paging:
+                nextResponder?.scrollWheel(with: event)
+                if event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
+                    swipe = nil
+                }
+            case .dismissing(let offset):
+                // The coasting after the fingers lift belongs to nothing.
+                guard event.momentumPhase.isEmpty else { return }
+                if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                    swipe = nil
+                    finishDismissing(at: offset)
+                } else {
+                    let moved = max(0, offset + Self.fingersDown(event))
+                    swipe = .dismissing(offset: moved)
+                    follow(offset: moved, animated: false)
+                }
+            case .ignored:
+                if event.phase.contains(.ended) || event.phase.contains(.cancelled) { swipe = nil }
+            case nil:
+                // Coasting from a swipe that ended before this view saw it.
+                if !event.momentumPhase.isEmpty { nextResponder?.scrollWheel(with: event) }
+            }
+        }
+
+        /// How far the fingers moved down the trackpad, whichever way the
+        /// person has scrolling set to go.
+        private static func fingersDown(_ event: NSEvent) -> CGFloat {
+            event.isDirectionInvertedFromDevice ? event.scrollingDeltaY : -event.scrollingDeltaY
+        }
+
+        /// Far enough down and it goes; otherwise it springs back.
+        private func finishDismissing(at offset: CGFloat) {
+            if offset > dismissDistance {
+                onClose?()
+            }
+            follow(offset: 0, animated: offset <= dismissDistance)
+        }
+
+        /// Moves the photo down with the fingers, shrinking it a little the
+        /// further it goes, about its own centre.
+        private func follow(offset: CGFloat, animated: Bool) {
+            guard let layer else { return }
+            let progress = min(offset / max(bounds.height, 1), 1)
+            let scale = 1 - progress * 0.3
+            let center = CGPoint(x: bounds.midX, y: bounds.midY)
+            // Layer coordinates run up the screen here, so down is negative.
+            let transform = CGAffineTransform(translationX: center.x, y: center.y - offset)
+                .scaledBy(x: scale, y: scale)
+                .translatedBy(x: -center.x, y: -center.y)
+            CATransaction.begin()
+            CATransaction.setDisableActions(!animated)
+            if animated { CATransaction.setAnimationDuration(0.25) }
+            layer.setAffineTransform(offset == 0 ? .identity : transform)
+            CATransaction.commit()
         }
     }
 
