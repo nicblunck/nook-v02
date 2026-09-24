@@ -55,6 +55,7 @@
 		5235845F8790B1A5FF98C35C /* QuickLook.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */; };
 		527A37FEB245E3488A2A51A7 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */; };
 		533078AE069D8E285FC674C2 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */; };
+		24BC0EC3B21E91438A3AA76F /* BlobArrivalWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6291D7426A387F5C9CCBD33 /* BlobArrivalWatcher.swift */; };
 		537B879AC92D5200D6C90B51 /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739F53217116EE9DBE7711EF /* ThumbnailView.swift */; };
 		553A25554F6728150CC09384 /* ObjectCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675725027741609435969340 /* ObjectCard.swift */; };
 		56BC3DB2347CA2F1F9C336B9 /* SidebarKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */; };
@@ -158,6 +159,7 @@
 		DC146A59632326BDF8C75F7F /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
 		DCCE6DBCB7ED790EF2D1F3B8 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = DDFF79E3969F89745A6DBD2E /* NookLibrary */; };
 		DEA6E3CCE552CD498467F007 /* QuickLookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 617C7B21EE32E8FDB306A9E4 /* QuickLookUI.framework */; };
+		7856EE8D48F66C5CBB03FD46 /* BlobArrivalWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6291D7426A387F5C9CCBD33 /* BlobArrivalWatcher.swift */; };
 		E4C695C92BCA5AD793E6BE7B /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739F53217116EE9DBE7711EF /* ThumbnailView.swift */; };
 		E732AC9B2FD07C40E272BDB0 /* ShareViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5AAC8F9990C6B2804BB7E031 /* ShareViewController.xib */; };
 		E740B79AE8A08B2740FA8C04 /* MacShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F0233E2C4C6097C038AFFE /* MacShareView.swift */; };
@@ -279,6 +281,7 @@
 		6CC0D09C7EA65A62DEDC4FFD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		70CA2795B9C904E3E9B6EAC4 /* PhotosUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhotosUI.framework; path = System/Library/Frameworks/PhotosUI.framework; sourceTree = SDKROOT; };
 		7217C9F68FF753009C820E37 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
+		D6291D7426A387F5C9CCBD33 /* BlobArrivalWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlobArrivalWatcher.swift; sourceTree = "<group>"; };
 		739F53217116EE9DBE7711EF /* ThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailView.swift; sourceTree = "<group>"; };
 		7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport.swift; sourceTree = "<group>"; };
@@ -590,6 +593,7 @@
 				7AADD58BC62206678FDC124F /* EntityIcon.swift */,
 				1E24F3A0A33FE3489BB2C4A0 /* ExternalURLDrop.swift */,
 				7217C9F68FF753009C820E37 /* Formatting.swift */,
+				D6291D7426A387F5C9CCBD33 /* BlobArrivalWatcher.swift */,
 				27E6631E2E0AA1A1BB26F1F5 /* ItemClick.swift */,
 				E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */,
 				C56996EA6351BD06C5361175 /* PasteImporter.swift */,
@@ -879,6 +883,7 @@
 				C8C0A91E6667E340418509E2 /* SidebarDrop.swift in Sources */,
 				56BC3DB2347CA2F1F9C336B9 /* SidebarKeyboard.swift in Sources */,
 				73B79E1EA703336EFFC374AB /* SidebarView.swift in Sources */,
+				7856EE8D48F66C5CBB03FD46 /* BlobArrivalWatcher.swift in Sources */,
 				E4C695C92BCA5AD793E6BE7B /* ThumbnailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -941,6 +946,7 @@
 				DB9483DB3809CEA40C8B1C70 /* SidebarDrop.swift in Sources */,
 				41A758F57A5DC5029E0E6D4E /* SidebarKeyboard.swift in Sources */,
 				F4168F5D4F45247D4C7CCDA2 /* SidebarView.swift in Sources */,
+				24BC0EC3B21E91438A3AA76F /* BlobArrivalWatcher.swift in Sources */,
 				537B879AC92D5200D6C90B51 /* ThumbnailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

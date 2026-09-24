@@ -8,6 +8,11 @@ public enum DerivedContentKind: String, Codable, Sendable, CaseIterable {
     case transcript
     case aiDescription
     case embedding
+    /// A small rendering of the object, produced once by whichever device
+    /// holds the original and carried to the others alongside the metadata.
+    /// Its bytes live in `dataValue`; a record with none is a tombstone
+    /// meaning there was nothing renderable, so no device asks again.
+    case thumbnail
 }
 
 /// A representation the app produced from an object, kept strictly apart from
@@ -26,7 +31,10 @@ public final class DerivedContent {
     /// Identifies the extractor or model that produced this, so stale results
     /// can be found and regenerated when the pipeline changes.
     public var generatorIdentifier: String?
-    /// When true this record stays on the device that produced it.
+    /// Whether this result is meant to stay on the device that produced it.
+    /// Descriptive for now — every model in the schema mirrors to CloudKit —
+    /// but it marks which records are cheap to carry and which are not, and
+    /// it is what a future device-local store would filter on.
     public var isDeviceLocal: Bool = true
 
     public var object: LibraryObject?

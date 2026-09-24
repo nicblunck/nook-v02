@@ -426,6 +426,18 @@ struct ShareView: View {
                 try? await library.service.addObjects(importedIDs, toCollection: collectionID)
             }
 
+            // Made here, while the originals are certainly on this device and
+            // before the sheet goes away. The other devices are about to
+            // receive these records over CloudKit, and without a picture
+            // riding along they have nothing to show until the originals
+            // themselves finish syncing — which is a different, slower system.
+            for objectID in importedIDs {
+                try? await library.service.generateSyncedThumbnail(
+                    for: objectID,
+                    using: library.thumbnails
+                )
+            }
+
             onFinish()
         } catch {
             state = .failed(error.localizedDescription)

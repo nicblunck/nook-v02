@@ -15,6 +15,8 @@ struct LibraryWindow: View {
     @Bindable var model: LibraryModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var isExternalDropTargeted = false
+    /// Held for the window's lifetime: it stops watching when released.
+    @State private var blobArrivals: BlobArrivalWatcher?
     private var navigator: AppNavigator { .shared }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -208,6 +210,23 @@ struct LibraryWindow: View {
                 ) {
                     guard !Task.isCancelled else { break }
                     await model.refreshAll()
+                }
+            }
+            // An original arriving from iCloud changes what can be drawn, but
+            // it changes nothing in the store, so no other refresh hears about
+            // it. Without this the picture waits for the next unrelated
+            // refresh — or for the tile to be scrolled away and rebuilt.
+            .task {
+                // Subscribed before the watcher starts looking, so the first
+                // batch it finds is not the one that gets missed.
+                let arrivals = NotificationCenter.default.notifications(
+                    named: BlobArrivalWatcher.blobsDidChange
+                )
+                blobArrivals = BlobArrivalWatcher(locations: model.library.locations)
+                for await _ in arrivals {
+                    guard !Task.isCancelled else { break }
+                    await model.refreshAll()
+                    model.generatePendingSyncedThumbnails()
                 }
             }
             // A location following the global default rather than remembering
