@@ -1,0 +1,9 @@
+{
+  "id" : "0d470e04-90fd-4e5a-bbc4-16257552c3f2",
+  "targets" : [
+    {
+      "id" : "572f20bd-8045-4f63-b31c-bd7c1b81437d",
+      "name" : "Nook-iOS"
+    }
+  ]
+}
