@@ -27,14 +27,16 @@ later. Xcode Cloud builds, signs and uploads; nothing is archived by hand.
 
 ## Xcode Cloud workflows
 
-Workflows live in App Store Connect, not in the repo. Two of them:
+Workflows live in App Store Connect (Xcode Cloud ▸ product "Nook-iOS", a
+name Xcode picked; it covers both platforms). Two of them:
 
-1. **Test** — start condition: every change to `main` and every pull request.
-   Action: *Test* on `Nook-macOS` (runs `NookTests`). No distribution.
-2. **Release** — start condition: manual (or a branch/tag rule later).
-   Actions: *Archive* `Nook-iOS` (iOS) and *Archive* `Nook-macOS` (macOS), both
-   with distribution *TestFlight (Internal Testing Only)*, then a post-action
-   to the internal tester group.
+1. **Release** (exists) — start condition: manual only, on `main`. Actions:
+   *Archive* `Nook-iOS` and *Archive* `Nook-macOS`, **both** with
+   Distribution Preparation *App Store Connect*. With *None* an archive builds
+   but never uploads; *TestFlight (Internal Testing Only)* builds can never go
+   to external testers or review.
+2. **Test** (not yet) — start condition: every change to `main` and every pull
+   request. Action: *Test* on `Nook-macOS`. No distribution.
 
 Tests are kept out of Release on purpose: Xcode Cloud skips post-actions when
 any action fails, so a flaky test would stop a build reaching TestFlight.
@@ -44,13 +46,16 @@ commit subjects since the last `v*` tag.
 
 ## Cutting a TestFlight build
 
-1. Merge to `main` and push; wait for the Test workflow.
+1. Merge to `main` and push.
 2. If the SwiftData model changed since the last release, deploy the CloudKit
    schema (below) **before** starting the build.
-3. Start the Release workflow on `main` in Xcode (Integrate ▸ Start Build) or
-   App Store Connect.
-4. When it lands, try it on your own devices via TestFlight.
-5. For external testers: add the build to the external group, and tag the
+3. App Store Connect ▸ Xcode Cloud ▸ Nook-iOS ▸ Builds ▸ **Start Build** ▸
+   Release ▸ `main`. Not *Rebuild*: that reruns the old commit.
+4. Builds reach TestFlight processed within ~15 minutes. Add each platform's
+   new build to the **Alpha Testing** internal group (TestFlight ▸ Alpha
+   Testing ▸ Builds ▸ +). iPhone/iPad install from TestFlight on iOS, the Mac
+   build from the TestFlight app on the Mac.
+5. For external testers: add the build to an external group, and tag the
    commit `v<version>-<build>` and push the tag.
 
 ## CloudKit schema
@@ -79,6 +84,8 @@ Already in the project:
   the export-compliance question on every upload.
 - `LSApplicationCategoryType = public.app-category.productivity` on the Mac
   (required by the Mac App Store).
+- The Mac app is sandboxed (required by the Mac App Store): read-write for
+  user-picked files, outgoing network, the shared app group.
 - Push entitlements say `development`; distribution signing rewrites them to
   `production` on export.
 
@@ -87,14 +94,11 @@ App Privacy answers ("Data Not Collected"), privacy policy URL, beta
 description and feedback email, and later the App Store listing and
 screenshots.
 
-## One-time setup
+## One-time setup (done 25 Sep 2026)
 
-- [ ] App Store Connect: create the app record — platforms iOS and macOS,
-      bundle ID `com.nicolasblunck.nook.app`, SKU e.g. `nook`.
-- [ ] Developer portal: confirm the App IDs for the app and both extensions have
-      iCloud (container `iCloud.com.nicolasblunck.nook.app`), App Groups
-      (`group.com.nicolasblunck.nook.app`) and Push Notifications enabled.
-- [ ] CloudKit Console: deploy the schema to Production.
-- [ ] Xcode ▸ Integrate ▸ Create Workflow: connect the GitHub repo and set up the
-      Test and Release workflows above.
-- [ ] TestFlight: create the internal group and add your Apple ID.
+- [x] App Store Connect app "Nook - Stash Anything", platforms iOS and macOS,
+      bundle ID `com.nicolasblunck.nook.app`. The home-screen name stays "Nook".
+- [x] CloudKit schema deployed to Production.
+- [x] Xcode Cloud connected to GitHub; Release workflow.
+- [x] TestFlight internal group "Alpha Testing" with Nic.
+- [ ] Test workflow.
