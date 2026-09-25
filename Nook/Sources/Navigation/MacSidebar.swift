@@ -32,6 +32,9 @@ struct MacSidebar: NSViewRepresentable {
     let expandedFolders: Set<FolderID>
     let wantsKeyboard: Bool
     let keyboardFocusRequest: Int
+    /// What stands over the foot of the outline, which its last row scrolls
+    /// clear of.
+    let bottomInset: CGFloat
 
     /// Raises the appearance editor, which is SwiftUI state the outline cannot
     /// hold.
@@ -89,6 +92,11 @@ struct MacSidebar: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        // Added to the safe area rather than set as content insets, so the
+        // automatic inset under the toolbar carries on alongside it.
+        if scrollView.additionalSafeAreaInsets.bottom != bottomInset {
+            scrollView.additionalSafeAreaInsets.bottom = bottomInset
+        }
         context.coordinator.onEditAppearance = onEditAppearance
         context.coordinator.apply(self)
     }

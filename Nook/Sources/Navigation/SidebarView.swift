@@ -21,6 +21,11 @@ struct SidebarView: View {
     @FocusState private var isListFocused: Bool
     #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if os(macOS)
+    /// How tall the footer stands, so the outline can scroll its last row
+    /// clear of it while the rest pass underneath.
+    @State private var footerHeight: CGFloat = 0
+    #endif
 
     var body: some View {
         #if os(macOS)
@@ -36,8 +41,20 @@ struct SidebarView: View {
                 expandedFolders: model.expandedFolders,
                 wantsKeyboard: model.keyboardPane == .sidebar,
                 keyboardFocusRequest: model.keyboardFocusRequest,
+                bottomInset: footerHeight,
                 onEditAppearance: { model.editingAppearance = $0 }
             )
+            // Rows fade out as they reach the footer rather than pass under
+            // a material: the sidebar is glass over the canvas's accent
+            // gradient, and anything laid over the rows would darken it.
+            .mask {
+                VStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .black.opacity(0)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: footerHeight + 20)
+                }
+            }
             // The outline runs the full height of the column and keeps its
             // own content clear of the toolbar, as a Mac sidebar does.
             .ignoresSafeArea(.container, edges: .top)
@@ -62,7 +79,19 @@ struct SidebarView: View {
     private func decorated(_ rows: some View) -> some View {
         rows
             .navigationTitle("Nook")
-            .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+            #if os(macOS)
+            // Over the outline rather than inset from it: an AppKit scroll
+            // view stops where a SwiftUI inset begins, so rows would end at a
+            // hard line instead of fading out beneath the footer. The
+            // outline keeps its last row clear through `bottomInset`.
+            .overlay(alignment: .bottom) {
+                footer.onGeometryChange(for: CGFloat.self, of: \.size.height) { footerHeight = $0 }
+            }
+            #else
+            // A bar rather than an inset, so the list gives it the system's
+            // soft scroll edge: rows blur away progressively beneath it.
+            .safeAreaBar(edge: .bottom, spacing: 0) { footer }
+            #endif
             // Rows that stay close up behind one that has left, and only
             // once it has gone.
             .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
@@ -173,10 +202,6 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        // Semi-transparent rather than a solid strip: the sidebar's own
-        // material carries on underneath, so the row reads as part of it
-        // rather than as a bar bolted to the bottom.
-        .background(.ultraThinMaterial)
     }
 
     /// Icons alone: these are two fixed destinations rather than a list that
