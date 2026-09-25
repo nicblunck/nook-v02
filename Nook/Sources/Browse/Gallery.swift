@@ -371,9 +371,11 @@ struct ObjectItemBehavior: ViewModifier {
 
     private var transfer: ObjectTransfer {
         let objects = isSelected ? model.selectedObjects : [object]
+        let original = objects.count == 1 ? model.localURL(for: objects[0]) : nil
         return ObjectTransfer(
             ids: objects.map(\.id),
-            fileURL: objects.count == 1 ? model.localURL(for: objects[0]) : nil,
+            fileURL: original,
+            filename: original.map { objects[0].exportFilename(storedAs: $0) },
             sourceFolderIDs: objects.map(\.folderID)
         )
     }
@@ -1010,7 +1012,7 @@ struct SelectionActionsToolbar: ToolbarContent {
 
     private var isEmpty: Bool { objects.isEmpty && folders.isEmpty }
 
-    private var urls: [URL] { model.localURLs(for: objects) }
+    private var urls: [URL] { model.outgoingURLs(for: objects) }
 
     private var countItem: some ToolbarContent {
         ToolbarItem(placement: .bottomBar) {

@@ -96,7 +96,7 @@ struct ObjectMenu: View {
                 }
             }
 
-            let urls = model.localURLs(for: objects)
+            let urls = model.outgoingURLs(for: objects)
             if !urls.isEmpty {
                 ShareLink(items: urls) {
                     Label(urls.count == 1 ? "Share Original" : "Share \(urls.count) Originals",
