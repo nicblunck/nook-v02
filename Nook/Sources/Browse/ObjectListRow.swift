@@ -61,7 +61,7 @@ private struct ListRowBadge: View {
             .foregroundStyle(tint ?? .secondary)
             .frame(width: diameter, height: diameter)
             .background((tint ?? .secondary).opacity(0.16), in: .circle)
-            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + baselineRise }
+            .alignmentGuide(.firstTextBaseline) { [baselineRise] in $0[VerticalAlignment.center] + baselineRise }
     }
 }
 

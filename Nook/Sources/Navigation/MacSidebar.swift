@@ -1164,8 +1164,10 @@ private final class SidebarSectionCell: NSTableCellView {
                 context.duration = NookMotion.exitDuration
                 addButton.animator().alphaValue = 0
             }, completionHandler: { [weak self] in
-                guard let self, !(hasAddAction && isHovered) else { return }
-                addButton.isHidden = true
+                MainActor.assumeIsolated {
+                    guard let self, !(self.hasAddAction && self.isHovered) else { return }
+                    self.addButton.isHidden = true
+                }
             })
         }
     }

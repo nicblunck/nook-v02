@@ -434,7 +434,7 @@ struct MacShareView: View {
             // riding along they have nothing to show until the originals
             // themselves finish syncing — which is a different, slower system.
             for objectID in importedIDs {
-                try? await library.service.generateSyncedThumbnail(
+                _ = try? await library.service.generateSyncedThumbnail(
                     for: objectID,
                     using: library.thumbnails
                 )

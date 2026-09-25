@@ -18,7 +18,7 @@ import NookLibrary
 @Observable
 final class MacPreviewZoom {
     /// Where the canvas and the viewer both measure frames from.
-    static let coordinateSpace = "MacPreviewZoom"
+    nonisolated static let coordinateSpace = "MacPreviewZoom"
 
     /// Where a tile draws its picture, and with what corners.
     struct Tile: Equatable {
