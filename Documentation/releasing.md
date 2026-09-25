@@ -69,8 +69,18 @@ CloudKit Console ▸ `iCloud.com.nicolasblunck.nook.app` ▸ Schema ▸ *Deploy
 Schema Changes…*
 
 Production schema is additive-only: fields and types can be added but never
-removed or retyped. Run the Debug app against Development first so every
-record type and field has been created there, then deploy.
+removed or retyped. SwiftData only creates a field in Development once a
+record carrying it syncs, so before deploying, push the whole model there:
+
+```bash
+xcodebuild -project Nook.xcodeproj -scheme Nook-macOS -configuration Debug build
+"<BUILD_DIR>/Debug/Nook.app/Contents/MacOS/Nook" -NookInitializeCloudKitSchema
+```
+
+It prints "CloudKit Development schema initialized" and exits without opening
+a window; it uses a throwaway store, never the library. Then deploy. A field
+missing in Production makes every export batch touching it fail ("Cannot
+create or modify field … in production schema"), which stops sync entirely.
 
 ## Before submission
 

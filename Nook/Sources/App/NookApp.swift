@@ -6,6 +6,23 @@ struct NookApp: App {
     @State private var settings = AppSettings()
     @State private var loader = LibraryLoader()
 
+    #if DEBUG
+    init() {
+        // One-off maintenance before a CloudKit schema deploy; see
+        // Documentation/releasing.md. Exits before any window opens.
+        if ProcessInfo.processInfo.arguments.contains("-NookInitializeCloudKitSchema") {
+            do {
+                try CloudKitSchemaInitializer.initializeDevelopmentSchema()
+                print("CloudKit Development schema initialized")
+                exit(0)
+            } catch {
+                print("CloudKit schema initialization failed: \(error)")
+                exit(1)
+            }
+        }
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup(id: "library") {
             RootView(loader: loader, settings: settings)
