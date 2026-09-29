@@ -53,8 +53,7 @@ struct MacShareView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    previews
-                    itemDetails
+                    itemSections
                     saveToSection
                 }
                 .padding(.horizontal, 20)
@@ -118,10 +117,14 @@ struct MacShareView: View {
         .padding(.bottom, 10)
     }
 
-    // MARK: Item details
+    // MARK: Items
 
+    /// One section per shared item, its preview directly above its own title,
+    /// source and note — so with several items shared, each picture sits with
+    /// the details that belong to it rather than all pictures first and all
+    /// details after.
     @ViewBuilder
-    private var itemDetails: some View {
+    private var itemSections: some View {
         if isLoading {
             RoundedRectangle(cornerRadius: 20)
                 .fill(.quaternary.opacity(0.5))
@@ -131,10 +134,16 @@ struct MacShareView: View {
             Label("Nothing here could be saved.", systemImage: "questionmark.folder")
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 120)
+        } else if items.count == 1 {
+            ShareItemSection(heading: "Preview", item: $items[0], spacing: 24)
         } else {
-            VStack(spacing: 12) {
-                ForEach($items) { $item in
-                    ShareItemDetailsCard(item: $item)
+            VStack(alignment: .leading, spacing: 36) {
+                ForEach(Array($items.enumerated()), id: \.element.id) { index, item in
+                    ShareItemSection(
+                        heading: "Item \(index + 1) of \(items.count)",
+                        item: item,
+                        spacing: 12
+                    )
                 }
             }
         }
@@ -276,21 +285,6 @@ struct MacShareView: View {
         }
         .padding(14)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-    }
-
-    // MARK: Preview
-
-    @ViewBuilder
-    private var previews: some View {
-        if !isLoading, !items.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                SectionHeading(items.count == 1 ? "Preview" : "Previews")
-
-                ForEach(items) { item in
-                    ShareThumbnailCard(item: item)
-                }
-            }
-        }
     }
 
     /// Existing tags not already added, narrowed to what has been typed so far
@@ -443,6 +437,26 @@ struct MacShareView: View {
             onFinish()
         } catch {
             state = .failed(error.localizedDescription)
+        }
+    }
+}
+
+// MARK: - Item section
+
+/// A shared item's heading and preview, followed by the fields that can be
+/// edited before it is saved.
+private struct ShareItemSection: View {
+    let heading: String
+    @Binding var item: SharePreviewItem
+    let spacing: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeading(heading)
+                ShareThumbnailCard(item: item)
+            }
+            ShareItemDetailsCard(item: $item)
         }
     }
 }
