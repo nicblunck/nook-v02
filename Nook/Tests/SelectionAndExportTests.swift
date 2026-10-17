@@ -170,34 +170,11 @@ struct SelectModeTests {
 }
 
 @MainActor
-@Suite("Export")
-struct ExportTests {
+@Suite("Sharing")
+struct SharingTests {
 
-    @Test("An exported original comes back byte-for-byte under its own name")
-    func exportsTheOriginal() async throws {
-        let harness = try await TestModel()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        model.navigate(to: .scope(.inbox))
-
-        let object = try #require(try await harness.importFile(named: "notes.txt", contents: "kept"))
-        let destination = try harness.makeDirectory(named: "Exported")
-
-        model.beginExport(of: [object])
-        #expect(model.isExportPickerPresented)
-        await model.completeExport(to: destination)
-
-        let written = destination.appending(path: "notes.txt")
-        #expect(FileManager.default.fileExists(atPath: written.path(percentEncoded: false)))
-        #expect(try String(contentsOf: written, encoding: .utf8) == "kept")
-        #expect(model.alert == nil)
-        #expect(model.toast?.message == LocalizedStringResource("Exported one item"))
-        #expect(model.toast?.systemImage == "square.and.arrow.up.fill")
-        #expect(model.toast?.tint == .blue)
-    }
-
-    @Test("A renamed object is exported and shared under its new name")
-    func leavesUnderItsNookName() async throws {
+    @Test("A shared original comes out byte-for-byte under its Nook name")
+    func sharesTheOriginalUnderItsNookName() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -206,58 +183,33 @@ struct ExportTests {
         let imported = try #require(try await harness.importFile(named: "IMG_2041.txt", contents: "kept"))
         await model.update(imported.id, title: "Beach at dusk")
         let object = try #require(model.contents.objects.first { $0.id == imported.id })
-        let destination = try harness.makeDirectory(named: "Exported")
 
-        model.beginExport(of: [object])
-        await model.completeExport(to: destination)
-        let names = try FileManager.default.contentsOfDirectory(atPath: destination.path(percentEncoded: false))
-        #expect(names == ["Beach at dusk.txt"])
-
-        let shared = try #require(model.outgoingURLs(for: [object]).first)
+        let shared = try #require(model.shareURLs(for: [object]).first)
         #expect(shared.lastPathComponent == "Beach at dusk.txt")
         #expect(try String(contentsOf: shared, encoding: .utf8) == "kept")
         #expect(shared != model.localURL(for: object))
     }
 
-    /// Objects share stored files and can repeat an original filename, so an
-    /// export names its way around a collision rather than overwriting what is
-    /// already in the folder.
-    @Test("A second export of the same name lands beside the first")
-    func namesAroundCollisions() async throws {
+    @Test("Sharing a link sends its address; sharing anything else sends the file")
+    func sharesLinksAsAddressesAndFilesAsFiles() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
         model.navigate(to: .scope(.inbox))
 
-        let object = try #require(try await harness.importFile(named: "report.txt", contents: "once"))
-        let destination = try harness.makeDirectory(named: "Exported")
-
-        model.beginExport(of: [object])
-        await model.completeExport(to: destination)
-        model.beginExport(of: [object])
-        await model.completeExport(to: destination)
-
-        let names = try FileManager.default
-            .contentsOfDirectory(atPath: destination.path(percentEncoded: false))
-            .sorted()
-        #expect(names == ["report 2.txt", "report.txt"])
-        #expect(model.alert == nil)
-    }
-
-    @Test("An object with no original on this device is not offered a picker")
-    func refusesWhenThereIsNothingToExport() async throws {
-        let harness = try await TestModel()
-        defer { harness.cleanUp() }
-        let model = harness.model
-        model.navigate(to: .scope(.inbox))
-
-        // A link is an object in its own right and has no stored bytes.
-        await model.importItems([.link(URL(string: "https://example.com/page")!)])
+        let page = URL(string: "https://example.com/page")!
+        await model.importItems([.link(page)])
+        let file = try #require(try await harness.importFile(named: "notes.txt", contents: "kept"))
         let link = try #require(model.contents.objects.first { $0.kind == .link })
+        let object = try #require(model.contents.objects.first { $0.id == file.id })
 
-        model.beginExport(of: [link])
-        #expect(!model.isExportPickerPresented)
-        #expect(model.alert != nil)
+        #expect(model.shareURLs(for: [link]) == [page])
+
+        let shared = try #require(model.shareURLs(for: [object]).first)
+        #expect(shared.isFileURL)
+        #expect(try String(contentsOf: shared, encoding: .utf8) == "kept")
+
+        #expect(model.shareURLs(for: [link, object]).count == 2)
     }
 }
 

@@ -234,8 +234,6 @@ final class LibraryModel {
     var isDocumentScannerPresented = false
     var isGlobalSearchPresented = false
     var isSettingsPresented = false
-    /// Raised while the user picks a folder to export originals into.
-    var isExportPickerPresented = false
     /// Home is a destination rather than a query, so it sits beside the scope
     /// rather than inside it.
     var isShowingHome = true
@@ -1653,6 +1651,18 @@ final class LibraryModel {
         return library.blobStore.localURL(for: descriptor)
     }
 
+    /// What the share sheet is handed for each object: a link's own address,
+    /// so it arrives wherever it is sent as the page itself, and for
+    /// everything else the original — the photo, the video, the PDF — rather
+    /// than a picture of it. Objects whose original is not on this device are
+    /// left out.
+    nonisolated func shareURLs(for objects: [ObjectSnapshot]) -> [URL] {
+        objects.compactMap { object in
+            if object.kind == .link { return object.sourceURL }
+            return outgoingURLs(for: [object]).first
+        }
+    }
+
     /// Copies of the originals named the way the objects are named in Nook,
     /// for handing to the share sheet. The library's own files are named by
     /// their contents, which means nothing to whoever receives them.
@@ -1681,100 +1691,6 @@ final class LibraryModel {
         try manager.createDirectory(at: directory, withIntermediateDirectories: true)
         try manager.copyItem(at: source, to: destination)
         return destination
-    }
-
-    // MARK: Export
-    //
-    // Getting an original back out is as ordinary as putting one in: the bytes
-    // were never transformed on the way in, so they leave byte-for-byte. The
-    // library is where files are kept, not where they are captured.
-
-    /// The objects a destination folder is being chosen for.
-    private var pendingExport: [ObjectSnapshot] = []
-
-    var canExport: Bool { !selectedObjects.isEmpty || previewedObject != nil }
-
-    /// Asks for somewhere to write to. Objects whose original is not on this
-    /// device are dropped here rather than failing one by one at the copy.
-    func beginExport(of objects: [ObjectSnapshot]) {
-        let available = objects.filter { localURL(for: $0) != nil }
-        guard !available.isEmpty else {
-            alert = LibraryAlert(
-                title: objects.count == 1 ? "No original to export" : "No originals to export",
-                message: "The stored file isn't on this device."
-            )
-            return
-        }
-        pendingExport = available
-        isExportPickerPresented = true
-    }
-
-    func cancelExport() {
-        pendingExport = []
-    }
-
-    func completeExport(to directory: URL) async {
-        let objects = pendingExport
-        pendingExport = []
-        guard !objects.isEmpty else { return }
-
-        // A folder handed over by the picker is ours only while the scope is
-        // held open, which on iOS is the difference between writing and being
-        // refused.
-        let isScoped = directory.startAccessingSecurityScopedResource()
-        defer { if isScoped { directory.stopAccessingSecurityScopedResource() } }
-
-        var failures: [String] = []
-        for object in objects {
-            guard let source = localURL(for: object) else {
-                failures.append(object.title)
-                continue
-            }
-            let name = object.exportFilename(storedAs: source)
-            do {
-                try FileManager.default.copyItem(
-                    at: source, to: Self.unusedURL(in: directory, named: name)
-                )
-            } catch {
-                failures.append(object.title)
-            }
-        }
-
-        let exportedCount = objects.count - failures.count
-        if exportedCount > 0 {
-            let message: LocalizedStringResource = exportedCount == 1
-                ? "Exported one item"
-                : "Exported \(exportedCount) items"
-            showToast(message, systemImage: "square.and.arrow.up.fill", tint: .blue)
-        }
-
-        guard !failures.isEmpty else { return }
-        alert = LibraryAlert(
-            title: failures.count == 1
-                ? "One item couldn't be exported"
-                : "\(failures.count) items couldn't be exported",
-            message: failures.joined(separator: "\n")
-        )
-    }
-
-    /// Objects share stored files and can carry the same original filename, so
-    /// an export names its way around a collision rather than overwriting
-    /// whatever was already in the folder.
-    private static func unusedURL(in directory: URL, named name: String) -> URL {
-        let exists = { (url: URL) in
-            FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
-        }
-        let candidate = directory.appending(path: name)
-        guard exists(candidate) else { return candidate }
-
-        let base = candidate.deletingPathExtension().lastPathComponent
-        let ext = candidate.pathExtension
-        for index in 2...999 {
-            let numbered = ext.isEmpty ? "\(base) \(index)" : "\(base) \(index).\(ext)"
-            let url = directory.appending(path: numbered)
-            if !exists(url) { return url }
-        }
-        return directory.appending(path: "\(base) \(UUID().uuidString)")
     }
 
     // MARK: Mutations

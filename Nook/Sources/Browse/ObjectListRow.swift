@@ -1,48 +1,68 @@
 import SwiftUI
 import NookLibrary
 
-// MARK: The list card
+// MARK: The list
 
 /// The metrics every list row is built to, object and folder alike, so a
 /// mixed list sits on one rhythm rather than on two.
-private enum ListCard {
-    static let cornerRadius: CGFloat = 14
-    static let thumbnailRadius: CGFloat = 8
-    static let padding: CGFloat = 10
+enum ListMetrics {
+    /// The rounding of the surface the whole list sits on.
+    static let containerRadius: CGFloat = 16
+    /// How far the rows sit in from that surface's edge, so a selected row's
+    /// highlight is a rounded shape of its own inside it rather than a band
+    /// running into its corners.
+    static let containerInset: CGFloat = 6
+    static let rowRadius: CGFloat = 10
+    static let thumbnailRadius: CGFloat = 6
+    static let horizontalPadding: CGFloat = 10
+    static let verticalPadding: CGFloat = 8
     static let contentSpacing: CGFloat = 12
 }
 
-/// The card every list row is drawn on.
+extension EnvironmentValues {
+    /// Whether this row is the last in its run, and so has no row below it
+    /// to be separated from.
+    @Entry var isLastListRow = false
+}
+
+/// What every list row is drawn on.
 ///
-/// A list of these is a stack of cards rather than a table: each row carries
-/// its own surface, which is what lets the thumbnail, the name and the
-/// metadata sit in one block that stays whole at a phone's width instead of
-/// spreading into columns that squeeze the name to nothing.
+/// A list is one surface, the way a list in Files or Settings is: rows sit
+/// on it flush, divided by hairlines that start where the names do, rather
+/// than each carrying a card of its own. The surface itself belongs to the
+/// gallery; a row only draws its selection and the line beneath it.
 ///
-/// The surface is glass, laid beneath the row rather than around it: content
-/// wrapped in `glassEffect` is composited into the glass so the system can
-/// tint it, which would soften the thumbnail.
-///
-/// Selection tints the surface; the keyboard cursor is the ring the gallery
-/// draws around it, so a row can show both at once.
-private struct ListCardBackground: View {
+/// Selection is a tinted highlight; the keyboard cursor is the ring the
+/// gallery draws around it, so a row can show both at once.
+private struct ListRowBackground: View {
     let isSelected: Bool
+    /// Where the separator starts — under the name, not the picture.
+    let separatorInset: CGFloat
+
+    @Environment(\.isLastListRow) private var isLast
 
     var body: some View {
-        Color.clear
-            .glassEffect(.regular, in: .rect(cornerRadius: ListCard.cornerRadius))
-            .overlay {
-                RoundedRectangle(cornerRadius: ListCard.cornerRadius)
-                    .fill(Color.accentColor)
-                    .opacity(isSelected ? 0.18 : 0)
+        RoundedRectangle(cornerRadius: ListMetrics.rowRadius)
+            .fill(Color.accentColor.opacity(isSelected ? 0.18 : 0))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(.separator)
+                    .frame(height: 1 / displayScale)
+                    .padding(.leading, separatorInset)
+                    .padding(.trailing, ListMetrics.horizontalPadding)
+                    // A highlight is its own edge; a line across it, or
+                    // under the last row, would only be noise.
+                    .opacity(isLast || isSelected ? 0 : 1)
             }
     }
+
+    @Environment(\.displayScale) private var displayScale
 }
 
 /// A small circular mark on the metadata line: the object's type, and
 /// whatever state it is in.
 ///
-/// Filled rather than material, because a material circle laid on the card's
+/// Filled rather than material, because a material circle laid on the list's
 /// own fill would all but disappear — unlike the badges over a masonry
 /// picture, which have a photograph to stand out against.
 private struct ListRowBadge: View {
@@ -118,29 +138,28 @@ private struct ListRowTags: View {
 
 // MARK: Rows
 
-/// A row in the list view: a horizontal card carrying the picture, the name,
-/// what the object is and what it is tagged with.
+/// A row in the list view: the picture, the name, what the object is and what
+/// it is tagged with.
 ///
-/// The metadata that used to sit in fixed columns to the right now runs
-/// underneath the name, where it can be as long or as short as the object
-/// requires. Nothing in the row has a width of its own any more, so the name
-/// keeps whatever the card has left rather than what three columns allow.
+/// The metadata runs underneath the name, where it can be as long or as short
+/// as the object requires. Nothing in the row has a width of its own, so the
+/// name keeps whatever the row has left rather than what columns allow.
 struct ObjectListRow: View {
     let object: ObjectSnapshot
     let isSelected: Bool
 
-    @ScaledMetric(relativeTo: .body) private var thumbnailSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .body) private var thumbnailSize: CGFloat = 44
 
     var body: some View {
-        HStack(spacing: ListCard.contentSpacing) {
+        HStack(spacing: ListMetrics.contentSpacing) {
             ThumbnailView(object: object, maximumSize: 256)
                 .frame(width: thumbnailSize, height: thumbnailSize)
-                .clipShape(.rect(cornerRadius: ListCard.thumbnailRadius))
-                .previewZoomSource(for: object.id, cornerRadius: ListCard.thumbnailRadius)
+                .clipShape(.rect(cornerRadius: ListMetrics.thumbnailRadius))
+                .previewZoomSource(for: object.id, cornerRadius: ListMetrics.thumbnailRadius)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(object.title)
-                    .font(.headline)
+                    .font(.body.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
 
@@ -169,10 +188,14 @@ struct ObjectListRow: View {
                 }
             }
         }
-        .padding(ListCard.padding)
+        .padding(.horizontal, ListMetrics.horizontalPadding)
+        .padding(.vertical, ListMetrics.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { ListCardBackground(isSelected: isSelected) }
-        .contentShape(.rect(cornerRadius: ListCard.cornerRadius))
+        .background {
+            ListRowBackground(isSelected: isSelected,
+                              separatorInset: ListMetrics.horizontalPadding + thumbnailSize + ListMetrics.contentSpacing)
+        }
+        .contentShape(.rect(cornerRadius: ListMetrics.rowRadius))
         .motionAware(NookMotion.interaction, value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(object.title)
@@ -185,7 +208,7 @@ struct ObjectListRow: View {
 
 /// A folder row in the list view.
 ///
-/// Built to the same card as an object's so a list of both reads as one
+/// Built to the same row as an object's so a list of both reads as one
 /// list. What a photograph gives to its thumbnail, a folder gives to its own
 /// icon and colour — drawn in a tinted well of the same size, so the names
 /// below still start on one line down the left edge.
@@ -193,19 +216,19 @@ struct FolderListRow: View {
     let folder: FolderSnapshot
     let isSelected: Bool
 
-    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 44
 
     private var tint: Color { Color(hex: folder.appearance.colorHex) ?? .accentColor }
 
     var body: some View {
-        HStack(spacing: ListCard.contentSpacing) {
-            EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 26)
+        HStack(spacing: ListMetrics.contentSpacing) {
+            EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder.fill", size: 22)
                 .frame(width: iconSize, height: iconSize)
-                .background(tint.opacity(0.18), in: .rect(cornerRadius: ListCard.thumbnailRadius))
+                .background(tint.opacity(0.18), in: .rect(cornerRadius: ListMetrics.thumbnailRadius))
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(folder.name)
-                    .font(.headline)
+                    .font(.body.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
 
@@ -229,10 +252,14 @@ struct FolderListRow: View {
                 }
             }
         }
-        .padding(ListCard.padding)
+        .padding(.horizontal, ListMetrics.horizontalPadding)
+        .padding(.vertical, ListMetrics.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { ListCardBackground(isSelected: isSelected) }
-        .contentShape(.rect(cornerRadius: ListCard.cornerRadius))
+        .background {
+            ListRowBackground(isSelected: isSelected,
+                              separatorInset: ListMetrics.horizontalPadding + iconSize + ListMetrics.contentSpacing)
+        }
+        .contentShape(.rect(cornerRadius: ListMetrics.rowRadius))
         .motionAware(NookMotion.interaction, value: isSelected)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Folder \(folder.name)")

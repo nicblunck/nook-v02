@@ -610,6 +610,7 @@ struct BrowseView: View {
                                   fixedColumns: gridFixedColumns) {
                         ForEach(section.items) { item in
                             canvasItem(item, mode: model.viewMode, scale: model.itemScale)
+                                .environment(\.isLastListRow, item.id == section.items.last?.id)
                         }
                     }
                 }
@@ -919,26 +920,21 @@ private struct LibraryContentFilterBar: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            // One container, so the pills share a sampling pass instead of
-            // each lensing the others' glass. No spacing: neighbours stay
-            // separate pills at rest rather than melting into one bar.
-            GlassEffectContainer(spacing: 0) {
-                HStack(spacing: 8) {
-                    ForEach(LibraryContentFilter.allCases.filter(available.contains)) { filter in
-                        LibraryContentFilterButton(
-                            filter: filter,
-                            isSelected: selection == filter,
-                            tint: tint,
-                            action: { select(filter) }
-                        )
-                        // A pill that has lost its last item fades out; the rest
-                        // close the gap; one earning its place fades in last.
-                        .transition(change.itemTransition(
-                            exit: .scale(scale: 0.9).combined(with: .opacity),
-                            enter: .scale(scale: 0.9).combined(with: .opacity),
-                            reduceMotion: reduceMotion
-                        ))
-                    }
+            HStack(spacing: 8) {
+                ForEach(LibraryContentFilter.allCases.filter(available.contains)) { filter in
+                    LibraryContentFilterButton(
+                        filter: filter,
+                        isSelected: selection == filter,
+                        tint: tint,
+                        action: { select(filter) }
+                    )
+                    // A pill that has lost its last item fades out; the rest
+                    // close the gap; one earning its place fades in last.
+                    .transition(change.itemTransition(
+                        exit: .scale(scale: 0.9).combined(with: .opacity),
+                        enter: .scale(scale: 0.9).combined(with: .opacity),
+                        reduceMotion: reduceMotion
+                    ))
                 }
             }
             .padding(.horizontal, horizontalInset)
@@ -966,12 +962,11 @@ private struct LibraryContentFilterButton: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .foregroundStyle(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(.secondary))
-            // The selected pill takes the location's tint into its glass;
-            // the rest stay clear glass over whatever scrolls beneath.
-            .glassEffect(
-                isSelected
-                    ? .regular.tint(tint.opacity(0.18)).interactive()
-                    : .regular.interactive(),
+            // Flat fills rather than glass: these are content controls on
+            // the page, not chrome floating over it. The selected pill takes
+            // the location's tint; the rest sit back on a quiet grey.
+            .background(
+                isSelected ? AnyShapeStyle(tint.opacity(0.18)) : AnyShapeStyle(.quaternary.opacity(0.6)),
                 in: .capsule
             )
             // The capsule hugs its label; the surrounding frame keeps the

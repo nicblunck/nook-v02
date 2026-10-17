@@ -96,15 +96,13 @@ struct ObjectMenu: View {
                 }
             }
 
-            let urls = model.outgoingURLs(for: objects)
-            if !urls.isEmpty {
-                ShareLink(items: urls) {
-                    Label(urls.count == 1 ? "Share Original" : "Share \(urls.count) Originals",
+            // Share is also how an original leaves Nook: whatever app it is
+            // sent to — Files, Mail, AirDrop — receives the file itself.
+            let shared = model.shareURLs(for: objects)
+            if !shared.isEmpty {
+                ShareLink(items: shared) {
+                    Label(shared.count == 1 ? "Share…" : "Share \(shared.count) Items…",
                           systemImage: "square.and.arrow.up")
-                }
-                Button(urls.count == 1 ? "Export Original…" : "Export \(urls.count) Originals…",
-                       systemImage: "square.and.arrow.down") {
-                    model.beginExport(of: objects)
                 }
             }
 

@@ -340,16 +340,26 @@ struct MacShareView: View {
     }
 
     private func buildPreviewItems() async -> [SharePreviewItem] {
+        // Every attachment is resolved before any is shown, because one
+        // thing shared often arrives as several — a link and the same link
+        // as text — and only side by side can they be folded back into one.
+        var resolved: [ResolvedShareItem] = []
+        var sources: [SharedAttachment] = []
+        for attachment in attachments {
+            guard let item = await ShareItemResolver.resolve(attachment.provider) else { continue }
+            resolved.append(item)
+            sources.append(attachment)
+        }
+
         var result: [SharePreviewItem] = []
-        for (index, attachment) in attachments.enumerated() {
+        for (index, item) in ShareItemResolver.merged(resolved) {
+            let attachment = sources[index]
             let provider = attachment.provider
-            guard let resolved = await ShareItemResolver.resolve(provider) else { continue }
-            let fallbackName = ShareItemResolver.displayName(for: provider)
             result.append(
                 await SharePreview.makeItem(
                     id: index,
-                    resolved: resolved,
-                    fallbackName: fallbackName,
+                    resolved: item,
+                    fallbackName: ShareItemResolver.displayName(for: provider),
                     attachedMetadata: await LinkMetadataFetcher.attachedMetadataData(from: provider),
                     sharedTitle: attachment.sharedTitle
                 )

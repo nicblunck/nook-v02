@@ -33,7 +33,7 @@ extension LibraryViewMode {
         switch self {
         case .grid: 10
         case .masonry: 14
-        case .list: 14
+        case .list: ListMetrics.rowRadius
         }
     }
 }
@@ -93,10 +93,15 @@ struct GalleryLayout<Content: View>: View {
                 }
                 .transition(arrangementTransition)
             case .list:
-                // Cards, not table rows: they need air between them to read
-                // as separate surfaces rather than as one ruled block.
-                LazyVStack(spacing: 8) {
+                // One surface for the whole run, rows flush on it, the way
+                // a list in Files or Settings reads — not a stack of cards.
+                LazyVStack(spacing: 0) {
                     content
+                }
+                .padding(ListMetrics.containerInset)
+                .background {
+                    RoundedRectangle(cornerRadius: ListMetrics.containerRadius)
+                        .fill(Color.primary.opacity(0.035))
                 }
                 .transition(arrangementTransition)
             }
@@ -398,7 +403,7 @@ extension View {
         overlay(alignment: mode == .list ? .trailing : .bottomTrailing) {
             if isSelecting {
                 SelectionMark(isSelected: isSelected)
-                    .padding(mode == .list ? 14 : 8)
+                    .padding(mode == .list ? 12 : 8)
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
         }
@@ -1012,7 +1017,7 @@ struct SelectionActionsToolbar: ToolbarContent {
 
     private var isEmpty: Bool { objects.isEmpty && folders.isEmpty }
 
-    private var urls: [URL] { model.outgoingURLs(for: objects) }
+    private var urls: [URL] { model.shareURLs(for: objects) }
 
     private var countItem: some ToolbarContent {
         ToolbarItem(placement: .bottomBar) {

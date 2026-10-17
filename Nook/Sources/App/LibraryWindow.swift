@@ -36,8 +36,8 @@ struct LibraryWindow: View {
             .externalURLDrop(isTargeted: $isExternalDropTargeted) { urls in
                 Task { await model.importFiles(at: urls) }
             }
-            // Importing and exporting are the window's, not the canvas's:
-            // Home offers them too, and on iPhone the same prompts are reached
+            // Importing is the window's, not the canvas's:
+            // Home offers it too, and on iPhone the same prompt is reached
             // from a tab that is not the canvas at all.
             .fileImporter(
                 isPresented: $model.isImporterPresented,
@@ -46,20 +46,6 @@ struct LibraryWindow: View {
             ) { result in
                 guard case .success(let urls) = result else { return }
                 Task { await model.importFiles(at: urls) }
-            }
-            // Exporting asks for a folder rather than saving one file at a
-            // time, because a selection is as ordinary a thing to export as
-            // one item.
-            .fileImporter(
-                isPresented: $model.isExportPickerPresented,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false
-            ) { result in
-                guard case .success(let urls) = result, let directory = urls.first else {
-                    model.cancelExport()
-                    return
-                }
-                Task { await model.completeExport(to: directory) }
             }
             #if os(macOS)
             // Pairs with `ImportFromDevicesCommands` in `NookCommands`: that
@@ -650,14 +636,6 @@ struct NookCommands: Commands {
             Button("Import Files…") { model?.isImporterPresented = true }
                 .keyboardShortcut("o")
                 .disabled(model == nil)
-
-            Button("Export Originals…") {
-                guard let model else { return }
-                let objects = model.previewedObject.map { [$0] } ?? model.selectedObjects
-                model.beginExport(of: objects)
-            }
-            .keyboardShortcut("e", modifiers: [.command, .shift])
-            .disabled(!(model?.canExport ?? false))
         }
 
         CommandGroup(after: .pasteboard) {

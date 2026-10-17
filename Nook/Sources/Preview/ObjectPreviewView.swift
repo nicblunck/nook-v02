@@ -156,14 +156,18 @@ struct ObjectPreviewView: View {
             }
         }
         #if os(iOS)
-        // Info and Favorite are the two things worth a thumb's reach on a
-        // phone, so they ride along the bottom rather than the top bar.
+        // Share, Favorite and Info are the things worth a thumb's reach on a
+        // phone, so they ride along the bottom the way they do in Photos:
+        // Share at the leading end, Info at the trailing one.
         ToolbarItemGroup(placement: .bottomBar) {
+            shareButton
+            Spacer()
             favoriteButton
             Spacer()
             InfoToolbarButton(model: model)
         }
         #else
+        ToolbarItem { shareButton }
         ToolbarItem { favoriteButton }
         ToolbarItem { InfoToolbarButton(model: model) }
         #endif
@@ -172,6 +176,17 @@ struct ObjectPreviewView: View {
                 ObjectMenu(model: model, objects: [object])
             }
         }
+    }
+
+    /// A link goes out as its address; anything else as the original file.
+    /// Disabled while an original is still on its way to this device.
+    @ViewBuilder
+    private var shareButton: some View {
+        let shared = model.shareURLs(for: [object])
+        ShareLink(items: shared) {
+            Label("Share", systemImage: "square.and.arrow.up")
+        }
+        .disabled(shared.isEmpty)
     }
 
     private var favoriteButton: some View {
