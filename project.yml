@@ -45,7 +45,12 @@ targets:
         NSCameraUsageDescription: Nook uses the camera to take photos and scan documents you add to your library.
         NSFaceIDUsageDescription: Nook uses Face ID to reveal hidden items and open locked ones.
         UIBackgroundModes: [remote-notification]
-        UILaunchScreen: {}
+        # SplashView draws the same mark at the same size over the same
+        # colour, so the hand-off from the system's launch screen is seamless.
+        UILaunchScreen:
+          UIColorName: SplashBackground
+          UIImageName: SplashMark
+          UIImageRespectsSafeAreaInsets: false
         UISupportedInterfaceOrientations: &allInterfaceOrientations
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

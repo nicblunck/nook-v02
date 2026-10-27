@@ -72,6 +72,23 @@ final class LibraryLoader {
 
     private(set) var state: State = .loading
 
+    /// Whether the launch splash still covers the window. It is shown once per
+    /// launch: a window opened later just waits on a spinner like before.
+    private(set) var isShowingSplash = true
+
+    /// Close enough to launch, since the app makes its loader first.
+    private let launchedAt = ContinuousClock.now
+
+    /// Holds the splash until it has been up for its minimum time, so a fast
+    /// launch doesn't flash the mark and snatch it away again.
+    func waitOutSplash() async {
+        try? await Task.sleep(until: launchedAt + SplashView.minimumDuration)
+    }
+
+    func endSplash() {
+        isShowingSplash = false
+    }
+
     func load(settings: AppSettings) async {
         guard case .loading = state else { return }
         do {
@@ -106,6 +123,7 @@ struct RootView: View {
     let loader: LibraryLoader
     let settings: AppSettings
     @State private var model: LibraryModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -126,7 +144,22 @@ struct RootView: View {
                 )
             }
         }
+        .overlay {
+            if loader.isShowingSplash {
+                SplashView()
+                    .transition(.motionAware(.opacity.combined(with: .scale(scale: 1.12)),
+                                             reduceMotion: reduceMotion))
+            }
+        }
         .task { await loader.load(settings: settings) }
+        .task(id: isLaunchFinished) {
+            guard isLaunchFinished, loader.isShowingSplash else { return }
+            await loader.waitOutSplash()
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? NookMotion.reduced : SplashView.exit) {
+                loader.endSplash()
+            }
+        }
         .task(id: readyLibraryURL) {
             guard model == nil, case .ready(let library) = loader.state else { return }
             let windowModel = LibraryModel(library: library, settings: settings)
@@ -138,8 +171,47 @@ struct RootView: View {
         }
     }
 
+    /// The window has something to show in place of the splash: the library,
+    /// or the reason it couldn't be opened.
+    private var isLaunchFinished: Bool {
+        if case .failed = loader.state { return true }
+        return model != nil
+    }
+
     private var readyLibraryURL: URL? {
         guard case .ready(let library) = loader.state else { return nil }
         return library.locations.root
+    }
+}
+
+/// The launch screen, carried on into the app until the library is open.
+///
+/// On iOS the system shows `SplashMark` over `SplashBackground` before the
+/// app draws anything (UILaunchScreen in the Info.plist). This draws the same
+/// image at the same size in the same place, so the hand-off can't be seen,
+/// and then the mark lifts away to reveal the library underneath.
+struct SplashView: View {
+    static let minimumDuration: Duration = .milliseconds(600)
+    static let exit = Animation.smooth(duration: 0.4)
+
+    var body: some View {
+        ZStack {
+            background
+            // Not resizable: drawn at its point size, as the launch screen does.
+            Image("SplashMark")
+                .accessibilityHidden(true)
+        }
+        .ignoresSafeArea()
+        .accessibilityElement()
+        .accessibilityLabel("Opening Nook")
+    }
+
+    private var background: Color {
+        #if os(macOS)
+        // A Mac window has no launch screen to match, only its own background.
+        Color(nsColor: .windowBackgroundColor)
+        #else
+        Color("SplashBackground")
+        #endif
     }
 }
