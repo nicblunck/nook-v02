@@ -7,6 +7,10 @@ struct SettingsView: View {
     /// The folders a start page can be, indented by depth.
     var folders: [(folder: FolderSnapshot, depth: Int)] = []
 
+    /// The folders read from the library itself, for the Mac's Settings
+    /// window, which is opened without a library window's folder list.
+    @State private var loadedFolders: [(folder: FolderSnapshot, depth: Int)] = []
+
     #if os(macOS)
     @State private var selection = SettingsPane.appearance
     @State private var columnVisibility = NavigationSplitViewVisibility.all
@@ -42,6 +46,7 @@ struct SettingsView: View {
             appearanceSection
             privacySection
             librarySection
+            quickSaveSection
             linksSection
         }
         .formStyle(.grouped)
@@ -153,6 +158,61 @@ struct SettingsView: View {
         }
     }
 
+    private var quickSaveSection: some View {
+        Section {
+            Picker("Save To", selection: quickSaveFolderBinding) {
+                Label("Inbox", systemImage: "tray").tag(FolderID?.none)
+                if !availableFolders.isEmpty {
+                    Section("Folders") {
+                        ForEach(availableFolders, id: \.folder.id) { entry in
+                            Text(String(repeating: "    ", count: entry.depth) + entry.folder.name)
+                                .tag(FolderID?.some(entry.folder.id))
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Quick Save")
+        } footer: {
+            Text("Quick Save in the share sheet saves straight here, without asking for a folder or tags.")
+        }
+        .task {
+            guard folders.isEmpty, loadedFolders.isEmpty else { return }
+            await loadFolders()
+        }
+    }
+
+    private var availableFolders: [(folder: FolderSnapshot, depth: Int)] {
+        folders.isEmpty ? loadedFolders : folders
+    }
+
+    /// A quick save folder that has since been deleted reads as Inbox, which
+    /// is where quick saves now go.
+    private var quickSaveFolderBinding: Binding<FolderID?> {
+        Binding(
+            get: {
+                guard let id = settings.quickSaveFolderID,
+                      availableFolders.contains(where: { $0.folder.id == id })
+                else { return nil }
+                return id
+            },
+            set: { settings.quickSaveFolderID = $0 }
+        )
+    }
+
+    private func loadFolders() async {
+        guard let service = try? await SharedLibrary.shared.current().service else { return }
+        var flattened: [(folder: FolderSnapshot, depth: Int)] = []
+        var queue: [(folder: FolderSnapshot, depth: Int)] = await service.rootFolders().map { ($0, 0) }
+        while !queue.isEmpty {
+            let entry = queue.removeFirst()
+            flattened.append(entry)
+            let children = await service.subfolders(of: entry.folder.id).map { ($0, entry.depth + 1) }
+            queue.insert(contentsOf: children, at: 0)
+        }
+        loadedFolders = flattened
+    }
+
     #if os(iOS)
     private var linksSection: some View {
         Section {
@@ -180,6 +240,8 @@ struct SettingsView: View {
                 privacySection
             case .library:
                 librarySection
+            case .quickSave:
+                quickSaveSection
             }
         }
         .formStyle(.grouped)
@@ -217,6 +279,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case appearance
     case privacy
     case library
+    case quickSave
 
     var id: Self { self }
 
@@ -225,6 +288,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Appearance"
         case .privacy: "Privacy"
         case .library: "Library"
+        case .quickSave: "Quick Save"
         }
     }
 
@@ -233,6 +297,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "Choose how Nook looks"
         case .privacy: "Control how hidden items are protected"
         case .library: "Set the default order for your items"
+        case .quickSave: "Choose where Quick Save puts things"
         }
     }
 
@@ -241,6 +306,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "paintbrush"
         case .privacy: "hand.raised"
         case .library: "books.vertical"
+        case .quickSave: "bolt"
         }
     }
 }

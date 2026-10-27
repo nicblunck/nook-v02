@@ -155,6 +155,9 @@ final class AppSettings {
     }
 
     private let defaults: UserDefaults
+    /// Kept in the app group rather than `defaults`, because the quick save
+    /// extension reads it from its own process.
+    private let quickSave: QuickSaveSettings
 
     var defaultPreferences: LocationViewPreferences {
         didSet {
@@ -206,6 +209,11 @@ final class AppSettings {
         didSet { defaults.set(linkOpening.rawValue, forKey: Key.linkOpening) }
     }
 
+    /// The folder the quick save extension saves into, or nil for the Inbox.
+    var quickSaveFolderID: FolderID? {
+        didSet { quickSave.folderID = quickSaveFolderID }
+    }
+
     /// What opening a link actually does here. The Mac has no system in-app
     /// browser, so there a link always leaves for the default one.
     var effectiveLinkOpening: LinkOpening {
@@ -216,8 +224,9 @@ final class AppSettings {
         #endif
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, sharedDefaults: UserDefaults? = nil) {
         self.defaults = defaults
+        self.quickSave = QuickSaveSettings(defaults: sharedDefaults)
         self.defaultPreferences = Self.load(from: defaults, key: Key.defaultPreferences)
             ?? .systemDefault
         self.homePreferences = Self.load(from: defaults, key: Key.homePreferences)
@@ -233,6 +242,7 @@ final class AppSettings {
             .flatMap(StartPage.init(rawValue:)) ?? .all
         self.linkOpening = defaults.string(forKey: Key.linkOpening)
             .flatMap(LinkOpening.init(rawValue:)) ?? .defaultBrowser
+        self.quickSaveFolderID = quickSave.folderID
     }
 
     var accentColor: Color? { Color(hex: accentColorHex) }

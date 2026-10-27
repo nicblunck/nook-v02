@@ -182,6 +182,29 @@
 		FC00C017EA6BA03D85E541C1 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = B8660B8BD41E970209B6C53E /* NookLibrary */; };
 		FC637428D67F28C7986A4845 /* LibraryModel+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */; };
 		FCBDF52CD40921DBD362102C /* SelectionAndExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BC0A11B9B64E24455DA55E /* SelectionAndExportTests.swift */; };
+		54EF08BAACDA05595879905A /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D007BCDDD227AC15F39409ED /* NookLibrary */; };
+		59857658FE4E6BCCD77D0DB5 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
+		B77BCB2C91AE123E38577065 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */; };
+		FD4783F78C8229DB65CC47E6 /* QuickSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */; };
+		F5B279173E5C5C7A42889560 /* QuickSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */; };
+		0779BDCEAC4C7E254E9BF370 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
+		1306FBEA5D595987E8B4E247 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
+		F249FBF41E2E82D6D306DD80 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
+		FFA8487AA27419ACCB5BDFF1 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
+		93B5E933A8C576422916D77D /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
+		D5FF2CADCBC771E2140C65FA /* NookQuickSave.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		75994C6FA8163F18DF9E1EDC /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 8500C00EC5F07B538B2D2983 /* NookLibrary */; };
+		BA027FB9976427597B1FA010 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
+		5140F11FF7179518E7B02C41 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */; };
+		A4E86181E6C342E3D070BC79 /* QuickSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */; };
+		1CEFE708B6883FD486BC61EC /* QuickSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */; };
+		DF7A7CE7A3FA6C42E55F661C /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 581D5C21260A073EB4F309AE /* icon.icns */; };
+		51D9F7AC19ADB7502EF7E39D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
+		A109E34AE2B36D2638F6A61A /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
+		6ABFFD8CF6021A60D269DAF7 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
+		A2B58B3887DD5F23712DB4E3 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
+		4493D6F4E9A0C9F4FD983278 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
+		29D5084D07881B88E529EDC4 /* NookMacQuickSave.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -206,6 +229,20 @@
 			remoteGlobalIDString = 8A9311E2FFA013AECE433EC3;
 			remoteInfo = NookShareExtension;
 		};
+		FCC87A21E488D1FD54556468 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D0B9F6D7F2BD6294A0956066;
+			remoteInfo = NookQuickSave;
+		};
+		8047A873D911581F68E74D06 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB673578CAB310940F2E374E;
+			remoteInfo = NookMacQuickSave;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -215,6 +252,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				29D5084D07881B88E529EDC4 /* NookMacQuickSave.appex in Embed Foundation Extensions */,
 				988B5A65C7FAD2DC1CAD38DB /* NookMacShare.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -226,6 +264,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				D5FF2CADCBC771E2140C65FA /* NookQuickSave.appex in Embed Foundation Extensions */,
 				C5FE4A53ED515C6D652CC73F /* NookShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -341,6 +380,15 @@
 		F210F6A8865D75F169D982AD /* MacSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebar.swift; sourceTree = "<group>"; };
 		F5584AEC345FBA3A77277518 /* MediaTypeRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaTypeRowsTests.swift; sourceTree = "<group>"; };
 		F9A0304CACC61E8BAC1853B9 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
+		F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveView.swift; sourceTree = "<group>"; };
+		FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveViewController.swift; sourceTree = "<group>"; };
+		1EF9D92231B0B85AE890E433 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		76CB83933C7837DD1A46CC83 /* QuickSave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = QuickSave.entitlements; sourceTree = "<group>"; };
+		8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookQuickSave.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveViewController.swift; sourceTree = "<group>"; };
+		D2410CE0C7A6F4A6FC9D4E8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3C41F9E0A3118C412F459573 /* NookMacQuickSave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NookMacQuickSave.entitlements; sourceTree = "<group>"; };
+		FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookMacQuickSave.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -396,6 +444,30 @@
 				E967F574A5C9E8C63E13A416 /* QuickLook.framework in Frameworks */,
 				DEA6E3CCE552CD498467F007 /* QuickLookUI.framework in Frameworks */,
 				5FAC853D1A412AE75605E92E /* UniformTypeIdentifiers.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FF92514A42EB907F1154372F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				54EF08BAACDA05595879905A /* NookLibrary in Frameworks */,
+				1306FBEA5D595987E8B4E247 /* AVFoundation.framework in Frameworks */,
+				F249FBF41E2E82D6D306DD80 /* ImageIO.framework in Frameworks */,
+				FFA8487AA27419ACCB5BDFF1 /* PDFKit.framework in Frameworks */,
+				93B5E933A8C576422916D77D /* UniformTypeIdentifiers.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9394ED1F11590D5B55E92FB3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				75994C6FA8163F18DF9E1EDC /* NookLibrary in Frameworks */,
+				A109E34AE2B36D2638F6A61A /* AVFoundation.framework in Frameworks */,
+				6ABFFD8CF6021A60D269DAF7 /* ImageIO.framework in Frameworks */,
+				A2B58B3887DD5F23712DB4E3 /* PDFKit.framework in Frameworks */,
+				4493D6F4E9A0C9F4FD983278 /* UniformTypeIdentifiers.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -561,6 +633,8 @@
 		CC3EFE3504B73EAEEDED18F5 = {
 			isa = PBXGroup;
 			children = (
+				25AD8B3730F8E9EA0D7070E4 /* QuickSave */,
+				4212CEB31BD81967CDDF283D /* NookMacQuickSave */,
 				A23BE3EDBAB6E6EBD7838C19 /* NookMacShare */,
 				42862BC523550C291A833AF4 /* Packages */,
 				B89FC2A58AC2DC2D947D94F4 /* Resources */,
@@ -630,6 +704,8 @@
 		EF799ADDBCF3DE03D240F860 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */,
+				FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */,
 				482B9F9AB8A4291B81AAEC7B /* Nook-iOS.app */,
 				68DA8798A5D4B9A084003E0F /* Nook-macOS.app */,
 				6182D04BE16360EDA6C22BA3 /* NookMacShare.appex */,
@@ -637,6 +713,28 @@
 				CD921CC11A139E1721BD0361 /* NookTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		25AD8B3730F8E9EA0D7070E4 /* QuickSave */ = {
+			isa = PBXGroup;
+			children = (
+				1EF9D92231B0B85AE890E433 /* Info.plist */,
+				76CB83933C7837DD1A46CC83 /* QuickSave.entitlements */,
+				F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */,
+				FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */,
+			);
+			name = QuickSave;
+			path = Nook/QuickSave;
+			sourceTree = "<group>";
+		};
+		4212CEB31BD81967CDDF283D /* NookMacQuickSave */ = {
+			isa = PBXGroup;
+			children = (
+				D2410CE0C7A6F4A6FC9D4E8C /* Info.plist */,
+				3C41F9E0A3118C412F459573 /* NookMacQuickSave.entitlements */,
+				A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */,
+			);
+			path = NookMacQuickSave;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -654,6 +752,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				3E46AFB759A2B5FA763C58F7 /* PBXTargetDependency */,
 				3BDEB0945825537F4732E404 /* PBXTargetDependency */,
 			);
 			name = "Nook-iOS";
@@ -734,6 +833,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				E6FD54E836AA9D3D704B7E5D /* PBXTargetDependency */,
 				A6032CF572C680B93984D40A /* PBXTargetDependency */,
 			);
 			name = "Nook-macOS";
@@ -744,6 +844,46 @@
 			productReference = 68DA8798A5D4B9A084003E0F /* Nook-macOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D0B9F6D7F2BD6294A0956066 /* NookQuickSave */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93177CF40E4C190C477D4A36 /* Build configuration list for PBXNativeTarget "NookQuickSave" */;
+			buildPhases = (
+				0C57D53C533D4CC2DE6FD2D8 /* Sources */,
+				FF92514A42EB907F1154372F /* Frameworks */,
+				230355C90623CB215FEB2C25 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NookQuickSave;
+			packageProductDependencies = (
+				D007BCDDD227AC15F39409ED /* NookLibrary */,
+			);
+			productName = NookQuickSave;
+			productReference = 8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		AB673578CAB310940F2E374E /* NookMacQuickSave */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ECD39D2EDDD203DAC6FA7D39 /* Build configuration list for PBXNativeTarget "NookMacQuickSave" */;
+			buildPhases = (
+				3642526CB4B5EF80970F6041 /* Sources */,
+				9394ED1F11590D5B55E92FB3 /* Frameworks */,
+				4815E451FE87F68F55213616 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NookMacQuickSave;
+			packageProductDependencies = (
+				8500C00EC5F07B538B2D2983 /* NookLibrary */,
+			);
+			productName = NookMacQuickSave;
+			productReference = FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -753,6 +893,14 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					D0B9F6D7F2BD6294A0956066 = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+					AB673578CAB310940F2E374E = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
 					0BA63C55DC81E35B430E55DD = {
 						DevelopmentTeam = 84GFPQ65N9;
 						ProvisioningStyle = Automatic;
@@ -792,6 +940,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				D0B9F6D7F2BD6294A0956066 /* NookQuickSave */,
+				AB673578CAB310940F2E374E /* NookMacQuickSave */,
 				0BA63C55DC81E35B430E55DD /* Nook-iOS */,
 				8A9311E2FFA013AECE433EC3 /* NookShareExtension */,
 				B3A7E0DA3D5A620E78B0894C /* Nook-macOS */,
@@ -837,6 +987,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				717666660CF926DD478E87B3 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		230355C90623CB215FEB2C25 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0779BDCEAC4C7E254E9BF370 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4815E451FE87F68F55213616 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF7A7CE7A3FA6C42E55F661C /* icon.icns in Resources */,
+				51D9F7AC19ADB7502EF7E39D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1014,6 +1181,28 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0C57D53C533D4CC2DE6FD2D8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				59857658FE4E6BCCD77D0DB5 /* LinkMetadataFetcher.swift in Sources */,
+				B77BCB2C91AE123E38577065 /* SharePreview.swift in Sources */,
+				FD4783F78C8229DB65CC47E6 /* QuickSaveView.swift in Sources */,
+				F5B279173E5C5C7A42889560 /* QuickSaveViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3642526CB4B5EF80970F6041 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BA027FB9976427597B1FA010 /* LinkMetadataFetcher.swift in Sources */,
+				5140F11FF7179518E7B02C41 /* SharePreview.swift in Sources */,
+				A4E86181E6C342E3D070BC79 /* QuickSaveView.swift in Sources */,
+				1CEFE708B6883FD486BC61EC /* QuickSaveViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1031,6 +1220,16 @@
 			isa = PBXTargetDependency;
 			target = B3A7E0DA3D5A620E78B0894C /* Nook-macOS */;
 			targetProxy = 35095C318289A1D04F978827 /* PBXContainerItemProxy */;
+		};
+		3E46AFB759A2B5FA763C58F7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D0B9F6D7F2BD6294A0956066 /* NookQuickSave */;
+			targetProxy = FCC87A21E488D1FD54556468 /* PBXContainerItemProxy */;
+		};
+		E6FD54E836AA9D3D704B7E5D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AB673578CAB310940F2E374E /* NookMacQuickSave */;
+			targetProxy = 8047A873D911581F68E74D06 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1395,6 +1594,100 @@
 			};
 			name = Release;
 		};
+		645F0C7F834587DCF7A15AC6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Nook/QuickSave/QuickSave.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Nook/QuickSave/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.quicksave;
+				PRODUCT_NAME = NookQuickSave;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CA0640B04D84207437877DF1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Nook/QuickSave/QuickSave.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Nook/QuickSave/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.quicksave;
+				PRODUCT_NAME = NookQuickSave;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		74C64B3BD3587D7DAFBA89CC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NookMacQuickSave/NookMacQuickSave.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = NookMacQuickSave/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macquicksave;
+				PRODUCT_NAME = NookMacQuickSave;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		6938EDC7637EC1C52D597621 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NookMacQuickSave/NookMacQuickSave.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = NookMacQuickSave/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macquicksave;
+				PRODUCT_NAME = NookMacQuickSave;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1452,6 +1745,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		93177CF40E4C190C477D4A36 /* Build configuration list for PBXNativeTarget "NookQuickSave" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				645F0C7F834587DCF7A15AC6 /* Debug */,
+				CA0640B04D84207437877DF1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		ECD39D2EDDD203DAC6FA7D39 /* Build configuration list for PBXNativeTarget "NookMacQuickSave" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				74C64B3BD3587D7DAFBA89CC /* Debug */,
+				6938EDC7637EC1C52D597621 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -1475,6 +1786,14 @@
 			productName = NookLibrary;
 		};
 		DDFF79E3969F89745A6DBD2E /* NookLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookLibrary;
+		};
+		D007BCDDD227AC15F39409ED /* NookLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookLibrary;
+		};
+		8500C00EC5F07B538B2D2983 /* NookLibrary */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NookLibrary;
 		};

@@ -32,6 +32,8 @@ Signing & Capabilities for each target.
 Packages/NookLibrary   the library itself — no SwiftUI anywhere in it
 Nook/Sources           the SwiftUI app, which only talks to NookLibrary
 Nook/ShareExtension    iOS share sheet, writing into the same library
+Nook/QuickSave         Quick Save: saves from the share sheet with no questions
+NookMacQuickSave       the Mac's Quick Save, sharing Nook/QuickSave's view
 Nook/Resources         asset catalog and app icon
 ```
 
