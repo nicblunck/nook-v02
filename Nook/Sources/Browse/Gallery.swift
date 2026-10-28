@@ -563,7 +563,7 @@ struct GalleryDropIndicator: View {
 /// A dock icon, either an SF Symbol or a full-color custom asset from
 /// Assets.xcassets. Custom assets need an explicit size since, unlike SF
 /// Symbols, they don't scale with the surrounding font.
-private enum ToolbarIcon {
+enum ToolbarIcon {
     case system(String)
     case custom(String)
 
@@ -594,6 +594,10 @@ private struct ToolbarIconView: View {
                 .interpolation(.high)
                 .scaledToFit()
                 .frame(width: scaled, height: scaled)
+                // Full-colour art has no edge of its own against the glass,
+                // and the paler pieces wash out into it. A tight shadow
+                // traces the outline without reading as a drop shadow.
+                .shadow(color: .black.opacity(0.2), radius: 1, y: 0.5)
         }
     }
 }
@@ -610,7 +614,7 @@ struct MacAddContentToolbar: View {
     let model: LibraryModel
 
     var body: some View {
-        HStack(spacing: MacAddContentDock.gutter) {
+        MacDockCluster {
             MacDocumentPopoverButton(model: model)
 
             MacAddContentButton(
@@ -629,6 +633,19 @@ struct MacAddContentToolbar: View {
 
             MacFolderPopoverButton(model: model)
         }
+    }
+}
+
+/// A row of dock buttons on one glass capsule. The add-content dock and the
+/// sidebar's Trash and Hidden buttons share it, so both read as the same
+/// kind of control.
+struct MacDockCluster<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: MacAddContentDock.gutter) {
+            content
+        }
         .padding(MacAddContentDock.gutter)
         // The glass sits beneath the buttons rather than around them: a
         // view wrapped in `glassEffect` is composited into the glass layer
@@ -644,7 +661,7 @@ struct MacAddContentToolbar: View {
 /// The dock's geometry, shared between the pill and its buttons so the
 /// pressed wash lands the same distance from every edge as from its
 /// neighbours: a capsule the height of the item, concentric with the pill.
-private enum MacAddContentDock {
+enum MacAddContentDock {
     static let gutter: CGFloat = 4
     static let itemSize = CGSize(width: 44, height: 32)
     static let hoverScale: CGFloat = 1.15
@@ -779,9 +796,13 @@ private struct MacAddContentButton: View {
     }
 }
 
-private struct MacAddContentButtonStyle: ButtonStyle {
+struct MacAddContentButtonStyle: ButtonStyle {
+    /// Holds the pressed wash, for a button that stands for the place
+    /// currently shown.
+    var isSelected = false
+
     func makeBody(configuration: Configuration) -> some View {
-        MacAddContentButtonBody(configuration: configuration)
+        MacAddContentButtonBody(configuration: configuration, isSelected: isSelected)
     }
 }
 
@@ -791,11 +812,19 @@ private struct MacAddContentButtonStyle: ButtonStyle {
 /// staying put beneath it.
 private struct MacAddContentButtonBody: View {
     let configuration: ButtonStyleConfiguration
+    let isSelected: Bool
     @State private var isHovering = false
 
     private var scale: CGFloat {
         if configuration.isPressed { return 1 }
         return isHovering ? MacAddContentDock.hoverScale : 1
+    }
+
+    /// Pressed or standing for the current place reads strongest; under the
+    /// pointer, just enough to show which button a click would land on.
+    private var washOpacity: Double {
+        if configuration.isPressed || isSelected { return 0.12 }
+        return isHovering ? 0.06 : 0
     }
 
     var body: some View {
@@ -805,10 +834,7 @@ private struct MacAddContentButtonBody: View {
             .frame(width: MacAddContentDock.itemSize.width,
                    height: MacAddContentDock.itemSize.height)
             .contentShape(.capsule)
-            .background(
-                Color.primary.opacity(configuration.isPressed ? 0.12 : 0),
-                in: .capsule
-            )
+            .background(Color.primary.opacity(washOpacity), in: .capsule)
             .onHover { isHovering = $0 }
             .motionAware(NookMotion.interaction, value: scale)
     }

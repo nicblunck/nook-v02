@@ -173,11 +173,15 @@ extension FolderScene where Stamp == EmptyView {
 
 // MARK: - Shapes
 
+/// The folder's corner radius, in the 236-wide units of the reference
+/// drawings. Both panels round their corners with SwiftUI's continuous
+/// curve at this radius, so the front sits exactly over the back's body.
+private let folderCornerRadius: CGFloat = 36
 
-/// The back of the folder: a tab at the left standing above the panel,
-/// traced point-for-point from a 236×171 reference (`Back.svg`) rather than
-/// approximated. Below the tab's rise it is `FolderFrontShape`'s own curve,
-/// shifted down — the two files share every corner but the tab.
+/// The back of the folder: a tab at the left standing above the panel. The
+/// body is the front panel's own continuous rounded rect, shifted down by
+/// the tab's rise; the tab joins it, with its outer corner rounded to match
+/// and an S-curve slope down to the body's top edge.
 nonisolated struct FolderBackShape: Shape {
     func path(in rect: CGRect) -> Path {
         let sx = rect.width / 236
@@ -185,73 +189,50 @@ nonisolated struct FolderBackShape: Shape {
         func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
             CGPoint(x: rect.minX + x * sx, y: rect.minY + y * sy)
         }
+        let radius = folderCornerRadius * min(sx, sy)
+        let rise: CGFloat = 16
 
-        var path = Path()
-        path.move(to: pt(0, 25.6))
-        path.addCurve(to: pt(1.7439, 8.73615), control1: pt(0, 16.6392), control2: pt(0, 12.1587))
-        path.addCurve(to: pt(8.73615, 1.7439), control1: pt(3.27787, 5.72556), control2: pt(5.72556, 3.27787))
-        path.addCurve(to: pt(25.6, 0), control1: pt(12.1587, 0), control2: pt(16.6392, 0))
-        path.addLine(to: pt(63.3961, 0))
-        path.addCurve(to: pt(71.1077, 0.442081), control1: pt(67.3096, 0), control2: pt(69.2663, 0))
-        path.addCurve(to: pt(75.7326, 2.35776), control1: pt(72.7403, 0.834029), control2: pt(74.301, 1.4805))
-        path.addCurve(to: pt(81.4981, 7.49807), control1: pt(77.3472, 3.34723), control2: pt(78.7308, 4.73084))
-        path.addLine(to: pt(82.5019, 8.50194))
-        path.addCurve(to: pt(88.2674, 13.6422), control1: pt(85.2692, 11.2692), control2: pt(86.6528, 12.6528))
-        path.addCurve(to: pt(92.8923, 15.5579), control1: pt(89.699, 14.5195), control2: pt(91.2597, 15.166))
-        path.addCurve(to: pt(100.604, 16), control1: pt(94.7337, 16), control2: pt(96.6904, 16))
-        path.addLine(to: pt(210.4, 16))
-        path.addCurve(to: pt(227.264, 17.7439), control1: pt(219.361, 16), control2: pt(223.841, 16))
-        path.addCurve(to: pt(234.256, 24.7362), control1: pt(230.274, 19.2779), control2: pt(232.722, 21.7256))
-        path.addCurve(to: pt(236, 41.6), control1: pt(236, 28.1587), control2: pt(236, 32.6392))
-        path.addLine(to: pt(236, 145.4))
-        path.addCurve(to: pt(234.256, 162.264), control1: pt(236, 154.361), control2: pt(236, 158.841))
-        path.addCurve(to: pt(227.264, 169.256), control1: pt(232.722, 165.274), control2: pt(230.274, 167.722))
-        path.addCurve(to: pt(210.4, 171), control1: pt(223.841, 171), control2: pt(219.361, 171))
-        path.addLine(to: pt(25.6, 171))
-        path.addCurve(to: pt(8.73615, 169.256), control1: pt(16.6392, 171), control2: pt(12.1587, 171))
-        path.addCurve(to: pt(1.7439, 162.264), control1: pt(5.72556, 167.722), control2: pt(3.27787, 165.274))
-        path.addCurve(to: pt(0, 145.4), control1: pt(0, 158.841), control2: pt(0, 154.361))
-        path.addLine(to: pt(0, 25.6))
-        path.closeSubpath()
-        return path
+        let body = RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .path(in: CGRect(x: rect.minX, y: rect.minY + rise * sy,
+                             width: rect.width, height: rect.height - rise * sy))
+
+        // Where the tab's flat top ends and where its slope lands on the
+        // body. The slope is one S-curve, level at both ends, so it leaves
+        // the tab and meets the body without a visible join at either.
+        let slopeStart: CGFloat = 58
+        let slopeEnd: CGFloat = 108
+        let ease = (slopeEnd - slopeStart) * 0.5
+
+        // Runs down past the body's top edge, so it fills the body's
+        // rounded top-left corner and the two read as one outline.
+        let tab = UnevenRoundedRectangle(topLeadingRadius: radius, style: .continuous)
+            .path(in: CGRect(x: rect.minX, y: rect.minY,
+                             width: slopeStart * sx, height: (rise + folderCornerRadius) * sy))
+
+        var slope = Path()
+        slope.move(to: pt(slopeStart - 4, 0))
+        slope.addLine(to: pt(slopeStart, 0))
+        slope.addCurve(to: pt(slopeEnd, rise),
+                       control1: pt(slopeStart + ease, 0),
+                       control2: pt(slopeEnd - ease, rise))
+        slope.addLine(to: pt(slopeEnd, rise + 1))
+        slope.addLine(to: pt(slopeStart - 4, rise + 1))
+        slope.closeSubpath()
+
+        return body.union(tab).union(slope)
     }
 }
 
-/// The front panel: the same 236×155 rounded rect as `FolderBackShape`'s
-/// body, traced from `Front.svg` rather than SwiftUI's own continuous corner
-/// — close, but not close enough to sit on top of the back panel's curve
-/// without a visible seam at the join.
+/// The front panel: a continuous rounded rect, the same one that forms the
+/// back panel's body, so the two share every corner.
 nonisolated struct FolderFrontShape: InsettableShape {
     var inset: CGFloat = 0
 
     func path(in rect: CGRect) -> Path {
         let r = rect.insetBy(dx: inset, dy: inset)
-        let sx = r.width / 236
-        let sy = r.height / 155
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: r.minX + x * sx, y: r.minY + y * sy)
-        }
-
-        var path = Path()
-        path.move(to: pt(0, 25.6))
-        path.addCurve(to: pt(1.7439, 8.73615), control1: pt(0, 16.6392), control2: pt(0, 12.1587))
-        path.addCurve(to: pt(8.73615, 1.7439), control1: pt(3.27787, 5.72556), control2: pt(5.72556, 3.27787))
-        path.addCurve(to: pt(25.6, 0), control1: pt(12.1587, 0), control2: pt(16.6392, 0))
-        path.addLine(to: pt(210.4, 0))
-        path.addCurve(to: pt(227.264, 1.7439), control1: pt(219.361, 0), control2: pt(223.841, 0))
-        path.addCurve(to: pt(234.256, 8.73615), control1: pt(230.274, 3.27787), control2: pt(232.722, 5.72556))
-        path.addCurve(to: pt(236, 25.6), control1: pt(236, 12.1587), control2: pt(236, 16.6392))
-        path.addLine(to: pt(236, 129.4))
-        path.addCurve(to: pt(234.256, 146.264), control1: pt(236, 138.361), control2: pt(236, 142.841))
-        path.addCurve(to: pt(227.264, 153.256), control1: pt(232.722, 149.274), control2: pt(230.274, 151.722))
-        path.addCurve(to: pt(210.4, 155), control1: pt(223.841, 155), control2: pt(219.361, 155))
-        path.addLine(to: pt(25.6, 155))
-        path.addCurve(to: pt(8.73615, 153.256), control1: pt(16.6392, 155), control2: pt(12.1587, 155))
-        path.addCurve(to: pt(1.7439, 146.264), control1: pt(5.72556, 151.722), control2: pt(3.27787, 149.274))
-        path.addCurve(to: pt(0, 129.4), control1: pt(0, 142.841), control2: pt(0, 138.361))
-        path.addLine(to: pt(0, 25.6))
-        path.closeSubpath()
-        return path
+        let scale = min(r.width / 236, r.height / 155)
+        return RoundedRectangle(cornerRadius: folderCornerRadius * scale, style: .continuous)
+            .path(in: r)
     }
 
     func inset(by amount: CGFloat) -> Self {
@@ -260,4 +241,3 @@ nonisolated struct FolderFrontShape: InsettableShape {
         return copy
     }
 }
-

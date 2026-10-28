@@ -72,10 +72,6 @@ final class LibraryLoader {
 
     private(set) var state: State = .loading
 
-    /// Whether the launch splash still covers the window. It is shown once per
-    /// launch: a window opened later just waits on a spinner like before.
-    private(set) var isShowingSplash = true
-
     /// Close enough to launch, since the app makes its loader first.
     private let launchedAt = ContinuousClock.now
 
@@ -83,10 +79,6 @@ final class LibraryLoader {
     /// launch doesn't flash the mark and snatch it away again.
     func waitOutSplash() async {
         try? await Task.sleep(until: launchedAt + SplashView.minimumDuration)
-    }
-
-    func endSplash() {
-        isShowingSplash = false
     }
 
     func load(settings: AppSettings) async {
@@ -123,18 +115,21 @@ struct RootView: View {
     let loader: LibraryLoader
     let settings: AppSettings
     @State private var model: LibraryModel?
+    /// Whether the splash still covers this window. Every window opens under
+    /// it, so none waits on a bare spinner while its library loads.
+    @State private var isShowingSplash = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
             switch loader.state {
             case .loading:
-                ProgressView().controlSize(.large)
+                Color.clear
             case .ready:
                 if let model {
                     LibraryWindow(model: model)
                 } else {
-                    ProgressView().controlSize(.large)
+                    Color.clear
                 }
             case .failed(let message):
                 ContentUnavailableView(
@@ -145,19 +140,24 @@ struct RootView: View {
             }
         }
         .overlay {
-            if loader.isShowingSplash {
-                SplashView()
-                    .transition(.motionAware(.opacity.combined(with: .scale(scale: 1.12)),
-                                             reduceMotion: reduceMotion))
+            if isShowingSplash {
+                SplashView(accentColor: settings.accentColor ?? .accentColor)
+                    .transition(.motionAware(SplashView.transition, reduceMotion: reduceMotion))
             }
         }
+        #if os(macOS)
+        // The splash is a plain screen: no window title or toolbar over it.
+        .toolbar(removing: isShowingSplash ? .title : nil)
+        .toolbarVisibility(isShowingSplash ? .hidden : .automatic, for: .windowToolbar)
+        #endif
         .task { await loader.load(settings: settings) }
         .task(id: isLaunchFinished) {
-            guard isLaunchFinished, loader.isShowingSplash else { return }
+            guard isLaunchFinished, isShowingSplash else { return }
+            // Long since past for a window opened after launch.
             await loader.waitOutSplash()
             guard !Task.isCancelled else { return }
             withAnimation(reduceMotion ? NookMotion.reduced : SplashView.exit) {
-                loader.endSplash()
+                isShowingSplash = false
             }
         }
         .task(id: readyLibraryURL) {
@@ -192,11 +192,29 @@ struct RootView: View {
 /// and then the mark lifts away to reveal the library underneath.
 struct SplashView: View {
     static let minimumDuration: Duration = .milliseconds(600)
-    static let exit = Animation.smooth(duration: 0.4)
+    static let exit = Animation.easeInOut(duration: 0.5)
+
+    /// The Mac's splash sits on the library's own backdrop, so it fades
+    /// straight into the window rather than lifting away as on iOS.
+    static var transition: AnyTransition {
+        #if os(macOS)
+        .opacity
+        #else
+        .opacity.combined(with: .scale(scale: 1.12))
+        #endif
+    }
+
+    /// The tint of the gradient the library draws behind its canvas.
+    let accentColor: Color
 
     var body: some View {
         ZStack {
             background
+            #if os(macOS)
+            // The same wash as the canvas, so the library appears in place.
+            LinearGradient(colors: [accentColor.opacity(0.3), accentColor.opacity(0)],
+                           startPoint: .bottom, endPoint: .top)
+            #endif
             // Not resizable: drawn at its point size, as the launch screen does.
             Image("SplashMark")
                 .accessibilityHidden(true)
@@ -215,3 +233,10 @@ struct SplashView: View {
         #endif
     }
 }
+
+#if DEBUG
+#Preview("Splash") {
+    SplashView(accentColor: .accentColor)
+        .frame(width: 900, height: 600)
+}
+#endif

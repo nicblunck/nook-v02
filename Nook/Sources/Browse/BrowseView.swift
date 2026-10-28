@@ -134,7 +134,7 @@ struct BrowseView: View {
             #if os(macOS)
             if model.previewedObjectID == nil {
                 MacAddContentToolbar(model: model)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, 8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     // Leaves with the canvas and comes back with it, on the
                     // same beat.
@@ -392,7 +392,12 @@ struct BrowseView: View {
     /// (the folder shelf or the grid). Tighter than the gallery's own
     /// column inset — the filter bar reads as chrome sitting close under
     /// the toolbar, not as another row of gallery content.
-    private var filterBarGap: CGFloat { 12 }
+    private var filterBarGap: CGFloat { 8 }
+
+    /// Between the folder shelf and the objects under it. Closer than the
+    /// gallery's own row spacing: the shelf heads the place's contents rather
+    /// than standing apart from them as another section.
+    private var folderShelfGap: CGFloat { 8 }
 
     /// Keyed on the place the contents came from, so arriving somewhere else
     /// swaps the whole canvas — the old place fades out, then the new one
@@ -437,7 +442,7 @@ struct BrowseView: View {
                 VStack(spacing: 0) {
                     if showsFolderShelf {
                         folderShelfSection
-                            .padding(.bottom, model.viewMode.contentInsets.top)
+                            .padding(.bottom, folderShelfGap)
                             .transition(folderShelfTransition)
                     }
                     canvasGrid
@@ -969,9 +974,13 @@ private struct LibraryContentFilterButton: View {
                 isSelected ? AnyShapeStyle(tint.opacity(0.18)) : AnyShapeStyle(.quaternary.opacity(0.6)),
                 in: .capsule
             )
+            #if os(iOS)
             // The capsule hugs its label; the surrounding frame keeps the
-            // control's hit target comfortably accessible.
+            // control's hit target comfortably accessible to a finger. A
+            // pointer needs no such margin, and on the Mac it would only
+            // push the pills away from what sits above and below them.
             .frame(minHeight: 44)
+            #endif
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

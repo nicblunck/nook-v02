@@ -183,25 +183,52 @@ struct SidebarView: View {
     /// sidebar, separate from the library's destinations.
     private var footer: some View {
         HStack(spacing: 2) {
-            footerButton(title: "Trash",
-                         symbol: "trash",
-                         isCurrent: model.scope == .trash,
-                         count: model.counts[.trash],
-                         dropTarget: .trash) {
-                model.navigate(to: .scope(.trash), startingPageStack: true)
-            }
-            // No count on this one. How much someone is keeping out of sight
-            // is itself something they are keeping out of sight.
-            footerButton(title: "Hidden",
-                         symbol: "eye.slash",
-                         isCurrent: model.scope == .hidden,
-                         dropTarget: .hidden) {
-                Task { await model.openHidden(startingPageStack: true) }
-            }
+            footerButtons
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
+        #if os(macOS)
+        // Level with the add-content dock across the window, which sits the
+        // same distance off the bottom of the canvas.
+        .padding(.top, 6)
+        .padding(.bottom, 8)
+        #else
         .padding(.vertical, 6)
+        #endif
+    }
+
+    @ViewBuilder
+    private var footerButtons: some View {
+        #if os(macOS)
+        // On the same glass as the add-content dock at the foot of the
+        // library, so the two bottom corners of the window match.
+        MacDockCluster { footerDestinations }
+        #else
+        footerDestinations
+        #endif
+    }
+
+    @ViewBuilder
+    private var footerDestinations: some View {
+        footerButton(title: "Trash",
+                     symbol: "trash",
+                     isCurrent: model.scope == .trash,
+                     count: model.counts[.trash],
+                     dropTarget: .trash) {
+            model.navigate(to: .scope(.trash), startingPageStack: true)
+        }
+        #if os(macOS)
+        Divider()
+            .frame(height: 18)
+        #endif
+        // No count on this one. How much someone is keeping out of sight
+        // is itself something they are keeping out of sight.
+        footerButton(title: "Hidden",
+                     symbol: "eye.slash",
+                     isCurrent: model.scope == .hidden,
+                     dropTarget: .hidden) {
+            Task { await model.openHidden(startingPageStack: true) }
+        }
     }
 
     /// Icons alone: these are two fixed destinations rather than a list that
@@ -214,20 +241,34 @@ struct SidebarView: View {
                               dropTarget: DropTarget? = nil,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.body)
-                .frame(width: 28, height: 24)
-                .background(isCurrent ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
-                            in: .rect(cornerRadius: 6))
-                .contentShape(.rect(cornerRadius: 6))
+            footerIcon(symbol, isCurrent: isCurrent)
         }
+        #if os(macOS)
+        .buttonStyle(MacAddContentButtonStyle(isSelected: isCurrent))
+        #else
         .buttonStyle(.plain)
+        #endif
         .motionAware(NookMotion.interaction, value: isCurrent)
         .help(title)
         .accessibilityLabel(title)
         .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
         .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
         .modifier(OptionalDropTarget(target: dropTarget, model: model))
+    }
+
+    @ViewBuilder
+    private func footerIcon(_ symbol: String, isCurrent: Bool) -> some View {
+        #if os(macOS)
+        // The dock's style draws the backing and grows the icon on hover.
+        ToolbarIcon.system(symbol).image(size: 16)
+        #else
+        Image(systemName: symbol)
+            .font(.body)
+            .frame(width: 28, height: 24)
+            .background(isCurrent ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                        in: .rect(cornerRadius: 6))
+            .contentShape(.rect(cornerRadius: 6))
+        #endif
     }
 
     // MARK: Rows
