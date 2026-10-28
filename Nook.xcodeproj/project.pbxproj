@@ -14,13 +14,16 @@
 		04D31608028346359E62B68B /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
 		04FAEEE0EA38D787A9B2BCA7 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 3DA6DCC7DC29525F67279647 /* NookLibrary */; };
 		05EF14FE4062438D78D1E2AD /* FolderScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4813A195EDEB60B4C7E35F /* FolderScene.swift */; };
+		0779BDCEAC4C7E254E9BF370 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
 		0946D81D8328BF7D49B55F8C /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26467AD6EEFD8E47048A033B /* LibraryWindow.swift */; };
 		0A82B417675233126FF71364 /* LibraryIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */; };
 		0ACCE57D32C0D06245431125 /* LibraryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33ABDD9D4627F2E16A5DA8F2 /* LibraryEntities.swift */; };
 		11EE33D6C63D6C3B6DFE47C3 /* InfoPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC223D7E6161E7D5A60D4CE /* InfoPanel.swift */; };
+		1306FBEA5D595987E8B4E247 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
 		148F029A9660CF00E7F90657 /* EntityIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADD58BC62206678FDC124F /* EntityIcon.swift */; };
 		185F3B2E41A37BDBBD53992A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
 		1C1D98948C251765214E7570 /* AppNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEF3C3995EBCFE55CD09A2C /* AppNavigator.swift */; };
+		1CEFE708B6883FD486BC61EC /* QuickSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */; };
 		1EB9568CC9B0CBE4D9040E75 /* MacSidebarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2F59D6B6D6224D17A4D5EC /* MacSidebarTests.swift */; };
 		1EEE6C86E63C07EA036BE586 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
 		2030BACD5B2A9EFF72957C5F /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3AB199013B3E104B25F50D /* AppSettings.swift */; };
@@ -35,6 +38,7 @@
 		27A6B38B403D117359D399F8 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */; };
 		280962FE0CD1D2D9AF00EC7A /* AccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2982A98756C04444501D61 /* AccessibilityTests.swift */; };
 		2890CD4A0D4265FBDEB8E6AC /* TransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D525A7D837A50021BF91CA75 /* TransferTests.swift */; };
+		29D5084D07881B88E529EDC4 /* NookMacQuickSave.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2B6E0FF4E6F163D8CE074364 /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7217C9F68FF753009C820E37 /* Formatting.swift */; };
 		2BE911F93E0DC1ABE930D09E /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
 		2C9BD2F9817F14DAB3F840C3 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
@@ -49,6 +53,7 @@
 		40BA08E11DFF7AE8292E5FBA /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3AB199013B3E104B25F50D /* AppSettings.swift */; };
 		41A758F57A5DC5029E0E6D4E /* SidebarKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */; };
 		440CD692B2E6C1360DD8DD6C /* AppNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEF3C3995EBCFE55CD09A2C /* AppNavigator.swift */; };
+		4493D6F4E9A0C9F4FD983278 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
 		454988664FF2E838FC2994F6 /* PreviewKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD0F4500613C37E08B31368 /* PreviewKeyMonitor.swift */; };
 		46A7C286402E49109434CEB3 /* DragAndDropTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B4D58AD46B1B6BB384DA53 /* DragAndDropTests.swift */; };
 		48FC19ABDEF29FD7F6D4053C /* PhotosUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70CA2795B9C904E3E9B6EAC4 /* PhotosUI.framework */; };
@@ -56,15 +61,19 @@
 		4D7F32201D801811F6689745 /* AppFocusLoss.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AA740B740B8281F9DA7BA3 /* AppFocusLoss.swift */; };
 		4E39C56EF620D356E9121476 /* LocalAuthentication.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */; };
 		4FB69122E5154A241EBFDB7B /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */; };
+		5140F11FF7179518E7B02C41 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */; };
+		51D9F7AC19ADB7502EF7E39D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
 		5235845F8790B1A5FF98C35C /* QuickLook.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */; };
 		527A37FEB245E3488A2A51A7 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */; };
 		533078AE069D8E285FC674C2 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */; };
 		537B879AC92D5200D6C90B51 /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739F53217116EE9DBE7711EF /* ThumbnailView.swift */; };
+		54EF08BAACDA05595879905A /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D007BCDDD227AC15F39409ED /* NookLibrary */; };
 		553A25554F6728150CC09384 /* ObjectCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675725027741609435969340 /* ObjectCard.swift */; };
 		56BC3DB2347CA2F1F9C336B9 /* SidebarKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0321CFF625554D702508D5C4 /* SidebarKeyboard.swift */; };
 		5717E544CA768A3F946F0F3B /* MotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18AC5AC0F91991372FABDFEB /* MotionTests.swift */; };
 		58AAB74877361580BD292F04 /* NamingPromptModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */; };
 		59603E011D81C555FFE5C73A /* ClickTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14F605247A2F4067B7D59A99 /* ClickTests.swift */; };
+		59857658FE4E6BCCD77D0DB5 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
 		5A7624C5BED582DEF8F19B93 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
 		5EA9104AEA846407A5F915A6 /* PasteImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56996EA6351BD06C5361175 /* PasteImporter.swift */; };
 		5F544EEDA5A3BAC77B46A9B6 /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F9A0304CACC61E8BAC1853B9 /* CoreData.framework */; };
@@ -74,6 +83,7 @@
 		67F8489E58803A2374E5C379 /* LibraryModel+Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */; };
 		697DAE0FFD77409E90FB9E79 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
 		6ABFB8ECF307F3C1C4778397 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2BB04523326914EC04916BD /* ShareViewController.swift */; };
+		6ABFFD8CF6021A60D269DAF7 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
 		6BB068FB80D701D70E33C4C2 /* LocalAuthentication.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA84FD6BECD2B21BE14CDA9E /* LocalAuthentication.framework */; };
 		6BEE273B9248D3238F110C4F /* AppTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF4A2584DCD536E7042B43B /* AppTestSupport.swift */; };
 		6E9868EA56E44CE4ACC70D1C /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
@@ -89,6 +99,7 @@
 		73D8970DF77FAC569E318A1D /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
 		73EE3A7E0202E0FB09BD1F6D /* PlatformImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E477CB7EDD8F899E348B493 /* PlatformImage.swift */; };
 		74CD7D549EFF4C5392E29269 /* PDFKitPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09E54B00A18A4AB5A0BF541F /* PDFKitPreview.swift */; };
+		75994C6FA8163F18DF9E1EDC /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 8500C00EC5F07B538B2D2983 /* NookLibrary */; };
 		7755E91E4C50225C2052E58B /* ObjectPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0EC2E92B891E22467AE8A3A /* ObjectPreviewView.swift */; };
 		7856EE8D48F66C5CBB03FD46 /* BlobArrivalWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6291D7426A387F5C9CCBD33 /* BlobArrivalWatcher.swift */; };
 		7901ABBE3906B5B81E639F64 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
@@ -108,6 +119,7 @@
 		8ED63639DFADC193C046DA7C /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
 		8FBDB78A0BBE594A6BC27758 /* FolderScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4813A195EDEB60B4C7E35F /* FolderScene.swift */; };
 		93B3DC55FCC8C398A2D34E17 /* MediaPlayerPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C2B76DF23C43F1A0AC4AF98 /* MediaPlayerPreview.swift */; };
+		93B5E933A8C576422916D77D /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
 		9621EE0E8A85417E7B871C11 /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */; };
 		97E69EEF85D5D3CBCD4E6D90 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B7961129E681FCB810B31249 /* VisionKit.framework */; };
 		984E181312BC68F677451252 /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82924B5579C4C3667A253D96 /* Authentication.swift */; };
@@ -118,13 +130,16 @@
 		9C4EAEC9C7274FA4A9252E98 /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA0244A47B64B2081FBC600 /* LinkPreviewView.swift */; };
 		9D2E451C0D69E0EC5A9CC1C8 /* PrivacyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62FD2E70AFD8CD56F67F06 /* PrivacyTests.swift */; };
 		9F33E16E2E1DD3D918DE2304 /* LinkPresentation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2F1A021571C2D9FBE73E9522 /* LinkPresentation.framework */; };
+		A109E34AE2B36D2638F6A61A /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
 		A1B2C3D4E5F6071829304A5B /* PageStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5D /* PageStack.swift */; };
 		A1B2C3D4E5F6071829304A5C /* PageStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5D /* PageStack.swift */; };
 		A282B192409F0A382F7D2D03 /* MediaPlayerPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C2B76DF23C43F1A0AC4AF98 /* MediaPlayerPreview.swift */; };
+		A2B58B3887DD5F23712DB4E3 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
 		A2C5722E058CD7EE618DD406 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26467AD6EEFD8E47048A033B /* LibraryWindow.swift */; };
 		A382FECC12A164B0CA581A9C /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82924B5579C4C3667A253D96 /* Authentication.swift */; };
 		A42E32164EF46664B9514BB5 /* ObjectMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B01DB011F59C0A76481411 /* ObjectMenu.swift */; };
 		A4733A9C4E4D5281DD34D292 /* LibraryModel+Trash.swift in Sources */ = {isa = PBXBuildFile; fileRef = C76BAA60F77F66D4B4A540CA /* LibraryModel+Trash.swift */; };
+		A4E86181E6C342E3D070BC79 /* QuickSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */; };
 		A59B397D0B99609CFB5BF71D /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F9A0304CACC61E8BAC1853B9 /* CoreData.framework */; };
 		AA1B326BBDCC55697189A410 /* FolderPeekIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E635B56CA1EFED55EE9AF84 /* FolderPeekIcon.swift */; };
 		AA6F7582E11345A7A66CD2C3 /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA0244A47B64B2081FBC600 /* LinkPreviewView.swift */; };
@@ -138,7 +153,9 @@
 		B2C3D4E5F60718293A4B5C6D /* GalleryResizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* GalleryResizeTests.swift */; };
 		B2F26817B72A0A66A967BABF /* QuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB7DC894F4C85DDBF2AD223 /* QuickLookPreview.swift */; };
 		B618EE95DD1C876AB2D2CE19 /* ObjectListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905A205A714574C119F97337 /* ObjectListRow.swift */; };
+		B77BCB2C91AE123E38577065 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */; };
 		B8C519F5F10EEF0CE9806931 /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7217C9F68FF753009C820E37 /* Formatting.swift */; };
+		BA027FB9976427597B1FA010 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
 		BCFC1E910C8A78918DDA808C /* LibraryModel+Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106C71FFD828F45FC12D1AB6 /* LibraryModel+Drop.swift */; };
 		BDE62E6DE0735B1746E2D07C /* MediaTypeRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5584AEC345FBA3A77277518 /* MediaTypeRowsTests.swift */; };
 		BDEC3E1A1BB4CE922FFE987F /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */; };
@@ -155,6 +172,7 @@
 		CA9BE2F876A08681544A0EBB /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */; };
 		CCFA3AD9EE77A3D62F3805E3 /* CanvasNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */; };
 		CEC23D03C4C8DC833BBC20CF /* Gallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EDF13258DDB4655029A5079 /* Gallery.swift */; };
+		D5FF2CADCBC771E2140C65FA /* NookQuickSave.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D7E0983A75A335B92834DADC /* PreviewKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD0F4500613C37E08B31368 /* PreviewKeyMonitor.swift */; };
 		DB9483DB3809CEA40C8B1C70 /* SidebarDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8C86A91E6450157D34B913 /* SidebarDrop.swift */; };
 		DBE86E8E13B92BDB6DD3EE91 /* ObjectTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3461C31462405BB9A76C41A9 /* ObjectTransfer.swift */; };
@@ -162,6 +180,7 @@
 		DCCE6DBCB7ED790EF2D1F3B8 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = DDFF79E3969F89745A6DBD2E /* NookLibrary */; };
 		DEA6E3CCE552CD498467F007 /* QuickLookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 617C7B21EE32E8FDB306A9E4 /* QuickLookUI.framework */; };
 		DF541F783F3E6AB52FDF6401 /* ZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FC2E3FBECF54F6812F15FE /* ZoomableImageView.swift */; };
+		DF7A7CE7A3FA6C42E55F661C /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 581D5C21260A073EB4F309AE /* icon.icns */; };
 		E4C695C92BCA5AD793E6BE7B /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739F53217116EE9DBE7711EF /* ThumbnailView.swift */; };
 		E564FD0E2C7543D3992BFCF6 /* PreviewGestureInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 598271FD8D0D4C74856EB222 /* PreviewGestureInstaller.swift */; };
 		E607BA175C2C61FAE4EFCA35 /* LibraryModel+Trash.swift in Sources */ = {isa = PBXBuildFile; fileRef = C76BAA60F77F66D4B4A540CA /* LibraryModel+Trash.swift */; };
@@ -174,7 +193,9 @@
 		EE5A79A170299CEC67D51427 /* CanvasNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */; };
 		EF61779A09E831C61C401634 /* LibraryModel+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */; };
 		EFD9611BE8C3CAC7AE88B32C /* EntityIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AADD58BC62206678FDC124F /* EntityIcon.swift */; };
+		F249FBF41E2E82D6D306DD80 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
 		F4168F5D4F45247D4C7CCDA2 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2D270AB1179B7840326D7F /* SidebarView.swift */; };
+		F5B279173E5C5C7A42889560 /* QuickSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */; };
 		F66965244707226B4A2F95BD /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD7210F1D8D8B75DF824356 /* ShareViewController.swift */; };
 		F68C3D96290E502D4DB43E7A /* ShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5594F92A03F99FEE098D847C /* ShareView.swift */; };
 		F919052B06928625512FB7EF /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29536F9041A9DB155DE4316 /* NookApp.swift */; };
@@ -182,29 +203,8 @@
 		FC00C017EA6BA03D85E541C1 /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = B8660B8BD41E970209B6C53E /* NookLibrary */; };
 		FC637428D67F28C7986A4845 /* LibraryModel+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */; };
 		FCBDF52CD40921DBD362102C /* SelectionAndExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BC0A11B9B64E24455DA55E /* SelectionAndExportTests.swift */; };
-		54EF08BAACDA05595879905A /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D007BCDDD227AC15F39409ED /* NookLibrary */; };
-		59857658FE4E6BCCD77D0DB5 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
-		B77BCB2C91AE123E38577065 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0A3ED9B4A83998D3E1A87 /* SharePreview.swift */; };
 		FD4783F78C8229DB65CC47E6 /* QuickSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */; };
-		F5B279173E5C5C7A42889560 /* QuickSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */; };
-		0779BDCEAC4C7E254E9BF370 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
-		1306FBEA5D595987E8B4E247 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
-		F249FBF41E2E82D6D306DD80 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
 		FFA8487AA27419ACCB5BDFF1 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
-		93B5E933A8C576422916D77D /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
-		D5FF2CADCBC771E2140C65FA /* NookQuickSave.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		75994C6FA8163F18DF9E1EDC /* NookLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = 8500C00EC5F07B538B2D2983 /* NookLibrary */; };
-		BA027FB9976427597B1FA010 /* LinkMetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C655E9DF21CFFBF08F9943 /* LinkMetadataFetcher.swift */; };
-		5140F11FF7179518E7B02C41 /* SharePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFAC8A9F0E4AC86BCB9B9AB /* SharePreview.swift */; };
-		A4E86181E6C342E3D070BC79 /* QuickSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */; };
-		1CEFE708B6883FD486BC61EC /* QuickSaveViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */; };
-		DF7A7CE7A3FA6C42E55F661C /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 581D5C21260A073EB4F309AE /* icon.icns */; };
-		51D9F7AC19ADB7502EF7E39D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 62486567CDC08B27DB86A221 /* PrivacyInfo.xcprivacy */; };
-		A109E34AE2B36D2638F6A61A /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E822F1C4D900A0E77E46E716 /* AVFoundation.framework */; };
-		6ABFFD8CF6021A60D269DAF7 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E988652F9EA34AE2CA61B8B1 /* ImageIO.framework */; };
-		A2B58B3887DD5F23712DB4E3 /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6692A9752BF5E66E33799576 /* PDFKit.framework */; };
-		4493D6F4E9A0C9F4FD983278 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */; };
-		29D5084D07881B88E529EDC4 /* NookMacQuickSave.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -222,6 +222,13 @@
 			remoteGlobalIDString = 46529983BD2DE74CDE9CD165;
 			remoteInfo = NookMacShare;
 		};
+		8047A873D911581F68E74D06 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB673578CAB310940F2E374E;
+			remoteInfo = NookMacQuickSave;
+		};
 		95EF742488D085ABE1EEDBBB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
@@ -235,13 +242,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = D0B9F6D7F2BD6294A0956066;
 			remoteInfo = NookQuickSave;
-		};
-		8047A873D911581F68E74D06 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 7138A22EF1642B27AC8B891C /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = AB673578CAB310940F2E374E;
-			remoteInfo = NookMacQuickSave;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -287,6 +287,7 @@
 		18AC5AC0F91991372FABDFEB /* MotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionTests.swift; sourceTree = "<group>"; };
 		19CBBCDDF8C4FBA64C3E51B4 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
 		1E24F3A0A33FE3489BB2C4A0 /* ExternalURLDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalURLDrop.swift; sourceTree = "<group>"; };
+		1EF9D92231B0B85AE890E433 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		26467AD6EEFD8E47048A033B /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
 		27E6631E2E0AA1A1BB26F1F5 /* ItemClick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemClick.swift; sourceTree = "<group>"; };
 		2EDF13258DDB4655029A5079 /* Gallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gallery.swift; sourceTree = "<group>"; };
@@ -294,6 +295,7 @@
 		2F72508226D75E781509A208 /* GlobalSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchView.swift; sourceTree = "<group>"; };
 		33ABDD9D4627F2E16A5DA8F2 /* LibraryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEntities.swift; sourceTree = "<group>"; };
 		3461C31462405BB9A76C41A9 /* ObjectTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectTransfer.swift; sourceTree = "<group>"; };
+		3C41F9E0A3118C412F459573 /* NookMacQuickSave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NookMacQuickSave.entitlements; sourceTree = "<group>"; };
 		3E635B56CA1EFED55EE9AF84 /* FolderPeekIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPeekIcon.swift; sourceTree = "<group>"; };
 		482B9F9AB8A4291B81AAEC7B /* Nook-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; name = "Nook-iOS.app"; path = Nook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5077A25D0DDEE3345F9469E8 /* HomeGalleryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeGalleryTests.swift; sourceTree = "<group>"; };
@@ -328,6 +330,7 @@
 		739F53217116EE9DBE7711EF /* ThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailView.swift; sourceTree = "<group>"; };
 		7643CBF0A8E97CA82870A6D3 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		76BB49A5E93C4671B2DDC1F6 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport.swift; sourceTree = "<group>"; };
+		76CB83933C7837DD1A46CC83 /* QuickSave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = QuickSave.entitlements; sourceTree = "<group>"; };
 		76CD5F12B166FE41A9DBAA41 /* QuickLook.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLook.framework; path = System/Library/Frameworks/QuickLook.framework; sourceTree = SDKROOT; };
 		7AADD58BC62206678FDC124F /* EntityIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityIcon.swift; sourceTree = "<group>"; };
 		7FD7210F1D8D8B75DF824356 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -336,9 +339,11 @@
 		83FC2E3FBECF54F6812F15FE /* ZoomableImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableImageView.swift; sourceTree = "<group>"; };
 		842A954454AF03801FC4938B /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		859CD1B6A1B80930666ADA7A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookQuickSave.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		905A205A714574C119F97337 /* ObjectListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectListRow.swift; sourceTree = "<group>"; };
 		9AC02BD5B629569AF48147D4 /* CanvasNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasNavigation.swift; sourceTree = "<group>"; };
 		9CB10254CF5D69D96BB2CFF9 /* NamingPromptModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamingPromptModifier.swift; sourceTree = "<group>"; };
+		A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071829304A5D /* PageStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageStack.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* GalleryResizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryResizeTests.swift; sourceTree = "<group>"; };
 		A1BC324E69B7E5F0BD3965A2 /* AppearanceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceEditor.swift; sourceTree = "<group>"; };
@@ -364,6 +369,7 @@
 		CE2982A98756C04444501D61 /* AccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityTests.swift; sourceTree = "<group>"; };
 		CF961D82EDB8E176624D3965 /* LibraryModel+Keyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryModel+Keyboard.swift"; sourceTree = "<group>"; };
 		D0CBBBBC09CEE539C524B3DE /* LibraryIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryIntents.swift; sourceTree = "<group>"; };
+		D2410CE0C7A6F4A6FC9D4E8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D525A7D837A50021BF91CA75 /* TransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferTests.swift; sourceTree = "<group>"; };
 		D6291D7426A387F5C9CCBD33 /* BlobArrivalWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlobArrivalWatcher.swift; sourceTree = "<group>"; };
 		D9A77FDCBCC8A348F29F0E7E /* CompactLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactLibraryView.swift; sourceTree = "<group>"; };
@@ -379,16 +385,10 @@
 		EC2D270AB1179B7840326D7F /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		F210F6A8865D75F169D982AD /* MacSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebar.swift; sourceTree = "<group>"; };
 		F5584AEC345FBA3A77277518 /* MediaTypeRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaTypeRowsTests.swift; sourceTree = "<group>"; };
-		F9A0304CACC61E8BAC1853B9 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
 		F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveView.swift; sourceTree = "<group>"; };
-		FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveViewController.swift; sourceTree = "<group>"; };
-		1EF9D92231B0B85AE890E433 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		76CB83933C7837DD1A46CC83 /* QuickSave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = QuickSave.entitlements; sourceTree = "<group>"; };
-		8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookQuickSave.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveViewController.swift; sourceTree = "<group>"; };
-		D2410CE0C7A6F4A6FC9D4E8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		3C41F9E0A3118C412F459573 /* NookMacQuickSave.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NookMacQuickSave.entitlements; sourceTree = "<group>"; };
+		F9A0304CACC61E8BAC1853B9 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
 		FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookMacQuickSave.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSaveViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -405,6 +405,18 @@
 				5235845F8790B1A5FF98C35C /* QuickLook.framework in Frameworks */,
 				2BE911F93E0DC1ABE930D09E /* UniformTypeIdentifiers.framework in Frameworks */,
 				97E69EEF85D5D3CBCD4E6D90 /* VisionKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9394ED1F11590D5B55E92FB3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				75994C6FA8163F18DF9E1EDC /* NookLibrary in Frameworks */,
+				A109E34AE2B36D2638F6A61A /* AVFoundation.framework in Frameworks */,
+				6ABFFD8CF6021A60D269DAF7 /* ImageIO.framework in Frameworks */,
+				A2B58B3887DD5F23712DB4E3 /* PDFKit.framework in Frameworks */,
+				4493D6F4E9A0C9F4FD983278 /* UniformTypeIdentifiers.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -459,18 +471,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9394ED1F11590D5B55E92FB3 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				75994C6FA8163F18DF9E1EDC /* NookLibrary in Frameworks */,
-				A109E34AE2B36D2638F6A61A /* AVFoundation.framework in Frameworks */,
-				6ABFFD8CF6021A60D269DAF7 /* ImageIO.framework in Frameworks */,
-				A2B58B3887DD5F23712DB4E3 /* PDFKit.framework in Frameworks */,
-				4493D6F4E9A0C9F4FD983278 /* UniformTypeIdentifiers.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -480,6 +480,28 @@
 				BEC223D7E6161E7D5A60D4CE /* InfoPanel.swift */,
 			);
 			path = Inspector;
+			sourceTree = "<group>";
+		};
+		25AD8B3730F8E9EA0D7070E4 /* QuickSave */ = {
+			isa = PBXGroup;
+			children = (
+				1EF9D92231B0B85AE890E433 /* Info.plist */,
+				76CB83933C7837DD1A46CC83 /* QuickSave.entitlements */,
+				F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */,
+				FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */,
+			);
+			name = QuickSave;
+			path = Nook/QuickSave;
+			sourceTree = "<group>";
+		};
+		4212CEB31BD81967CDDF283D /* NookMacQuickSave */ = {
+			isa = PBXGroup;
+			children = (
+				D2410CE0C7A6F4A6FC9D4E8C /* Info.plist */,
+				3C41F9E0A3118C412F459573 /* NookMacQuickSave.entitlements */,
+				A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */,
+			);
+			path = NookMacQuickSave;
 			sourceTree = "<group>";
 		};
 		42862BC523550C291A833AF4 /* Packages */ = {
@@ -715,28 +737,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		25AD8B3730F8E9EA0D7070E4 /* QuickSave */ = {
-			isa = PBXGroup;
-			children = (
-				1EF9D92231B0B85AE890E433 /* Info.plist */,
-				76CB83933C7837DD1A46CC83 /* QuickSave.entitlements */,
-				F6F7177B4829BB1E8E1426F2 /* QuickSaveView.swift */,
-				FF4E20D4E68CE7C19A0CAF72 /* QuickSaveViewController.swift */,
-			);
-			name = QuickSave;
-			path = Nook/QuickSave;
-			sourceTree = "<group>";
-		};
-		4212CEB31BD81967CDDF283D /* NookMacQuickSave */ = {
-			isa = PBXGroup;
-			children = (
-				D2410CE0C7A6F4A6FC9D4E8C /* Info.plist */,
-				3C41F9E0A3118C412F459573 /* NookMacQuickSave.entitlements */,
-				A151DC42AE233DE0839F035C /* QuickSaveViewController.swift */,
-			);
-			path = NookMacQuickSave;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -821,6 +821,26 @@
 			productReference = CD921CC11A139E1721BD0361 /* NookTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		AB673578CAB310940F2E374E /* NookMacQuickSave */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ECD39D2EDDD203DAC6FA7D39 /* Build configuration list for PBXNativeTarget "NookMacQuickSave" */;
+			buildPhases = (
+				3642526CB4B5EF80970F6041 /* Sources */,
+				9394ED1F11590D5B55E92FB3 /* Frameworks */,
+				4815E451FE87F68F55213616 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NookMacQuickSave;
+			packageProductDependencies = (
+				8500C00EC5F07B538B2D2983 /* NookLibrary */,
+			);
+			productName = NookMacQuickSave;
+			productReference = FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		B3A7E0DA3D5A620E78B0894C /* Nook-macOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8649C33C4D059114BB7FAEA7 /* Build configuration list for PBXNativeTarget "Nook-macOS" */;
@@ -864,26 +884,6 @@
 			productReference = 8FF7FDC80B820BDE768CE2C4 /* NookQuickSave.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		AB673578CAB310940F2E374E /* NookMacQuickSave */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = ECD39D2EDDD203DAC6FA7D39 /* Build configuration list for PBXNativeTarget "NookMacQuickSave" */;
-			buildPhases = (
-				3642526CB4B5EF80970F6041 /* Sources */,
-				9394ED1F11590D5B55E92FB3 /* Frameworks */,
-				4815E451FE87F68F55213616 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = NookMacQuickSave;
-			packageProductDependencies = (
-				8500C00EC5F07B538B2D2983 /* NookLibrary */,
-			);
-			productName = NookMacQuickSave;
-			productReference = FA24F58E0BA18D114C54A479 /* NookMacQuickSave.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -893,14 +893,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					D0B9F6D7F2BD6294A0956066 = {
-						DevelopmentTeam = 84GFPQ65N9;
-						ProvisioningStyle = Automatic;
-					};
-					AB673578CAB310940F2E374E = {
-						DevelopmentTeam = 84GFPQ65N9;
-						ProvisioningStyle = Automatic;
-					};
 					0BA63C55DC81E35B430E55DD = {
 						DevelopmentTeam = 84GFPQ65N9;
 						ProvisioningStyle = Automatic;
@@ -917,7 +909,15 @@
 						DevelopmentTeam = 84GFPQ65N9;
 						ProvisioningStyle = Automatic;
 					};
+					AB673578CAB310940F2E374E = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
 					B3A7E0DA3D5A620E78B0894C = {
+						DevelopmentTeam = 84GFPQ65N9;
+						ProvisioningStyle = Automatic;
+					};
+					D0B9F6D7F2BD6294A0956066 = {
 						DevelopmentTeam = 84GFPQ65N9;
 						ProvisioningStyle = Automatic;
 					};
@@ -962,6 +962,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		230355C90623CB215FEB2C25 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0779BDCEAC4C7E254E9BF370 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4815E451FE87F68F55213616 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF7A7CE7A3FA6C42E55F661C /* icon.icns in Resources */,
+				51D9F7AC19ADB7502EF7E39D /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5CC84813A082105642CAF44B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -987,23 +1004,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				717666660CF926DD478E87B3 /* PrivacyInfo.xcprivacy in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		230355C90623CB215FEB2C25 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				0779BDCEAC4C7E254E9BF370 /* PrivacyInfo.xcprivacy in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4815E451FE87F68F55213616 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				DF7A7CE7A3FA6C42E55F661C /* icon.icns in Resources */,
-				51D9F7AC19ADB7502EF7E39D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1070,6 +1070,28 @@
 				73B79E1EA703336EFFC374AB /* SidebarView.swift in Sources */,
 				7856EE8D48F66C5CBB03FD46 /* BlobArrivalWatcher.swift in Sources */,
 				E4C695C92BCA5AD793E6BE7B /* ThumbnailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0C57D53C533D4CC2DE6FD2D8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				59857658FE4E6BCCD77D0DB5 /* LinkMetadataFetcher.swift in Sources */,
+				B77BCB2C91AE123E38577065 /* SharePreview.swift in Sources */,
+				FD4783F78C8229DB65CC47E6 /* QuickSaveView.swift in Sources */,
+				F5B279173E5C5C7A42889560 /* QuickSaveViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3642526CB4B5EF80970F6041 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BA027FB9976427597B1FA010 /* LinkMetadataFetcher.swift in Sources */,
+				5140F11FF7179518E7B02C41 /* SharePreview.swift in Sources */,
+				A4E86181E6C342E3D070BC79 /* QuickSaveView.swift in Sources */,
+				1CEFE708B6883FD486BC61EC /* QuickSaveViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1181,28 +1203,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0C57D53C533D4CC2DE6FD2D8 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				59857658FE4E6BCCD77D0DB5 /* LinkMetadataFetcher.swift in Sources */,
-				B77BCB2C91AE123E38577065 /* SharePreview.swift in Sources */,
-				FD4783F78C8229DB65CC47E6 /* QuickSaveView.swift in Sources */,
-				F5B279173E5C5C7A42889560 /* QuickSaveViewController.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3642526CB4B5EF80970F6041 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				BA027FB9976427597B1FA010 /* LinkMetadataFetcher.swift in Sources */,
-				5140F11FF7179518E7B02C41 /* SharePreview.swift in Sources */,
-				A4E86181E6C342E3D070BC79 /* QuickSaveView.swift in Sources */,
-				1CEFE708B6883FD486BC61EC /* QuickSaveViewController.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1211,25 +1211,25 @@
 			target = 8A9311E2FFA013AECE433EC3 /* NookShareExtension */;
 			targetProxy = 95EF742488D085ABE1EEDBBB /* PBXContainerItemProxy */;
 		};
-		A6032CF572C680B93984D40A /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 46529983BD2DE74CDE9CD165 /* NookMacShare */;
-			targetProxy = 4D2512E10D91691ACFF87352 /* PBXContainerItemProxy */;
-		};
-		FBDBF8451468BFCC1B1D0971 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = B3A7E0DA3D5A620E78B0894C /* Nook-macOS */;
-			targetProxy = 35095C318289A1D04F978827 /* PBXContainerItemProxy */;
-		};
 		3E46AFB759A2B5FA763C58F7 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D0B9F6D7F2BD6294A0956066 /* NookQuickSave */;
 			targetProxy = FCC87A21E488D1FD54556468 /* PBXContainerItemProxy */;
 		};
+		A6032CF572C680B93984D40A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 46529983BD2DE74CDE9CD165 /* NookMacShare */;
+			targetProxy = 4D2512E10D91691ACFF87352 /* PBXContainerItemProxy */;
+		};
 		E6FD54E836AA9D3D704B7E5D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AB673578CAB310940F2E374E /* NookMacQuickSave */;
 			targetProxy = 8047A873D911581F68E74D06 /* PBXContainerItemProxy */;
+		};
+		FBDBF8451468BFCC1B1D0971 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B3A7E0DA3D5A620E78B0894C /* Nook-macOS */;
+			targetProxy = 35095C318289A1D04F978827 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1416,6 +1416,53 @@
 			};
 			name = Debug;
 		};
+		645F0C7F834587DCF7A15AC6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Nook/QuickSave/QuickSave.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Nook/QuickSave/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.quicksave;
+				PRODUCT_NAME = NookQuickSave;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6938EDC7637EC1C52D597621 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NookMacQuickSave/NookMacQuickSave.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = NookMacQuickSave/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macquicksave;
+				PRODUCT_NAME = NookMacQuickSave;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
 		6969D7DA24B1E558FD6DBB6A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1480,6 +1527,32 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		74C64B3BD3587D7DAFBA89CC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = NookMacQuickSave/NookMacQuickSave.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = NookMacQuickSave/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macquicksave;
+				PRODUCT_NAME = NookMacQuickSave;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
 		};
 		7A6C850226CBA973FA870E59 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1547,6 +1620,27 @@
 			};
 			name = Debug;
 		};
+		CA0640B04D84207437877DF1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Nook/QuickSave/QuickSave.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Nook/QuickSave/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.quicksave;
+				PRODUCT_NAME = NookQuickSave;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		ED273D3F386542D9F26B41B6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1594,100 +1688,6 @@
 			};
 			name = Release;
 		};
-		645F0C7F834587DCF7A15AC6 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = Nook/QuickSave/QuickSave.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = Nook/QuickSave/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.quicksave;
-				PRODUCT_NAME = NookQuickSave;
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		CA0640B04D84207437877DF1 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = Nook/QuickSave/QuickSave.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = Nook/QuickSave/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.quicksave;
-				PRODUCT_NAME = NookQuickSave;
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		74C64B3BD3587D7DAFBA89CC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = NookMacQuickSave/NookMacQuickSave.entitlements;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				INFOPLIST_FILE = NookMacQuickSave/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macquicksave;
-				PRODUCT_NAME = NookMacQuickSave;
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-			};
-			name = Debug;
-		};
-		6938EDC7637EC1C52D597621 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = NookMacQuickSave/NookMacQuickSave.entitlements;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				INFOPLIST_FILE = NookMacQuickSave/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nicolasblunck.nook.app.macquicksave;
-				PRODUCT_NAME = NookMacQuickSave;
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1705,6 +1705,15 @@
 			buildConfigurations = (
 				2D4FF09719BF0F786B70E1F7 /* Debug */,
 				6969D7DA24B1E558FD6DBB6A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		93177CF40E4C190C477D4A36 /* Build configuration list for PBXNativeTarget "NookQuickSave" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				645F0C7F834587DCF7A15AC6 /* Debug */,
+				CA0640B04D84207437877DF1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1736,29 +1745,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		F33096E3ABAF131BB4300D63 /* Build configuration list for PBXNativeTarget "NookTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				70DDDA4310B7FBBAB63A9CC0 /* Debug */,
-				259235495A4ED778BA9C9A78 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
-		93177CF40E4C190C477D4A36 /* Build configuration list for PBXNativeTarget "NookQuickSave" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				645F0C7F834587DCF7A15AC6 /* Debug */,
-				CA0640B04D84207437877DF1 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
 		ECD39D2EDDD203DAC6FA7D39 /* Build configuration list for PBXNativeTarget "NookMacQuickSave" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				74C64B3BD3587D7DAFBA89CC /* Debug */,
 				6938EDC7637EC1C52D597621 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F33096E3ABAF131BB4300D63 /* Build configuration list for PBXNativeTarget "NookTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				70DDDA4310B7FBBAB63A9CC0 /* Debug */,
+				259235495A4ED778BA9C9A78 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -1781,11 +1781,11 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = NookLibrary;
 		};
-		B8660B8BD41E970209B6C53E /* NookLibrary */ = {
+		8500C00EC5F07B538B2D2983 /* NookLibrary */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NookLibrary;
 		};
-		DDFF79E3969F89745A6DBD2E /* NookLibrary */ = {
+		B8660B8BD41E970209B6C53E /* NookLibrary */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NookLibrary;
 		};
@@ -1793,7 +1793,7 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = NookLibrary;
 		};
-		8500C00EC5F07B538B2D2983 /* NookLibrary */ = {
+		DDFF79E3969F89745A6DBD2E /* NookLibrary */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NookLibrary;
 		};
