@@ -81,6 +81,10 @@ enum SharePreview {
             return SharePreviewItem(id: id, resolved: resolved, kind: kind,
                                      source: url.lastPathComponent,
                                      title: title, image: image, aspectRatio: aspectRatio)
+
+        case .color(let hex):
+            return SharePreviewItem(id: id, resolved: resolved, kind: .color,
+                                    source: hex, title: hex)
         }
     }
 
@@ -102,7 +106,7 @@ enum SharePreview {
             return pdfThumbnail(at: url)
         case .video:
             return await videoThumbnail(at: url)
-        case .audio, .file, .link:
+        case .audio, .file, .link, .color:
             return (nil, nil)
         }
     }
@@ -160,5 +164,61 @@ enum SharePreview {
         }
         return (Image(decorative: cgImage, scale: 1),
                 aspectRatio ?? Double(cgImage.width) / Double(cgImage.height))
+    }
+}
+
+// MARK: - Look
+
+/// The wash the library draws behind its canvas, in the accent the app was
+/// given, so a sheet opened from another app still looks like Nook. Plain in
+/// Minimal Mode, as the canvas is.
+struct ShareBackground: View {
+    private let appearance = SharedAppearance()
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.background)
+            if !appearance.isMinimalMode {
+                let accent = Self.color(hex: appearance.accentColorHex) ?? .accentColor
+                LinearGradient(colors: [accent.opacity(0.3), accent.opacity(0)],
+                               startPoint: .bottom, endPoint: .top)
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private static func color(hex: String?) -> Color? {
+        guard let hex, let number = UInt32(hex.trimmingCharacters(in: .init(charactersIn: "# ")), radix: 16),
+              hex.filter(\.isHexDigit).count == 6
+        else { return nil }
+        return Color(.sRGB,
+                     red: Double((number >> 16) & 0xFF) / 255,
+                     green: Double((number >> 8) & 0xFF) / 255,
+                     blue: Double(number & 0xFF) / 255)
+    }
+}
+
+/// The tick a save ends on, with where things went, before the sheet closes.
+struct ShareConfirmation: View {
+    let headline: String
+
+    /// Long enough to read where things went, short enough not to wait on.
+    static let duration: Duration = .milliseconds(900)
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(.green)
+                .symbolEffect(.bounce, options: .nonRepeating)
+                .frame(height: 52)
+            Text(headline)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { ShareBackground() }
+        .accessibilityElement(children: .combine)
     }
 }

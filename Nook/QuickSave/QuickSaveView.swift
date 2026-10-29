@@ -46,7 +46,7 @@ struct QuickSaveView: View {
         }
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background { ShareBackground() }
         .accessibilityElement(children: .combine)
         .task { await save() }
     }

@@ -27,6 +27,8 @@ struct ShareView: View {
     private enum SaveState: Equatable {
         case ready
         case saving
+        /// The headline of the confirmation shown before the sheet closes.
+        case saved(String)
         case failed(String)
     }
 
@@ -61,7 +63,7 @@ struct ShareView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
-        .background(.background)
+        .background { ShareBackground() }
         .overlay {
             if state == .saving {
                 ProgressView("Saving…")
@@ -69,6 +71,15 @@ struct ShareView: View {
                     .background(.regularMaterial, in: .rect(cornerRadius: 12))
             }
         }
+        // The same tick Quick Save ends on, over the whole sheet, so a save
+        // is seen to have worked before the sheet closes.
+        .overlay {
+            if case .saved(let headline) = state {
+                ShareConfirmation(headline: headline)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.smooth(duration: 0.2), value: state)
         .task { await load() }
     }
 
@@ -106,7 +117,7 @@ struct ShareView: View {
             .buttonBorderShape(.circle)
             .tint(Color.blue)
             .keyboardShortcut(.defaultAction)
-            .disabled(state == .saving || items.isEmpty)
+            .disabled(state == .saving || isSaved || items.isEmpty)
             .opacity(items.isEmpty ? 0.4 : 1)
             .accessibilityLabel("Save")
         }
@@ -368,8 +379,23 @@ struct ShareView: View {
 
     // MARK: Saving
 
+    private var isSaved: Bool {
+        if case .saved = state { return true }
+        return false
+    }
+
+    /// Where things went, in the words Quick Save uses.
+    private func savedHeadline(count: Int) -> String {
+        let place = switch destination {
+        case .inbox: "Inbox"
+        case .hidden: "Hidden"
+        case .folder(let id): folders.first { $0.folder.id == id }?.folder.name ?? "Nook"
+        }
+        return count == 1 ? "Saved to \(place)" : "Saved \(count) items to \(place)"
+    }
+
     private func save() async {
-        guard state != .saving, !items.isEmpty else { return }
+        guard state != .saving, !isSaved, !items.isEmpty else { return }
         state = .saving
 
         let pendingTag = tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -442,6 +468,8 @@ struct ShareView: View {
                 )
             }
 
+            state = .saved(savedHeadline(count: importedIDs.count))
+            try? await Task.sleep(for: ShareConfirmation.duration)
             onFinish()
         } catch {
             state = .failed(error.localizedDescription)
