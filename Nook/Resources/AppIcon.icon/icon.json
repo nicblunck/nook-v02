@@ -8,7 +8,7 @@
       "value" : {
         "linear-gradient" : [
           "display-p3:1.00000,1.00000,1.00000,1.00000",
-          "display-p3:0.87061,0.95703,0.99609,1.00000"
+          "display-p3:0.87059,0.95686,0.99608,1.00000"
         ]
       }
     },
@@ -16,13 +16,105 @@
       "appearance" : "dark",
       "value" : {
         "linear-gradient" : [
-          "srgb:0.00000,0.22977,0.52570,1.00000",
+          "srgb:0.00000,0.23137,0.52549,1.00000",
           "extended-gray:0.00000,1.00000"
         ]
       }
     }
   ],
   "groups" : [
+    {
+      "blend-mode" : "normal",
+      "blur-material" : 1,
+      "hidden" : false,
+      "layers" : [
+        {
+          "fill" : {
+            "linear-gradient" : [
+              "extended-gray:1.00000,1.00000",
+              "srgb:0.87059,0.95686,0.99608,1.00000"
+            ],
+            "orientation" : {
+              "start" : {
+                "x" : 0.5,
+                "y" : 1
+              },
+              "stop" : {
+                "x" : 0.5,
+                "y" : 0
+              }
+            }
+          },
+          "image-name" : "Rectangle 51 2.svg",
+          "name" : "Shape",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.78,
+            "translation-in-points" : [
+              53.200000000000045,
+              30.155007987264725
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "name" : "Bookmark",
+      "opacity-specializations" : [
+        {
+          "value" : 1
+        },
+        {
+          "appearance" : "dark",
+          "value" : 1
+        }
+      ],
+      "position-specializations" : [
+        {
+          "value" : {
+            "scale" : 2.7,
+            "translation-in-points" : [
+              0,
+              -96.60038208547712
+            ]
+          }
+        },
+        {
+          "idiom" : "watchOS",
+          "value" : {
+            "scale" : 2.57,
+            "translation-in-points" : [
+              0,
+              -106.60038208547712
+            ]
+          }
+        }
+      ],
+      "refractivity" : {
+        "depth" : 0.5,
+        "enabled" : false,
+        "strength" : 0
+      },
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.35
+      },
+      "specular" : true,
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : true,
+            "value" : 0.65
+          }
+        },
+        {
+          "appearance" : "tinted",
+          "value" : {
+            "enabled" : true,
+            "value" : 1
+          }
+        }
+      ]
+    },
     {
       "blur-material-specializations" : [
         {
@@ -40,10 +132,7 @@
       "layers" : [
         {
           "fill" : {
-            "linear-gradient" : [
-              "display-p3:0.00000,0.76074,1.00000,1.00000",
-              "display-p3:0.17261,0.69824,1.00000,1.00000"
-            ]
+            "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
           },
           "glass" : true,
           "image-name" : "Front v03 2.svg",
@@ -52,7 +141,7 @@
             "scale" : 1,
             "translation-in-points" : [
               -0.21439871993106863,
-              103.00000000000001
+              101.57040560142532
             ]
           }
         }
@@ -110,6 +199,7 @@
       "hidden" : false,
       "layers" : [
         {
+          "hidden" : true,
           "image-name" : "Image.png",
           "name" : "Image",
           "position" : {
@@ -121,6 +211,7 @@
           }
         },
         {
+          "hidden" : true,
           "image-name" : "Clipboard.png",
           "name" : "Clipboard",
           "position" : {
@@ -133,6 +224,7 @@
         },
         {
           "glass" : true,
+          "hidden" : true,
           "image-name" : "File.png",
           "name" : "File",
           "position" : {
@@ -206,18 +298,16 @@
       "layers" : [
         {
           "fill" : {
-            "linear-gradient" : [
-              "display-p3:0.01176,0.76074,1.00000,1.00000",
-              "display-p3:0.20398,0.65088,0.97656,1.00000"
-            ]
+            "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
           },
           "image-name" : "Union.svg",
           "name" : "Union",
+          "opacity" : 0.65,
           "position" : {
-            "scale" : 1,
+            "scale" : 0.96,
             "translation-in-points" : [
               0,
-              17
+              5.999999999999972
             ]
           }
         }
