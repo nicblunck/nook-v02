@@ -52,6 +52,8 @@ enum Format {
         else if let pages = object.pageCount { parts.append(pages == 1 ? "1 page" : "\(pages) pages") }
         else if let size = bytes(object.byteSize) { parts.append(size) }
         else if let domain = object.sourceDomain { parts = [domain] }
+        // A chip's own code, unless its name already is the code.
+        else if let hex = object.colorHex, hex != object.title { parts.append(hex) }
         return parts
     }
 
@@ -79,7 +81,15 @@ enum Format {
             return join(pages, size, or: object)
         case .file:
             return join(fileTypeName(for: object), size, or: object)
+        case .color:
+            return join(object.colorHex, rgb(object.colorHex), or: object)
         }
+    }
+
+    /// A colour's channels as designers read them out, "RGB 255 107 53".
+    private static func rgb(_ hex: String?) -> String? {
+        guard let hex, let number = UInt32(hex.dropFirst(), radix: 16) else { return nil }
+        return "RGB \((number >> 16) & 0xFF) \((number >> 8) & 0xFF) \(number & 0xFF)"
     }
 
     private static func join(_ first: String?, _ second: String?, or object: ObjectSnapshot) -> String {

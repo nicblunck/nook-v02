@@ -27,6 +27,8 @@ struct NookApp: App {
         WindowGroup(id: "library") {
             RootView(loader: loader, settings: settings)
                 .tint(settings.accentColor)
+                .environment(\.isMinimalMode, settings.isMinimalMode)
+                .environment(\.entityDefaultColor, settings.chosenAccentColor)
                 .preferredColorScheme(settings.appearance.colorScheme)
             #if os(macOS)
                 .frame(minWidth: 680, minHeight: 400)
@@ -141,7 +143,8 @@ struct RootView: View {
         }
         .overlay {
             if isShowingSplash {
-                SplashView(accentColor: settings.accentColor ?? .accentColor)
+                SplashView(accentColor: settings.accentColor ?? .accentColor,
+                           showsWash: !settings.isMinimalMode)
                     .transition(.motionAware(SplashView.transition, reduceMotion: reduceMotion))
             }
         }
@@ -206,14 +209,18 @@ struct SplashView: View {
 
     /// The tint of the gradient the library draws behind its canvas.
     let accentColor: Color
+    /// Off in Minimal Mode, where the canvas has no wash either.
+    var showsWash = true
 
     var body: some View {
         ZStack {
             background
             #if os(macOS)
             // The same wash as the canvas, so the library appears in place.
-            LinearGradient(colors: [accentColor.opacity(0.3), accentColor.opacity(0)],
-                           startPoint: .bottom, endPoint: .top)
+            if showsWash {
+                LinearGradient(colors: [accentColor.opacity(0.3), accentColor.opacity(0)],
+                               startPoint: .bottom, endPoint: .top)
+            }
             #endif
             // Not resizable: drawn at its point size, as the launch screen does.
             Image("SplashMark")

@@ -30,11 +30,18 @@ struct MacSidebar: NSViewRepresentable {
     let presentMediaKinds: Set<ObjectKind>
     let destination: LibraryDestination
     let expandedFolders: Set<FolderID>
+    /// Draws every row's symbol in the label colour rather than its own.
+    let isMinimalMode: Bool
+    /// What the cards above the rows show, read here so that pinning or
+    /// unpinning re-runs `updateNSView` and the space for them is resized.
+    let pinnedPlaces: [PinnedPlace]
     let wantsKeyboard: Bool
     let keyboardFocusRequest: Int
     /// What stands over the foot of the outline, which its last row scrolls
     /// clear of.
     let bottomInset: CGFloat
+    /// Drawn above the first row, inside the scrolling content.
+    let header: AnyView
 
     /// Raises the appearance editor, which is SwiftUI state the outline cannot
     /// hold.
@@ -44,7 +51,7 @@ struct MacSidebar: NSViewRepresentable {
         Coordinator(model: model, onEditAppearance: onEditAppearance)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    func makeNSView(context: Context) -> SidebarScrollView {
         let outline = SidebarOutlineView()
         let column = NSTableColumn(identifier: .init("sidebar"))
         column.resizingMask = .autoresizingMask
@@ -79,29 +86,32 @@ struct MacSidebar: NSViewRepresentable {
         outline.menuProvider = { [coordinator = context.coordinator] row in coordinator.menu(forRow: row) }
         context.coordinator.outline = outline
 
-        let scrollView = NSScrollView()
+        let scrollView = SidebarScrollView()
         scrollView.documentView = outline
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
         // The sidebar runs up under the toolbar; the scroll view keeps its
-        // content clear of it, the way every Mac sidebar does.
-        scrollView.automaticallyAdjustsContentInsets = true
+        // content clear of it, the way every Mac sidebar does. Worked out by
+        // `SidebarScrollView` rather than automatically, so the cards above
+        // the rows can be added to it without being taken for toolbar.
+        scrollView.automaticallyAdjustsContentInsets = false
         return scrollView
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+    func updateNSView(_ scrollView: SidebarScrollView, context: Context) {
         // Added to the safe area rather than set as content insets, so the
         // automatic inset under the toolbar carries on alongside it.
         if scrollView.additionalSafeAreaInsets.bottom != bottomInset {
             scrollView.additionalSafeAreaInsets.bottom = bottomInset
         }
+        scrollView.setTopContent(header)
         context.coordinator.onEditAppearance = onEditAppearance
         context.coordinator.apply(self)
     }
 
-    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+    static func dismantleNSView(_ scrollView: SidebarScrollView, coordinator: Coordinator) {
         coordinator.outline = nil
     }
 }
@@ -193,6 +203,8 @@ struct SidebarRow: Equatable {
     var draggableFolder: FolderID?
     var subject: Subject?
     var isPlaceholder = false
+    /// Minimal Mode: the symbol in the label colour, whatever its own.
+    var hasPlainIcon = false
 
     static func section(_ section: SidebarSection) -> SidebarRow {
         SidebarRow(title: section.title, dropTarget: section == .folders ? .folder(nil) : nil)
@@ -623,22 +635,9 @@ extension MacSidebar {
         // MARK: Building the tree
 
         private static func tree(from sidebar: MacSidebar) -> [SidebarItem] {
+            // All, Inbox, Recent and Favorites are cards above the outline
+            // (`LibraryScopeCards`), so the outline starts at the folders.
             var roots: [SidebarItem] = []
-
-            roots.append(SidebarItem(id: .section(.library), row: .section(.library), children: [
-                systemRow(.home, title: "All", symbol: "square.grid.2x2",
-                          count: sidebar.counts[.allObjects]),
-                // Inbox and Favorites are places a drop means something:
-                // dropping on Inbox files something out of every folder,
-                // dropping on Favorites stars it. Recent and All are queries
-                // over the library rather than places in it, so nothing can
-                // be put into them.
-                systemRow(.scope(.inbox), title: "Inbox", symbol: "tray",
-                          count: sidebar.counts[.inbox], dropTarget: .folder(nil)),
-                systemRow(.scope(.recent), title: "Recent", symbol: "clock"),
-                systemRow(.scope(.favorites), title: "Favorites", symbol: "star",
-                          count: sidebar.counts[.favorites], dropTarget: .favorites),
-            ]))
 
             // The root of the hierarchy. A folder dropped on the header comes
             // out to the top level; an object dropped there comes out of every
@@ -669,21 +668,16 @@ extension MacSidebar {
                 ? [SidebarItem(id: .placeholder(.tags), row: .placeholder("No tags yet"))]
                 : sidebar.tags.map(tagItem)
             roots.append(SidebarItem(id: .section(.tags), row: .section(.tags), children: tags))
+            if sidebar.isMinimalMode {
+                func plain(_ items: [SidebarItem]) {
+                    for item in items {
+                        item.row.hasPlainIcon = true
+                        plain(item.children)
+                    }
+                }
+                plain(roots)
+            }
             return roots
-        }
-
-        private static func systemRow(_ destination: LibraryDestination,
-                                      title: String,
-                                      symbol: String,
-                                      count: Int? = nil,
-                                      dropTarget: DropTarget? = nil) -> SidebarItem {
-            SidebarItem(id: .destination(destination), row: SidebarRow(
-                title: title,
-                icon: .symbol(symbol, colorHex: nil),
-                count: count,
-                destination: destination,
-                dropTarget: dropTarget
-            ))
         }
 
         private static func folderItem(_ node: FolderNode) -> SidebarItem {
@@ -913,6 +907,7 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                 onEditAppearance(AppearanceTarget(reference: .folder(folder.id), title: folder.name,
                                                   appearance: folder.appearance))
             }
+            addPinItem(to: menu, for: .folder(folder.id))
             menu.addItem(.separator())
             addPrivacyItems(to: menu, for: folder,
                             hide: { [model] in await model.setHidden($0, forFolder: folder) },
@@ -925,6 +920,7 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                 onEditAppearance(AppearanceTarget(reference: .collection(collection.id), title: collection.name,
                                                   appearance: collection.appearance))
             }
+            addPinItem(to: menu, for: .collection(collection.id))
             menu.addItem(.separator())
             // A hidden collection conceals the collection itself. What it
             // gathers stays exactly as reachable as it was: the true folder
@@ -939,6 +935,7 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                 onEditAppearance(AppearanceTarget(reference: .tag(tag.id), title: tag.name,
                                                   appearance: tag.appearance))
             }
+            addPinItem(to: menu, for: .tag(tag.id))
             menu.addItem(.separator())
             menu.add("Delete Tag") { [model] in Task { await model.deleteTag(tag.id) } }
         }
@@ -957,6 +954,20 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
         menu.add(locked ? "Unlock" : "Lock") { Task { await lock(!locked) } }
     }
 
+    /// Pin or unpin as a card above the outline; `PinMenuItem` in AppKit.
+    private func addPinItem(to menu: NSMenu, for place: PinnedPlace) {
+        let settings = model.settings
+        if settings.isPinned(place) {
+            menu.add("Unpin from Top") { settings.unpin(place) }
+        } else {
+            // Shown but greyed once every card slot is taken. Every other
+            // item here has its own target, so turning off automatic
+            // enabling changes nothing for them.
+            menu.autoenablesItems = false
+            menu.add("Pin to Top") { settings.pin(place) }.isEnabled = settings.canPinMore
+        }
+    }
+
     /// Hide alone, for entities — collections — that can be hidden but never
     /// locked.
     private func addHideItem(to menu: NSMenu,
@@ -964,6 +975,96 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
                              hide: @escaping (Bool) async -> Void) {
         let hidden = item.isExplicitlyHidden
         menu.add(hidden ? "Unhide" : "Hide") { Task { await hide(!hidden) } }
+    }
+}
+
+// MARK: - The scroll view
+
+/// The outline's scroll view, insetting its content by the safe area — the
+/// toolbar above, the footer below — and, at the top, by the cards drawn
+/// above the first row.
+///
+/// The cards' space is a content inset rather than more safe area. Safe area
+/// is where the window's chrome stands, and the scroll view blurs whatever
+/// passes under it and starts its scroller below it; the cards are content,
+/// to be drawn sharp and scrolled past like any row.
+final class SidebarScrollView: NSScrollView {
+    /// SwiftUI content drawn just above the first row. A subview of the clip
+    /// view rather than of the outline: the clip view scrolls by moving its
+    /// bounds, so whatever it holds scrolls with the rows, and a subview
+    /// within its frame is drawn and clicked like any other. Inside the
+    /// outline it fell outside the outline's bounds, where AppKit neither
+    /// reliably draws nor looks for clicks.
+    private var topContentView: CardsHostingView?
+
+    var topContentHeight: CGFloat { topContentView?.fittingSize.height ?? 0 }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        contentView = SidebarClipView()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func setTopContent(_ content: AnyView) {
+        if let topContentView {
+            topContentView.rootView = content
+        } else {
+            let hosting = CardsHostingView(rootView: content)
+            hosting.sizingOptions = .intrinsicContentSize
+            // The cards change height on their own — a place pinned or
+            // unpinned adds or takes away a row — without the sidebar being
+            // updated, so the space above the rows follows them from here.
+            hosting.onResize = { [weak self] in self?.needsLayout = true }
+            contentView.addSubview(hosting)
+            topContentView = hosting
+        }
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let height = topContentHeight
+        // The clip view takes the outline's flipped coordinates, so above the
+        // first row is above y = 0.
+        topContentView?.frame = NSRect(x: 0, y: -height, width: contentView.bounds.width, height: height)
+
+        let safe = safeAreaInsets
+        let insets = NSEdgeInsets(top: safe.top + height, left: 0, bottom: safe.bottom, right: 0)
+        guard !NSEdgeInsetsEqual(insets, contentInsets) else { return }
+        let wasAtTop = contentView.bounds.minY <= -contentInsets.top + 0.5
+        contentInsets = insets
+        // The scroller runs the full height the toolbar leaves, alongside
+        // the cards as well as the rows.
+        scrollerInsets = NSEdgeInsets(top: -height, left: 0, bottom: 0, right: 0)
+        if wasAtTop {
+            contentView.scroll(to: NSPoint(x: 0, y: -insets.top))
+            reflectScrolledClipView(contentView)
+        }
+    }
+}
+
+/// The cards' host, saying when their height changes.
+final class CardsHostingView: NSHostingView<AnyView> {
+    var onResize: (() -> Void)?
+
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        onResize?()
+    }
+}
+
+/// A clip view that hit-tests everything it holds. AppKit's own looks only
+/// at the document view, so the cards above the rows would draw but never
+/// take a click.
+final class SidebarClipView: NSClipView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        for subview in subviews.reversed() where subview !== documentView && !subview.isHidden {
+            if subview.frame.contains(local), let hit = subview.hitTest(local) { return hit }
+        }
+        return super.hitTest(point)
     }
 }
 
@@ -976,6 +1077,7 @@ final class SidebarOutlineView: NSOutlineView {
     var onBecomeFirstResponder: (() -> Void)?
     var onMovedToWindow: (() -> Void)?
     var menuProvider: ((Int) -> NSMenu?)?
+
     override func keyDown(with event: NSEvent) {
         if onKey?(event) == true { return }
         super.keyDown(with: event)
@@ -1277,7 +1379,7 @@ private final class SidebarRowCell: NSTableCellView {
         case .symbol(let symbol, let colorHex)?:
             icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(Self.symbolConfiguration)
-            iconTint = NSColor(hex: colorHex)
+            iconTint = row.hasPlainIcon ? .labelColor : NSColor(hex: colorHex)
             iconIsSymbol = true
         case .emoji(let emoji)?:
             icon.image = NSImage.emoji(emoji, pointSize: 15)
@@ -1333,9 +1435,11 @@ private final class SidebarRowCell: NSTableCellView {
 
 private extension NSMenu {
     /// An item that does something, without a target and selector to plumb.
-    func add(_ title: String, action: @escaping () -> Void) {
+    @discardableResult
+    func add(_ title: String, action: @escaping () -> Void) -> NSMenuItem {
         let item = ClosureMenuItem(title: title, action: action)
         addItem(item)
+        return item
     }
 }
 

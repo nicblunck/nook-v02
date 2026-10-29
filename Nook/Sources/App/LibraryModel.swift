@@ -55,6 +55,7 @@ enum LibraryContentFilter: String, CaseIterable, Hashable, Identifiable, Sendabl
     case audio
     case video
     case links
+    case colors
     case folders
 
     var id: Self { self }
@@ -66,6 +67,7 @@ enum LibraryContentFilter: String, CaseIterable, Hashable, Identifiable, Sendabl
         case .audio: "Audio"
         case .video: "Video"
         case .links: "Links"
+        case .colors: "Colors"
         case .folders: "Folders"
         }
     }
@@ -77,6 +79,7 @@ enum LibraryContentFilter: String, CaseIterable, Hashable, Identifiable, Sendabl
         case .audio: "waveform"
         case .video: "film"
         case .links: "link"
+        case .colors: "paintpalette"
         case .folders: "folder"
         }
     }
@@ -88,6 +91,7 @@ enum LibraryContentFilter: String, CaseIterable, Hashable, Identifiable, Sendabl
         case .audio: [.audio]
         case .video: [.video]
         case .links: [.link]
+        case .colors: [.color]
         case .folders: []
         }
     }
@@ -99,6 +103,7 @@ enum LibraryContentFilter: String, CaseIterable, Hashable, Identifiable, Sendabl
         case .audio: "No Audio"
         case .video: "No Video"
         case .links: "No Links"
+        case .colors: "No Colors"
         case .folders: "No Folders"
         }
     }
@@ -1052,11 +1057,17 @@ final class LibraryModel {
         }
     }
 
-    /// Puts up the page that was waiting, if the canvas is still headed there.
+    /// Puts up the page that was waiting, once the canvas is headed there.
+    ///
+    /// A page can be asked for before its place is reached at all: Hidden and
+    /// a locked folder authenticate first, and Face ID easily outlasts the
+    /// timeout. Until the canvas arrives the page keeps waiting rather than
+    /// being dropped — dropping it left the iPhone on a pushed screen with no
+    /// page behind it, drawing nothing. Declining, or going anywhere else,
+    /// discards it.
     private func commitPendingPage() {
-        guard let pending = pendingPage else { return }
+        guard let pending = pendingPage, pending.page.destination == destination else { return }
         discardPendingPage()
-        guard pending.page.destination == destination else { return }
         if pending.replacingStack {
             pages = [pending.page]
         } else if pages.last?.destination != destination {
@@ -1470,7 +1481,7 @@ final class LibraryModel {
         guard !items.isEmpty else {
             alert = LibraryAlert(
                 title: "Nothing to paste",
-                message: "The clipboard doesn't hold a file, a link, or an image."
+                message: "The clipboard doesn't hold a file, a link, an image, or a color code."
             )
             return
         }
@@ -2382,6 +2393,35 @@ struct CanvasSection: Identifiable, Hashable {
 }
 
 /// One folder and its subtree, as the sidebar draws it.
+// MARK: - The sidebar's lists
+
+extension LibraryModel {
+    /// The folder tree as the sidebar lists it: a place pinned to the cards
+    /// above is shown there instead, and its subfolders go with it, reached
+    /// by opening it.
+    var sidebarFolderTree: [FolderNode] {
+        let pinned = Set(settings.pinnedPlaces.compactMap { if case .folder(let id) = $0 { id } else { nil } })
+        guard !pinned.isEmpty else { return folderTree }
+        func keep(_ nodes: [FolderNode]) -> [FolderNode] {
+            nodes.compactMap { node in
+                guard !pinned.contains(node.id) else { return nil }
+                var node = node
+                node.children = keep(node.children)
+                return node
+            }
+        }
+        return keep(folderTree)
+    }
+
+    var sidebarCollections: [CollectionSnapshot] {
+        collections.filter { !settings.isPinned(.collection($0.id)) }
+    }
+
+    var sidebarTags: [TagSnapshot] {
+        tags.filter { !settings.isPinned(.tag($0.id)) }
+    }
+}
+
 struct FolderNode: Identifiable, Hashable {
     let folder: FolderSnapshot
     var children: [FolderNode]

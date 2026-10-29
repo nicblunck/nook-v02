@@ -300,6 +300,37 @@ struct NavigationHistoryTests {
         #expect(model.pages.isEmpty)
     }
 
+    @Test("Hidden opened from the iPhone list goes up once Face ID answers, however long it takes")
+    func hiddenPageWaitsForAuthentication() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        // Longer than a page is ever held back for.
+        harness.authenticator.delay = .milliseconds(600)
+
+        let page = LibraryPage(destination: .scope(.hidden))
+        model.beginPages(with: page, waitingForContents: true)
+        await model.openPage(.scope(.hidden))
+
+        #expect(model.isShowingHiddenContent)
+        #expect(destinations(model) == [.scope(.hidden)])
+        #expect(model.contentsDestination == .scope(.hidden))
+    }
+
+    @Test("Declining Face ID for Hidden leaves the iPhone on its list")
+    func declinedHiddenLeavesNoPage() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        harness.authenticator.delay = .milliseconds(600)
+        harness.authenticator.outcome = .cancelled
+
+        model.beginPages(with: LibraryPage(destination: .scope(.hidden)), waitingForContents: true)
+        await model.openPage(.scope(.hidden))
+
+        #expect(model.pages.isEmpty)
+    }
+
     @Test("The app opens on All over the Library list, once")
     func opensOnAll() async throws {
         let harness = try await TestModel()
@@ -355,6 +386,25 @@ struct NavigationHistoryTests {
         #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).startPage == .folder(id))
         AppSettings(defaults: UserDefaults(suiteName: suite)!).startPage = .library
         #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).startPage == .library)
+    }
+
+    @Test("Up to four places pin to the sidebar's cards, in order, and stay pinned")
+    func pinnedPlacesPersist() {
+        let suite = "nook.tests.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: UserDefaults(suiteName: suite)!)
+        let places: [PinnedPlace] = [.folder(FolderID()), .tag(TagID()), .collection(CollectionID()),
+                                     .folder(FolderID()), .folder(FolderID())]
+        for place in places { settings.pin(place) }
+        // The fifth is refused, and pinning one twice changes nothing.
+        settings.pin(places[0])
+        #expect(settings.pinnedPlaces == Array(places.prefix(4)))
+        #expect(!settings.canPinMore)
+
+        settings.unpin(places[1])
+        #expect(settings.canPinMore)
+        #expect(AppSettings(defaults: UserDefaults(suiteName: suite)!).pinnedPlaces
+                == [places[0], places[2], places[3]])
     }
 
     @Test("Links open in the default browser until told to stay in Nook, and that is remembered")

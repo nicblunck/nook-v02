@@ -172,13 +172,14 @@ struct ContentFilterTests {
     @Test("Broad categories map to the expected stored kinds")
     func categoryMappings() {
         #expect(LibraryContentFilter.allCases == [
-            .images, .documents, .audio, .video, .links, .folders
+            .images, .documents, .audio, .video, .links, .colors, .folders
         ])
         #expect(LibraryContentFilter.images.objectKinds == [.image, .screenshot])
         #expect(LibraryContentFilter.documents.objectKinds == [.pdf, .file])
         #expect(LibraryContentFilter.audio.objectKinds == [.audio])
         #expect(LibraryContentFilter.video.objectKinds == [.video])
         #expect(LibraryContentFilter.links.objectKinds == [.link])
+        #expect(LibraryContentFilter.colors.objectKinds == [.color])
         #expect(LibraryContentFilter.folders.objectKinds.isEmpty)
     }
 

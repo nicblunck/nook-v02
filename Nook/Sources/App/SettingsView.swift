@@ -62,6 +62,7 @@ struct SettingsView: View {
                     Text(appearance.displayName).tag(appearance)
                 }
             }
+            Toggle("Minimal Mode", isOn: $settings.isMinimalMode)
             Picker("Accent Color", selection: $settings.accentColorHex) {
                 ForEach(Self.tints, id: \.name) { tint in
                     HStack {
@@ -73,6 +74,8 @@ struct SettingsView: View {
                     .tag(tint.hex)
                 }
             }
+            // Minimal Mode's accent is black whatever is chosen here.
+            .disabled(settings.isMinimalMode)
         }
     }
 

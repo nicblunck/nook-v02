@@ -89,6 +89,11 @@ public struct ObjectSnapshot: Identifiable, Hashable, Sendable, PrivacyBearing {
 
     /// Present only when the caller is entitled to the bytes.
     public let blob: BlobDescriptor?
+
+    /// A colour chip's code, `#RRGGBB`; nil for every other kind.
+    public var colorHex: String? {
+        kind == .color ? originalFilename.flatMap(ColorCode.normalized) : nil
+    }
     public let blobAvailability: BlobAvailability?
 
     public var reference: LibraryReference { .object(id) }

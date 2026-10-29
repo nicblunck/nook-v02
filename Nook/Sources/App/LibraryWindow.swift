@@ -33,6 +33,7 @@ struct LibraryWindow: View {
     var body: some View {
         shell
             .environment(\.thumbnailLoader, model.library.thumbnails)
+            .environment(\.originalLocator, OriginalLocator(model: model))
             .externalURLDrop(isTargeted: $isExternalDropTargeted) { urls in
                 Task { await model.importFiles(at: urls) }
             }
@@ -667,13 +668,17 @@ struct NookCommands: Commands {
                 .keyboardShortcut("i")
                 .disabled(model == nil)
 
-            // No shortcut here: the Delete key belongs to the canvas, the
-            // sidebar and the preview, which answer it themselves. As a bare
-            // key on a menu command it would outrank the field editor and
-            // take Delete away from every text field in the app.
+            // Command-Delete, as in the Finder: a shortcut that works whichever
+            // pane holds the keyboard. Delete on its own stays with the
+            // canvas, the sidebar and the preview, which answer it themselves;
+            // as a bare key on a menu command it would outrank the field
+            // editor and take Delete away from every text field in the app.
+            // While typing the command is disabled, so Command-Delete still
+            // reaches the field.
             Button(model?.isShowingDeleted == true ? "Delete Immediately…" : "Move to Trash") {
                 model?.requestTrashForKeyboard()
             }
+            .keyboardShortcut(.delete, modifiers: .command)
             .disabled(model.map {
                 $0.isTypingText || ($0.previewedObject == nil && !$0.hasSelection && $0.cursorFolder == nil)
             } ?? true)

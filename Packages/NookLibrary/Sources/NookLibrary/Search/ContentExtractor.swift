@@ -15,7 +15,7 @@ enum ContentExtractor {
         switch kind {
         case .pdf: true
         case .file: contentType?.conforms(to: .text) ?? false
-        case .image, .screenshot, .video, .audio, .link: false
+        case .image, .screenshot, .video, .audio, .link, .color: false
         }
     }
 

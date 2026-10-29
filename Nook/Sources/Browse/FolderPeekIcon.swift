@@ -14,12 +14,16 @@ struct FolderPeekIcon: View {
         folder.visibility == .full ? Array(objects.prefix(3).reversed()) : []
     }
 
+    @Environment(\.entityDefaultColor) private var defaultColor
+    @Environment(\.isMinimalMode) private var isMinimalMode
+
     var body: some View {
         let contents = peeks
         let subfolders = folder.visibility == .full ? min(3 - contents.count, folder.subfolderCount) : 0
         FolderScene(
             width: width,
-            tint: Color(hex: folder.appearance.colorHex) ?? .accentColor,
+            // Every folder grey in Minimal Mode, whatever colour it was given.
+            tint: isMinimalMode ? .gray : (Color(hex: folder.appearance.colorHex) ?? defaultColor),
             openness: isOpen && !reduceMotion ? 1 : 0,
             sheetCount: contents.count + subfolders
         ) { index, size in

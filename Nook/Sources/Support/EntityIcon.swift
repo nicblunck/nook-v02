@@ -34,8 +34,12 @@ struct EntityIcon: View {
 
     private var scaledSize: CGFloat { size * typeScale }
 
+    @Environment(\.entityDefaultColor) private var defaultColor
+    @Environment(\.isMinimalMode) private var isMinimalMode
+
     private var tint: Color {
-        Color(hex: appearance.colorHex) ?? .accentColor
+        if isMinimalMode { return .primary }
+        return Color(hex: appearance.colorHex) ?? defaultColor
     }
 }
 
@@ -73,8 +77,12 @@ struct TagPill: View {
     var onSelect: (() -> Void)?
     var onRemove: (() -> Void)?
 
+    @Environment(\.entityDefaultColor) private var defaultColor
+    @Environment(\.isMinimalMode) private var isMinimalMode
+
     private var tint: Color {
-        Color(hex: tag.appearance.colorHex) ?? .accentColor
+        if isMinimalMode { return .gray }
+        return Color(hex: tag.appearance.colorHex) ?? defaultColor
     }
 
     var body: some View {

@@ -61,6 +61,22 @@ public extension LibraryService {
 
 public extension LibraryService {
 
+    /// Saves a colour as a chip. The code is kept in `originalFilename`, which
+    /// a colour has no other use for, so the title stays free to rename.
+    @discardableResult
+    func importColor(_ hex: String, into destination: ImportDestination) throws -> ObjectID {
+        guard let code = ColorCode.normalized(hex) else {
+            throw LibraryError.unsupportedContent("\u{201C}\(hex)\u{201D} isn\u{2019}t a color code.")
+        }
+        let object = LibraryObject(kind: .color, title: code)
+        object.originalFilename = code
+        object.folder = resolveDestination(destination)
+
+        context.insert(object)
+        try didMutate()
+        return object.id
+    }
+
     /// Saved links that have not been enriched with page metadata yet.
     ///
     /// The share sheet fetches this itself before saving, but a slow network
@@ -172,6 +188,9 @@ extension LibraryService {
         case .link(let url):
             return .imported(try importLink(url, into: destination))
 
+        case .color(let hex):
+            return .imported(try importColor(hex, into: destination))
+
         case .file(let url, let declaredType):
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -257,6 +276,7 @@ extension LibraryService {
         case .file(let url, _): url.lastPathComponent
         case .data(_, let type, let name): name ?? defaultFilename(for: type)
         case .link(let url): LinkNaming.siteName(for: url)
+        case .color(let hex): hex
         }
     }
 

@@ -32,16 +32,34 @@ struct SidebarView: View {
         decorated(
             MacSidebar(
                 model: model,
-                folderTree: model.folderTree,
-                collections: model.collections,
-                tags: model.tags,
+                folderTree: model.sidebarFolderTree,
+                collections: model.sidebarCollections,
+                tags: model.sidebarTags,
                 counts: model.counts,
                 presentMediaKinds: model.presentMediaKinds,
                 destination: model.destination,
                 expandedFolders: model.expandedFolders,
+                isMinimalMode: model.settings.isMinimalMode,
+                pinnedPlaces: model.settings.pinnedPlaces,
                 wantsKeyboard: model.keyboardPane == .sidebar,
                 keyboardFocusRequest: model.keyboardFocusRequest,
                 bottomInset: footerHeight,
+                // Inside the outline, above its first row, so the cards
+                // scroll with the list rather than standing over it.
+                header: AnyView(
+                    LibraryScopeCards(model: model, selection: model.destination) { destination in
+                        // A locked folder authenticates before the canvas
+                        // lands on it.
+                        if case .scope(.folder(let id)) = destination {
+                            Task { await model.openFolder(id, startingPageStack: true) }
+                        } else {
+                            model.navigate(to: destination, startingPageStack: true)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                ),
                 onEditAppearance: { model.editingAppearance = $0 }
             )
             // Rows fade out as they reach the footer rather than pass under
@@ -58,6 +76,19 @@ struct SidebarView: View {
             // The outline runs the full height of the column and keeps its
             // own content clear of the toolbar, as a Mac sidebar does.
             .ignoresSafeArea(.container, edges: .top)
+            // The canvas's accent wash, carried across the sidebar, so the
+            // fade the rows go into at the foot is the theme's colour rather
+            // than the sidebar's own grey. None in Minimal Mode, as on the
+            // canvas.
+            .background {
+                if !model.settings.isMinimalMode {
+                    let accent = model.settings.accentColor ?? .accentColor
+                    LinearGradient(colors: [accent.opacity(0.3), accent.opacity(0)],
+                                   startPoint: .bottom, endPoint: .top)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                }
+            }
         )
         #else
         decorated(
@@ -101,27 +132,22 @@ struct SidebarView: View {
     #if !os(macOS)
     private var list: some View {
         List(selection: selectionBinding) {
-            Section("Library") {
-                systemRow(.allObjects, destination: .home,
-                          title: "All", symbol: "square.grid.2x2",
-                          count: model.counts[.allObjects])
-                // Inbox and Favorites are places a drop means something:
-                // dropping on Inbox files something out of every folder,
-                // dropping on Favorites stars it. Recent and All Objects are
-                // queries over the library rather than places in it, so
-                // nothing can be put into them.
-                systemRow(.inbox, title: "Inbox", symbol: "tray", count: model.counts[.inbox],
-                          dropTarget: .folder(nil))
-                systemRow(.recent, title: "Recent", symbol: "clock")
-                systemRow(.favorites, title: "Favorites", symbol: "star", count: model.counts[.favorites],
-                          dropTarget: .favorites)
+            // A section's header rather than a row in it: a row is clipped to
+            // the section's rounded corners, which cut into the cards'.
+            Section {
+            } header: {
+                LibraryScopeCards(model: model, selection: model.destination) { destination in
+                    selectionBinding.wrappedValue = destination
+                }
+                .textCase(nil)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
             }
 
             Section {
-                if model.folderTree.isEmpty {
+                if model.sidebarFolderTree.isEmpty {
                     Text("No folders yet").font(.callout).foregroundStyle(.tertiary)
                 } else {
-                    FolderRows(nodes: model.folderTree, model: model) { folder in
+                    FolderRows(nodes: model.sidebarFolderTree, model: model) { folder in
                         folderRow(folder)
                     }
                 }
@@ -134,10 +160,10 @@ struct SidebarView: View {
             }
 
             Section("Collections") {
-                if model.collections.isEmpty {
+                if model.sidebarCollections.isEmpty {
                     Text("No collections yet").font(.callout).foregroundStyle(.tertiary)
                 } else {
-                    ForEach(model.collections) { collection in
+                    ForEach(model.sidebarCollections) { collection in
                         collectionRow(collection)
                     }
                 }
@@ -155,10 +181,10 @@ struct SidebarView: View {
                 .transition(sidebarItemTransition)
             }
 
-            if !model.tags.isEmpty {
+            if !model.sidebarTags.isEmpty {
                 Section("Tags") {
                     TagFlow(spacing: 5) {
-                        ForEach(model.tags) { tag in
+                        ForEach(model.sidebarTags) { tag in
                             tagRow(tag)
                         }
                     }
@@ -167,7 +193,7 @@ struct SidebarView: View {
                     .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 6, trailing: 12))
                     .listRowSeparator(.hidden)
                     .animation(model.sidebarChange.shift(reduceMotion: reduceMotion),
-                               value: model.tags.map(\.id))
+                               value: model.sidebarTags.map(\.id))
                 }
                 .transition(sidebarItemTransition)
             }
@@ -287,36 +313,6 @@ struct SidebarView: View {
     }
 
     @ViewBuilder
-    private func systemRow(_ scope: LibraryScope,
-                           destination: LibraryDestination? = nil,
-                           title: String,
-                           symbol: String,
-                           count: Int? = nil,
-                           dropTarget: DropTarget? = nil) -> some View {
-        destinationRow(destination ?? .scope(scope)) {
-            Label {
-                HStack {
-                    Text(title)
-                    if let count, count > 0 {
-                        Spacer()
-                        Text("\(count)")
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                            .contentTransition(.numericText(value: Double(count)))
-                            .motionAware(NookMotion.interaction, value: count)
-                    }
-                }
-            } icon: {
-                Image(systemName: symbol)
-            }
-            // Spoken, the trailing number is just a number: "Inbox, 12" could as
-            // easily be a name as a tally. The count becomes the row's value.
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(title)
-            .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
-        }
-        .modifier(OptionalDropTarget(target: dropTarget, model: model))
-    }
 
     private func folderRow(_ folder: FolderSnapshot) -> some View {
         destinationRow(.scope(.folder(folder.id))) {
@@ -348,6 +344,7 @@ struct SidebarView: View {
                     reference: .folder(folder.id), title: folder.name, appearance: folder.appearance
                 )
             }
+            PinMenuItem(settings: model.settings, place: .folder(folder.id))
             Divider()
             privacyMenuItems(for: folder,
                              hide: { await model.setHidden($0, forFolder: folder) },
@@ -398,6 +395,7 @@ struct SidebarView: View {
                     appearance: collection.appearance
                 )
             }
+            PinMenuItem(settings: model.settings, place: .collection(collection.id))
             Divider()
             // A hidden collection conceals the collection itself. What it
             // gathers stays exactly as reachable as it was: the true folder
@@ -430,6 +428,7 @@ struct SidebarView: View {
                     reference: .tag(tag.id), title: tag.name, appearance: tag.appearance
                 )
             }
+            PinMenuItem(settings: model.settings, place: .tag(tag.id))
             Divider()
             Button("Delete Tag", role: .destructive) {
                 Task { await model.deleteTag(tag.id) }
@@ -620,6 +619,205 @@ private struct OptionalDropTarget: ViewModifier {
                 }
                 .motionAware(NookMotion.interaction, value: isTargeted)
                 .libraryDropTarget(target, model: model) { isTargeted = $0 }
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Library cards
+
+/// All, Inbox, Recent and Favorites as a two-by-two grid of cards at the top
+/// of the sidebar, each with its count, the way Reminders heads its lists.
+/// The same grid on every device; `activate` is how each one goes there.
+struct LibraryScopeCards: View {
+    let model: LibraryModel
+    /// The place currently shown, if the sidebar marks one. The iPhone's
+    /// list pushes rather than selects, so it passes nil.
+    var selection: LibraryDestination?
+    let activate: (LibraryDestination) -> Void
+
+    private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            card(.home, title: "All", symbol: "square.grid.2x2", color: .gray,
+                 count: model.counts[.allObjects])
+            // Inbox and Favorites are places a drop means something:
+            // dropping on Inbox files something out of every folder,
+            // dropping on Favorites stars it. Recent and All are queries
+            // over the library rather than places in it, so nothing can
+            // be put into them.
+            card(.scope(.inbox), title: "Inbox", symbol: "tray", color: .blue,
+                 count: model.counts[.inbox], dropTarget: .folder(nil))
+            card(.scope(.recent), title: "Recent", symbol: "clock", color: .purple)
+            card(.scope(.favorites), title: "Favorites", symbol: "star", color: .orange,
+                 count: model.counts[.favorites], dropTarget: .favorites)
+            ForEach(model.settings.pinnedPlaces, id: \.self) { place in
+                pinnedCard(place)
+            }
+        }
+    }
+
+    /// A pinned place, in its own colour and symbol. One that can't be shown
+    /// right now — deleted, or hidden while Hidden is closed — leaves no gap
+    /// and no card, and comes back if it does.
+    @ViewBuilder
+    private func pinnedCard(_ place: PinnedPlace) -> some View {
+        switch place {
+        case .folder(let id):
+            if let folder = model.allFolders.first(where: { $0.folder.id == id })?.folder {
+                card(place.destination, title: folder.name, appearance: folder.appearance,
+                     fallbackSymbol: "folder", fallbackColor: .blue, count: folder.objectCount,
+                     dropTarget: .folder(id), pinned: place)
+            }
+        case .collection(let id):
+            if let collection = model.collections.first(where: { $0.id == id }) {
+                card(place.destination, title: collection.name, appearance: collection.appearance,
+                     fallbackSymbol: "rectangle.stack", fallbackColor: .indigo,
+                     count: collection.memberCount, dropTarget: .collection(id), pinned: place)
+            }
+        case .tag(let id):
+            if let tag = model.tags.first(where: { $0.id == id }) {
+                card(place.destination, title: tag.name, appearance: tag.appearance,
+                     fallbackSymbol: "tag", fallbackColor: .pink, count: tag.objectCount,
+                     dropTarget: .tag(id), pinned: place)
+            }
+        }
+    }
+
+    private func card(_ destination: LibraryDestination,
+                      title: String,
+                      appearance: EntityAppearance,
+                      fallbackSymbol: String,
+                      fallbackColor: Color,
+                      count: Int,
+                      dropTarget: DropTarget,
+                      pinned: PinnedPlace) -> some View {
+        LibraryScopeCard(model: model,
+                         title: title,
+                         symbol: appearance.symbolName ?? fallbackSymbol,
+                         emoji: appearance.emoji,
+                         color: Color(hex: appearance.colorHex) ?? fallbackColor,
+                         count: count,
+                         isSelected: selection == destination,
+                         dropTarget: dropTarget) {
+            activate(destination)
+        }
+        .contextMenu { PinMenuItem(settings: model.settings, place: pinned) }
+    }
+
+    private func card(_ destination: LibraryDestination,
+                      title: String,
+                      symbol: String,
+                      color: Color,
+                      count: Int? = nil,
+                      dropTarget: DropTarget? = nil) -> some View {
+        LibraryScopeCard(model: model,
+                         title: title,
+                         symbol: symbol,
+                         color: color,
+                         count: count,
+                         isSelected: selection == destination,
+                         dropTarget: dropTarget) {
+            activate(destination)
+        }
+    }
+}
+
+private struct LibraryScopeCard: View {
+    let model: LibraryModel
+    let title: String
+    let symbol: String
+    var emoji: String? = nil
+    let color: Color
+    let count: Int?
+    let isSelected: Bool
+    let dropTarget: DropTarget?
+    let action: () -> Void
+
+    @State private var isTargeted = false
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+    }
+
+    /// Minimal Mode drops the colours: plain cards, white in light mode and
+    /// dark grey in dark, with the label in the primary colour. Read off the
+    /// model rather than the environment, since on the Mac the cards are
+    /// hosted apart from the window's SwiftUI and don't inherit it.
+    private var isPlain: Bool { model.settings.isMinimalMode }
+
+    private var fill: AnyShapeStyle {
+        isPlain ? AnyShapeStyle(.background) : AnyShapeStyle(color.gradient)
+    }
+
+    private var ink: Color { isPlain ? .primary : .white }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    if let emoji {
+                        Text(emoji).font(.title3)
+                    } else {
+                        Image(systemName: symbol)
+                            .font(.title3.weight(.medium))
+                    }
+                    Spacer(minLength: 4)
+                    if let count {
+                        Text("\(count)")
+                            .font(.title2.weight(.bold))
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: Double(count)))
+                            .motionAware(NookMotion.interaction, value: count)
+                    }
+                }
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(ink)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(fill, in: shape)
+            // A plain card needs an edge of its own against a light sidebar.
+            .overlay {
+                if isPlain { shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 1) }
+            }
+            // The current place is ringed, as a selected row is lit: the
+            // card keeps its own colour either way.
+            .overlay {
+                shape.strokeBorder((isPlain ? Color.primary : .white).opacity(isSelected ? 0.9 : 0), lineWidth: 2.5)
+            }
+            .overlay {
+                shape.fill(ink.opacity(isTargeted ? 0.15 : 0))
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .motionAware(NookMotion.interaction, value: isSelected)
+        .motionAware(NookMotion.interaction, value: isTargeted)
+        .modifier(CardDropTarget(target: dropTarget, model: model, isTargeted: $isTargeted))
+        // Spoken, the number is just a number: "Inbox, 12" could as easily
+        // be a name as a tally. The count becomes the card's value.
+        .accessibilityLabel(title)
+        .accessibilityValue(count.flatMap { $0 > 0 ? Format.itemCount($0) : nil } ?? "")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// `OptionalDropTarget`'s wash would sit hidden behind a card's own fill, so
+/// a card draws its own and only needs to be told when a drop is overhead.
+private struct CardDropTarget: ViewModifier {
+    let target: DropTarget?
+    let model: LibraryModel
+    @Binding var isTargeted: Bool
+
+    func body(content: Content) -> some View {
+        if let target {
+            content.libraryDropTarget(target, model: model) { isTargeted = $0 }
         } else {
             content
         }

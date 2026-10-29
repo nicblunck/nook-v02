@@ -331,6 +331,22 @@ struct BrowseView: View {
                     .focusEffectDisabled()
                     .focused($isCanvasFocused)
                     .modifier(CanvasKeyboard(model: model, frames: itemFrames))
+                    #if os(macOS)
+                    // Delete read off the window as well, as the preview reads
+                    // its keys: a click on an item can leave the keyboard with
+                    // a view inside it, and `onKeyPress` above then never hears
+                    // the key. Only while the canvas is where the keyboard
+                    // belongs, nothing is open in preview, and no field is
+                    // being typed in.
+                    .background {
+                        PreviewKeyMonitor { key in
+                            guard key == .delete, model.keyboardPane == .canvas,
+                                  model.previewedObjectID == nil, !model.isTypingText
+                            else { return false }
+                            return model.requestTrashForKeyboard()
+                        }
+                    }
+                    #endif
                     .modifier(GalleryResizeGesture(model: model))
                     // Focus follows the model rather than being grabbed on
                     // appear: the sidebar is the other half of this, and a
@@ -368,12 +384,15 @@ struct BrowseView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            LinearGradient(
-                colors: [galleryAccentColor.opacity(0.3), galleryAccentColor.opacity(0)],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .ignoresSafeArea()
+            // Minimal Mode leaves the canvas the window's own plain colour.
+            if !model.settings.isMinimalMode {
+                LinearGradient(
+                    colors: [galleryAccentColor.opacity(0.3), galleryAccentColor.opacity(0)],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                .ignoresSafeArea()
+            }
         }
         .modifier(GalleryDropTarget(model: model))
     }
@@ -751,6 +770,45 @@ struct BrowseView: View {
     private var emptyState: some View {
         ContentUnavailableView {
             Label(emptyTitle, systemImage: emptySymbol)
+        } actions: {
+            if acceptsNewContent {
+                Menu {
+                    AddContentMenu(model: model)
+                } label: {
+                    // Drawn rather than left to a prominent button style: a
+                    // menu on the Mac ignores that style's tint and comes out
+                    // grey.
+                    Label("Add Something", systemImage: "plus")
+                        .font(.headline)
+                        // Minimal Mode's accent turns white in dark mode, so
+                        // the label takes the window's colour against it.
+                        .foregroundStyle(model.settings.isMinimalMode
+                                         ? AnyShapeStyle(.background) : AnyShapeStyle(.white))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(galleryAccentColor, in: .capsule)
+                        .contentShape(.capsule)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                // Clear of the message, so it reads as the next step rather
+                // than as part of the title.
+                .padding(.top, 10)
+            }
+        }
+    }
+
+    /// Places that hold what is added to them: Home, the Inbox and folders.
+    /// The rest are views over the library — Recent, Favorites, a kind, a
+    /// tag, a collection — or the Trash and Hidden, where something added
+    /// wouldn't appear.
+    private var acceptsNewContent: Bool {
+        if model.isShowingHome { return true }
+        return switch model.scope {
+        case .inbox, .folder: true
+        default: false
         }
     }
 
@@ -882,8 +940,8 @@ struct BrowseView: View {
         case .favorites: return "No Favorites"
         case .trash: return "Trash Is Empty"
         case .hidden: return "Nothing Hidden"
-        case .collection: return "Empty Collection"
-        default: return "Nothing Here Yet"
+        // Named, so an empty folder or tag says which one it is.
+        default: return "Nothing in \(title)"
         }
     }
 

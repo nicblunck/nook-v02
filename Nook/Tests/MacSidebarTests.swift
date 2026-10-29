@@ -24,7 +24,8 @@ struct MacSidebarTests {
         await model.createCollection(named: "Reading")
 
         let sidebar = try await HostedSidebar(model: model)
-        #expect(sidebar.titles(under: .section(.library)) == ["All", "Inbox", "Recent", "Favorites"])
+        // All, Inbox, Recent and Favorites are cards above the outline.
+        #expect(sidebar.item(.section(.library)) == nil)
         #expect(sidebar.titles(under: .section(.folders)) == ["Work"])
         #expect(sidebar.titles(under: .destination(.scope(.folder(work.id)))) == ["Notes"])
         #expect(sidebar.titles(under: .section(.collections)) == ["Reading"])
@@ -33,22 +34,89 @@ struct MacSidebarTests {
         #expect(sidebar.titles(under: .section(.tags)) == ["No tags yet"])
     }
 
+    @Test("The cards above the outline take clicks, and leave the rows below them their own")
+    func cardsTakeClicks() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        await harness.model.createFolder(named: "Work", in: nil)
+        let sidebar = try await HostedSidebar(model: harness.model)
+        await sidebar.settle()
+        try #require(sidebar.window.contentView).layoutSubtreeIfNeeded()
+        let scroll = try #require(sidebar.outline.enclosingScrollView as? SidebarScrollView)
+        let clip = scroll.contentView
+        let cards = try #require(clip.subviews.first { $0 is NSHostingView<AnyView> })
+        #expect(scroll.topContentHeight > 0)
+
+        // Asked the way AppKit asks: the clip view, in its superview's terms.
+        func hit(_ pointInOutline: NSPoint) -> NSView? {
+            clip.hitTest(sidebar.outline.convert(pointInOutline, to: scroll))
+        }
+        // The middle of the top-right card, Inbox.
+        let card = hit(NSPoint(x: sidebar.outline.bounds.width * 0.75, y: -scroll.topContentHeight + 40))
+        #expect(card?.isDescendant(of: cards) == true)
+        // The first folder, just below the cards, is the outline's.
+        let folder = try #require(harness.model.folderTree.first?.folder)
+        let work = try #require(sidebar.item(.destination(.scope(.folder(folder.id)))))
+        let row = sidebar.outline.rect(ofRow: sidebar.outline.row(forItem: work))
+        let below = hit(NSPoint(x: row.midX, y: row.midY))
+        #expect(below?.isDescendant(of: sidebar.outline) == true)
+    }
+
+    @Test("Pinning a place makes room for its card above the rows")
+    func pinningGrowsTheCards() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        await model.createFolder(named: "Work", in: nil)
+        let work = try #require(model.folderTree.first?.folder)
+        let sidebar = try await HostedSidebar(model: model)
+        await sidebar.settle()
+        let scroll = try #require(sidebar.outline.enclosingScrollView as? SidebarScrollView)
+        scroll.layoutSubtreeIfNeeded()
+        let before = scroll.contentInsets.top
+
+        model.settings.pin(.folder(work.id))
+        await sidebar.settle()
+        scroll.layoutSubtreeIfNeeded()
+
+        // A third row of cards, and the rows moved down to clear it.
+        #expect(scroll.topContentHeight > 0)
+        #expect(scroll.contentInsets.top > before)
+        #expect(scroll.contentInsets.top - scroll.safeAreaInsets.top == scroll.topContentHeight)
+        // Shown as a card, so not listed again below.
+        #expect(sidebar.item(.destination(.scope(.folder(work.id)))) == nil)
+
+        model.settings.unpin(.folder(work.id))
+        await sidebar.settle()
+        #expect(sidebar.item(.destination(.scope(.folder(work.id)))) != nil)
+    }
+
     @Test("Selecting a row navigates, and navigating selects the row")
     func selectionAndNavigationAgree() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
+        await model.createFolder(named: "Work", in: nil)
+        await model.createFolder(named: "Archive", in: nil)
+        let work = try #require(model.folderTree.first { $0.folder.name == "Work" }?.folder)
+        let archive = try #require(model.folderTree.first { $0.folder.name == "Archive" }?.folder)
         let sidebar = try await HostedSidebar(model: model)
 
-        // The app opens on Home, and the outline says so.
-        #expect(sidebar.selectedDestination == .home)
+        // The app opens on Home, which is a card rather than a row.
+        #expect(sidebar.selectedDestination == nil)
 
-        sidebar.click(.destination(.scope(.inbox)))
-        #expect(model.destination == .scope(.inbox))
-
-        model.navigate(to: .scope(.favorites))
+        // A folder opens asynchronously, since a locked one asks first.
+        sidebar.click(.destination(.scope(.folder(work.id))))
         await sidebar.settle()
-        #expect(sidebar.selectedDestination == .scope(.favorites))
+        #expect(model.destination == .scope(.folder(work.id)))
+
+        model.navigate(to: .scope(.folder(archive.id)))
+        await sidebar.settle()
+        #expect(sidebar.selectedDestination == .scope(.folder(archive.id)))
+
+        model.navigate(to: .scope(.inbox))
+        await sidebar.settle()
+        #expect(sidebar.selectedDestination == nil)
     }
 
     @Test("Folder expansion follows the model both ways")
@@ -199,11 +267,9 @@ struct MacSidebarTests {
 
         #expect(sidebar.validate(drag, on: .destination(.scope(.folder(archive.id)))) == .move)
         #expect(sidebar.validate(drag, on: .section(.folders)) == .move)
-        #expect(sidebar.validate(drag, on: .destination(.scope(.inbox))) == .move)
         #expect(sidebar.validate(drag, on: .destination(.scope(.folder(work.id)))) == [])
         #expect(sidebar.validate(drag, on: .destination(.scope(.folder(notes.id)))) == [])
         #expect(sidebar.validate(drag, on: .destination(.scope(.collection(collection.id)))) == [])
-        #expect(sidebar.validate(drag, on: .destination(.scope(.favorites))) == [])
         // Between two rows counts as on their parent.
         #expect(sidebar.validate(drag, on: .destination(.scope(.folder(archive.id))), between: 0) == .move)
 
@@ -227,9 +293,6 @@ struct MacSidebarTests {
         let drag = DragStandIn(objects: [object.id])
 
         #expect(sidebar.validate(drag, on: .destination(.scope(.folder(work.id)))) == .move)
-        #expect(sidebar.validate(drag, on: .destination(.scope(.favorites))) == .copy)
-        #expect(sidebar.validate(drag, on: .destination(.scope(.recent))) == [])
-        #expect(sidebar.validate(drag, on: .destination(.scope(.allObjects))) == [])
         #expect(sidebar.validate(drag, on: .destination(.scope(.kind(.image)))) == [])
 
         #expect(sidebar.accept(drag, on: .destination(.scope(.folder(work.id)))))
@@ -254,9 +317,6 @@ struct MacSidebarTests {
         pasteboard.clearContents()
         pasteboard.writeObjects([writer])
         #expect(SidebarDropRules.payload(on: pasteboard) == .folder(work.id))
-        // Nothing but a folder is draggable.
-        let inbox = try #require(sidebar.item(.destination(.scope(.inbox))))
-        #expect(sidebar.coordinator.outlineView(sidebar.outline, pasteboardWriterForItem: inbox) == nil)
     }
 
     @Test("The keys the sidebar means something by reach the model")
@@ -317,8 +377,7 @@ struct MacSidebarTests {
         let sidebar = try await HostedSidebar(model: model)
         let menu = try #require(sidebar.menu(for: .destination(.scope(.folder(work.id)))))
         #expect(menu.items.map(\.title).filter { !$0.isEmpty }
-                == ["Rename…", "New Subfolder…", "Customize…", "Hide", "Lock", "Move to Trash"])
-        #expect(sidebar.menu(for: .destination(.scope(.inbox))) == nil)
+                == ["Rename…", "New Subfolder…", "Customize…", "Pin to Top", "Hide", "Lock", "Move to Trash"])
     }
 }
 

@@ -1,6 +1,9 @@
 import SwiftUI
 import ImageIO
 import NookLibrary
+#if os(macOS)
+import AVFoundation
+#endif
 
 /// Renders an object's thumbnail, falling back to a type glyph while it loads
 /// or when there is nothing to render.
@@ -20,7 +23,13 @@ struct ThumbnailView: View {
     var onAppearanceChange: ((ThumbnailAppearance?) -> Void)? = nil
 
     @Environment(\.thumbnailLoader) private var loader
+    @Environment(\.originalLocator) private var originals
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if os(macOS)
+    /// Whether the pointer has rested on a video long enough to play it.
+    @State private var isPlayingHoverPreview = false
+    @State private var hoverDelay: Task<Void, Never>?
+    #endif
     @State private var image: Image?
     @State private var didAttempt = false
     @State private var cacheRevision = 0
@@ -30,6 +39,54 @@ struct ThumbnailView: View {
     @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 1
 
     var body: some View {
+        if let hex = object.colorHex, let color = Color(hex: hex) {
+            // A colour chip has nothing to load: the colour is the picture.
+            color
+                .onAppear {
+                    onAspectRatioChange?(1)
+                    onAppearanceChange?(ThumbnailAppearance(predominantColor: ThumbnailColor(hex: hex),
+                                                            hasTransparentBackground: false))
+                }
+                .accessibilityHidden(true)
+        } else {
+            picture
+                #if os(macOS)
+                .overlay { hoverPreview }
+                .onHover(perform: hoverChanged)
+                #endif
+        }
+    }
+
+    #if os(macOS)
+    /// A video plays, silent and looping, under a resting pointer, the way
+    /// the Finder's and Photos' do. Only once the original is on this Mac:
+    /// a hover is no reason to download one.
+    @ViewBuilder
+    private var hoverPreview: some View {
+        if isPlayingHoverPreview, let url = originals?.url(for: object) {
+            HoverVideoPlayer(url: url)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func hoverChanged(_ hovering: Bool) {
+        guard object.kind == .video else { return }
+        hoverDelay?.cancel()
+        guard hovering else {
+            withAnimation(NookMotion.interaction) { isPlayingHoverPreview = false }
+            return
+        }
+        // A pointer passing over on its way somewhere else starts nothing.
+        hoverDelay = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            withAnimation(NookMotion.interaction) { isPlayingHoverPreview = true }
+        }
+    }
+    #endif
+
+    private var picture: some View {
         ZStack {
             if let image {
                 image
@@ -273,4 +330,60 @@ extension Notification.Name {
 
 extension EnvironmentValues {
     @Entry var thumbnailLoader: ThumbnailStore?
+    @Entry var originalLocator: OriginalLocator?
 }
+
+/// Where an object's original file is on this device, for a view that needs
+/// the bytes themselves rather than a thumbnail of them.
+struct OriginalLocator {
+    let model: LibraryModel
+
+    func url(for object: ObjectSnapshot) -> URL? { model.localURL(for: object) }
+}
+
+#if os(macOS)
+/// A muted, looping player filling its frame, for a video previewed in place.
+private struct HoverVideoPlayer: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> PlayerView {
+        let view = PlayerView()
+        view.play(url)
+        return view
+    }
+
+    func updateNSView(_ view: PlayerView, context: Context) {}
+
+    static func dismantleNSView(_ view: PlayerView, coordinator: ()) {
+        view.stop()
+    }
+
+    final class PlayerView: NSView {
+        private let player = AVQueuePlayer()
+        private var looper: AVPlayerLooper?
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            let layer = AVPlayerLayer(player: player)
+            layer.videoGravity = .resizeAspectFill
+            self.layer = layer
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        func play(_ url: URL) {
+            player.isMuted = true
+            looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+            player.play()
+        }
+
+        func stop() {
+            player.pause()
+            looper = nil
+            player.removeAllItems()
+        }
+    }
+}
+#endif

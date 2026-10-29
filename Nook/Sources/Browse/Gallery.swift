@@ -563,12 +563,22 @@ struct GalleryDropIndicator: View {
 /// A dock icon, either an SF Symbol or a full-color custom asset from
 /// Assets.xcassets. Custom assets need an explicit size since, unlike SF
 /// Symbols, they don't scale with the surrounding font.
-enum ToolbarIcon {
+enum ToolbarIcon: Equatable {
     case system(String)
     case custom(String)
 
     func image(size: CGFloat) -> some View {
         ToolbarIconView(icon: self, size: size)
+    }
+
+    /// The SF Symbol standing in for a custom asset in Minimal Mode. The view
+    /// draws it a little smaller, as a symbol fills more of its box than the
+    /// art does.
+    var minimal: ToolbarIcon {
+        switch self {
+        case .system: self
+        case .custom(let name): .system(MinimalSymbol.replacing(name))
+        }
     }
 }
 
@@ -581,10 +591,12 @@ private struct ToolbarIconView: View {
     let icon: ToolbarIcon
     let size: CGFloat
     @Environment(\.dockIconScale) private var scale
+    @Environment(\.isMinimalMode) private var isMinimalMode
 
     var body: some View {
-        let scaled = size * scale
-        switch icon {
+        let standsIn = isMinimalMode && icon != icon.minimal
+        let scaled = size * scale * (standsIn ? 0.72 : 1)
+        switch isMinimalMode ? icon.minimal : icon {
         case .system(let name):
             Image(systemName: name)
                 .font(.system(size: scaled, weight: .medium))
@@ -703,18 +715,7 @@ private struct MacDocumentPopoverButton: View {
 
     private func scanDocument() {
         isPresented = false
-        Task { @MainActor in
-            // Let the popover dismiss before asking the command in the File
-            // menu to begin its Continuity Camera handoff.
-            await Task.yield()
-            guard ContinuityCameraScanner.start() else {
-                model.alert = LibraryAlert(
-                    title: "No document scanner available",
-                    message: "Bring a Continuity Camera-capable iPhone or iPad nearby, then try again."
-                )
-                return
-            }
-        }
+        ContinuityCameraScanner.scan(for: model)
     }
 }
 
@@ -844,8 +845,25 @@ private struct MacAddContentButtonBody: View {
 /// performs that exact system action. Its result still arrives through the
 /// window's `importsItemProviders` modifier.
 @MainActor
-private enum ContinuityCameraScanner {
-    static func start() -> Bool {
+enum ContinuityCameraScanner {
+    /// Starts a scan, or says why there is no scanner to start.
+    static func scan(for model: LibraryModel) {
+        Task { @MainActor in
+            // Let whatever asked — a popover, a menu — dismiss before asking
+            // the command in the File menu to begin its Continuity Camera
+            // handoff.
+            await Task.yield()
+            guard start() else {
+                model.alert = LibraryAlert(
+                    title: "No document scanner available",
+                    message: "Bring a Continuity Camera-capable iPhone or iPad nearby, then try again."
+                )
+                return
+            }
+        }
+    }
+
+    private static func start() -> Bool {
         guard let mainMenu = NSApp.mainMenu,
               let importCommand = firstItem(
                 in: mainMenu,

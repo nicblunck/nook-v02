@@ -34,6 +34,63 @@ struct LocationMenu: View {
     }
 }
 
+/// Pin or unpin a place as a card at the top of the sidebar. Pinning is
+/// offered greyed out once all the card slots are taken, so it is clear why
+/// it can't be done rather than missing.
+struct PinMenuItem: View {
+    let settings: AppSettings
+    let place: PinnedPlace
+
+    var body: some View {
+        if settings.isPinned(place) {
+            Button("Unpin from Top", systemImage: "pin.slash") { settings.unpin(place) }
+        } else {
+            Button("Pin to Top", systemImage: "pin") { settings.pin(place) }
+                .disabled(!settings.canPinMore)
+        }
+    }
+}
+
+/// Every kind of capture the library takes, as menu items: what the
+/// "Add Something" button in an empty place opens. Each one lands wherever
+/// the canvas currently is, the same as the add bar's.
+struct AddContentMenu: View {
+    let model: LibraryModel
+
+    var body: some View {
+        #if os(macOS)
+        Button("Add from Files…", systemImage: "doc") {
+            model.isImporterPresented = true
+        }
+        Button("Scan Document…", systemImage: "doc.viewfinder") {
+            ContinuityCameraScanner.scan(for: model)
+        }
+        Button("Add Photo…", systemImage: "photo.on.rectangle") {
+            model.isPhotosPickerPresented = true
+        }
+        #else
+        Button("Add File…", systemImage: "doc") {
+            model.isImporterPresented = true
+        }
+        Button("Scan Document…", systemImage: "doc.viewfinder") {
+            model.isDocumentScannerPresented = true
+        }
+        Button("Add Photo…", systemImage: "photo.on.rectangle") {
+            model.isPhotosPickerPresented = true
+        }
+        Button("Take Photo…", systemImage: "camera") {
+            model.isCameraPresented = true
+        }
+        #endif
+        Button("Add URL…", systemImage: "link.badge.plus") {
+            model.isAddURLPresented = true
+        }
+        Button("Paste", systemImage: "doc.on.clipboard") {
+            Task { await model.importPasteboard() }
+        }
+    }
+}
+
 /// The actions available on one folder — the canvas's equivalent of
 /// `ObjectMenu`, offered wherever a folder is drawn: the sidebar, the canvas,
 /// and the compact library list on iOS.
@@ -73,6 +130,7 @@ struct FolderMenu: View {
                 reference: .folder(folder.id), title: folder.name, appearance: folder.appearance
             )
         }
+        PinMenuItem(settings: model.settings, place: .folder(folder.id))
         Divider()
         // Hiding a subfolder that only inherited Hidden from an ancestor
         // marks it explicitly and, the same as hiding anything else, moves it

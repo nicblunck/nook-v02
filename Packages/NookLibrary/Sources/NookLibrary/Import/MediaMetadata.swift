@@ -29,7 +29,7 @@ enum MediaMetadataReader {
             await readAVAsset(at: url, into: &metadata)
         case .pdf:
             readPDF(at: url, into: &metadata)
-        case .link, .file:
+        case .link, .file, .color:
             break
         }
         return metadata

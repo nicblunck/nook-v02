@@ -218,7 +218,12 @@ struct FolderListRow: View {
 
     @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 44
 
-    private var tint: Color { Color(hex: folder.appearance.colorHex) ?? .accentColor }
+    @Environment(\.entityDefaultColor) private var defaultColor
+    @Environment(\.isMinimalMode) private var isMinimalMode
+    /// Every folder grey in Minimal Mode, whatever colour it was given.
+    private var tint: Color {
+        isMinimalMode ? .gray : (Color(hex: folder.appearance.colorHex) ?? defaultColor)
+    }
 
     var body: some View {
         HStack(spacing: ListMetrics.contentSpacing) {
@@ -346,11 +351,12 @@ struct ObjectMasonryCard: View {
     #endif
 
     private let radius: CGFloat = 14
-    /// How far the mat reaches past the picture.
-    private let selectionInset: CGFloat = 8
+    /// How far out from the picture the selection ring sits.
+    private let selectionInset: CGFloat = 4
 
-    /// The mat is the wall's only highlight: it shows where the keyboard is
-    /// resting as well as what is selected, the way the icon grid does.
+    /// The ring is the wall's only highlight: it shows where the keyboard is
+    /// resting as well as what is selected, the way the icon grid does. In
+    /// the accent colour, as the grid's and the list's are.
     private var isHighlighted: Bool { isSelected || isCursor }
 
     var body: some View {
@@ -380,8 +386,8 @@ struct ObjectMasonryCard: View {
         // shown exactly as an unselected one is.
         .background {
             RoundedRectangle(cornerRadius: radius + selectionInset)
-                .fill(.secondary)
-                .opacity(isHighlighted ? 0.35 : 0)
+                .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                .opacity(isHighlighted ? 1 : 0)
                 .padding(-selectionInset)
         }
         .contentShape(.rect(cornerRadius: radius))
@@ -570,9 +576,9 @@ struct FolderMasonryCard: View {
     }
 
     private let radius: CGFloat = 14
-    private let selectionInset: CGFloat = 8
+    private let selectionInset: CGFloat = 4
 
-    /// The mat is the wall's only highlight, so it marks the cursor too.
+    /// The ring is the wall's only highlight, so it marks the cursor too.
     private var isHighlighted: Bool { isSelected || isCursor }
 
     var body: some View {
@@ -591,8 +597,8 @@ struct FolderMasonryCard: View {
         .glassEffect(.regular, in: .rect(cornerRadius: radius))
         .background {
             RoundedRectangle(cornerRadius: radius + selectionInset)
-                .fill(.secondary)
-                .opacity(isHighlighted ? 0.35 : 0)
+                .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                .opacity(isHighlighted ? 1 : 0)
                 .padding(-selectionInset)
         }
         .contentShape(.rect(cornerRadius: radius))
@@ -614,7 +620,12 @@ private struct FolderMasonryMedia: View {
     let peeks: [ObjectSnapshot]
     let isOpen: Bool
 
-    private var tint: Color { Color(hex: folder.appearance.colorHex) ?? .accentColor }
+    @Environment(\.entityDefaultColor) private var defaultColor
+    @Environment(\.isMinimalMode) private var isMinimalMode
+    /// Every folder grey in Minimal Mode, whatever colour it was given.
+    private var tint: Color {
+        isMinimalMode ? .gray : (Color(hex: folder.appearance.colorHex) ?? defaultColor)
+    }
 
     var body: some View {
         Rectangle()

@@ -203,7 +203,7 @@ struct TagEntityQuery: EntityStringQuery {
 /// Media types as a choosable option, so "show me my PDFs" resolves without a
 /// free-text guess.
 enum MediaTypeAppEnum: String, AppEnum {
-    case images, videos, audio, pdfs, links, screenshots
+    case images, videos, audio, pdfs, links, colors, screenshots
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Media Type")
 
@@ -213,6 +213,7 @@ enum MediaTypeAppEnum: String, AppEnum {
         .audio: "Audio",
         .pdfs: "PDFs",
         .links: "Links",
+        .colors: "Colors",
         .screenshots: "Screenshots"
     ]
 
@@ -223,6 +224,7 @@ enum MediaTypeAppEnum: String, AppEnum {
         case .audio: .audio
         case .pdfs: .pdf
         case .links: .link
+        case .colors: .color
         case .screenshots: .screenshot
         }
     }

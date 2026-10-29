@@ -94,7 +94,7 @@ extension ShareItemResolver {
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
             guard size <= textInspectionLimit, let data = try? Data(contentsOf: url) else { return nil }
             return String(data: data, encoding: .utf8)
-        case .link:
+        case .link, .color:
             return nil
         }
     }
@@ -143,7 +143,7 @@ extension ShareItemResolver {
         switch item {
         case .data(let data, _, _): ContentHash.of(data)
         case .file(let url, _): try? ContentHash.ofFile(at: url)
-        case .link: nil
+        case .link, .color: nil
         }
     }
 }

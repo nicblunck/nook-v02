@@ -11,6 +11,9 @@ public enum ObjectKind: String, Codable, Sendable, CaseIterable, Identifiable {
     case screenshot
     case link
     case file
+    /// A colour chip, from a pasted hex code. It has no file: the colour is
+    /// the whole of it.
+    case color
 
     public var id: String { rawValue }
 
@@ -23,6 +26,7 @@ public enum ObjectKind: String, Codable, Sendable, CaseIterable, Identifiable {
         case .screenshot: "Screenshot"
         case .link: "Link"
         case .file: "File"
+        case .color: "Color"
         }
     }
 
@@ -35,6 +39,7 @@ public enum ObjectKind: String, Codable, Sendable, CaseIterable, Identifiable {
         case .screenshot: "Screenshots"
         case .link: "Links"
         case .file: "Files"
+        case .color: "Colors"
         }
     }
 
@@ -47,11 +52,12 @@ public enum ObjectKind: String, Codable, Sendable, CaseIterable, Identifiable {
         case .screenshot: "camera.viewfinder"
         case .link: "link"
         case .file: "doc"
+        case .color: "paintpalette"
         }
     }
 
     /// Kinds that appear as their own media-type view in the sidebar.
-    public static let mediaTypes: [ObjectKind] = [.image, .video, .audio, .pdf, .link, .screenshot]
+    public static let mediaTypes: [ObjectKind] = [.image, .video, .audio, .pdf, .link, .color, .screenshot]
 
     /// Classifies a content type. Screenshots are distinguished separately at
     /// import time, since UTI alone cannot tell one from an ordinary image.

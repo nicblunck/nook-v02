@@ -61,12 +61,15 @@ struct TestModel {
 @MainActor
 final class StubAuthenticator: LibraryAuthenticating {
     var outcome: AuthenticationOutcome = .succeeded
+    /// How long the owner takes to answer, as Face ID does.
+    var delay: Duration = .zero
     private(set) var reasons: [String] = []
 
     var wasAsked: Bool { !reasons.isEmpty }
 
     func authenticate(reason: String) async -> AuthenticationOutcome {
         reasons.append(reason)
+        if delay > .zero { try? await Task.sleep(for: delay) }
         return outcome
     }
 }

@@ -145,7 +145,11 @@ struct CompactAddContentToolbar: ToolbarContent {
             Label {
                 Text(title)
             } icon: {
-                Image(uiImage: CompactMenuIcon.image(named: icon))
+                if model.settings.isMinimalMode {
+                    Image(systemName: MinimalSymbol.replacing(icon))
+                } else {
+                    Image(uiImage: CompactMenuIcon.image(named: icon))
+                }
             }
         }
     }
@@ -182,42 +186,32 @@ struct CompactLibraryList: View {
 
     var body: some View {
         List {
-            Section("Library") {
-                homeRow(title: "All", symbol: "square.grid.2x2", count: model.counts[.allObjects])
-                row(scope: .inbox, title: "Inbox", count: model.counts[.inbox]) {
-                    Image(systemName: "tray")
+            // A section's header rather than a row in it: a row is clipped to
+            // the section's rounded corners, which cut into the cards'.
+            Section {
+            } header: {
+                // Pushed the way a row in the list is, rather than selected.
+                LibraryScopeCards(model: model) { destination in
+                    let page = LibraryPage(destination: destination)
+                    model.beginPages(with: page, waitingForContents: true)
+                    Task { await model.openPage(destination) }
                 }
-                .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                    let ids = transfers.flatMap(\.ids)
-                    guard !ids.isEmpty else { return false }
-                    Task { await model.move(ids, to: nil) }
-                    return true
-                }
-                row(scope: .recent, title: "Recent") {
-                    Image(systemName: "clock")
-                }
-                row(scope: .favorites, title: "Favorites", count: model.counts[.favorites]) {
-                    Image(systemName: "star")
-                }
-                .dropDestination(for: ObjectTransfer.self) { transfers, _ in
-                    let ids = transfers.flatMap(\.ids)
-                    guard !ids.isEmpty else { return false }
-                    Task { await model.setFavorite(true, for: ids) }
-                    return true
-                }
+                .textCase(nil)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
             }
 
             Section {
-                if model.folderTree.isEmpty {
+                if model.sidebarFolderTree.isEmpty {
                     Text("No folders yet").foregroundStyle(.tertiary)
                 } else {
                     // OutlineGroup handles the nesting; a hand-rolled recursive
                     // row cannot be typed, since its return type would be
                     // defined in terms of itself.
-                    OutlineGroup(model.folderTree, children: \.outlineChildren) { node in
+                    OutlineGroup(model.sidebarFolderTree, children: \.outlineChildren) { node in
                         row(scope: .folder(node.folder.id), title: node.folder.name) {
                             EntityIcon(appearance: node.folder.appearance, fallbackSymbol: "folder")
                         }
+                        .contextMenu { PinMenuItem(settings: model.settings, place: .folder(node.folder.id)) }
                         .draggable(FolderTransfer(id: node.folder.id))
                         .plopIn(trigger: arrivalTrigger(for: node.folder.id),
                                 order: arrivalOrder(for: node.folder.id),
@@ -251,12 +245,13 @@ struct CompactLibraryList: View {
                     }
             }
 
-            if !model.collections.isEmpty {
+            if !model.sidebarCollections.isEmpty {
                 Section("Collections") {
-                    ForEach(model.collections) { collection in
+                    ForEach(model.sidebarCollections) { collection in
                         row(scope: .collection(collection.id), title: collection.name) {
                             EntityIcon(appearance: collection.appearance, fallbackSymbol: "rectangle.stack")
                         }
+                        .contextMenu { PinMenuItem(settings: model.settings, place: .collection(collection.id)) }
                         .plopIn(trigger: arrivalTrigger(for: collection.id),
                                 order: arrivalOrder(for: collection.id),
                                 delay: model.sidebarChange.enterDelay(reduceMotion: reduceMotion))
@@ -284,12 +279,13 @@ struct CompactLibraryList: View {
                 .transition(compactItemTransition)
             }
 
-            if !model.tags.isEmpty {
+            if !model.sidebarTags.isEmpty {
                 Section("Tags") {
-                    ForEach(model.tags) { tag in
+                    ForEach(model.sidebarTags) { tag in
                         row(scope: .tag(tag.id), title: tag.name) {
                             EntityIcon(appearance: tag.appearance, fallbackSymbol: "tag")
                         }
+                        .contextMenu { PinMenuItem(settings: model.settings, place: .tag(tag.id)) }
                         .transition(compactItemTransition)
                         .dropDestination(for: ObjectTransfer.self) { transfers, _ in
                             let ids = transfers.flatMap(\.ids)
@@ -378,15 +374,6 @@ struct CompactLibraryList: View {
                      @ViewBuilder icon: () -> some View) -> some View {
         NavigationLink(value: LibraryPage(destination: .scope(scope))) {
             label(title: title, count: count, icon: icon)
-        }
-    }
-
-    /// "All" is a distinct destination from any scope — it shows the Home
-    /// canvas (the folder shelf and friends) rather than a plain
-    /// query over every object.
-    private func homeRow(title: String, symbol: String, count: Int? = nil) -> some View {
-        NavigationLink(value: LibraryPage(destination: .home)) {
-            label(title: title, count: count) { Image(systemName: symbol) }
         }
     }
 

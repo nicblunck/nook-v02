@@ -9,6 +9,8 @@ public enum ImportItem: Sendable {
     case data(Data, contentType: UTType, suggestedName: String?)
     /// A web link, saved as an object in its own right.
     case link(URL)
+    /// A colour, as a code `ColorCode.normalized` accepts.
+    case color(hex: String)
 }
 
 /// Where an import lands. Context-aware by design: importing while inside a

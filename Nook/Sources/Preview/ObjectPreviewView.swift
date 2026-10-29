@@ -256,7 +256,14 @@ private struct PreviewPage: View {
 
     @ViewBuilder
     private var content: some View {
-        if object.kind == .link {
+        if let hex = object.colorHex {
+            ColorChipPreview(hex: hex, title: object.title)
+                .padding(.top, chromeInsets.top)
+                .padding(.bottom, chromeInsets.bottom)
+                .contentShape(.rect)
+                .onTapGesture(perform: onTap)
+                .transition(swapTransition)
+        } else if object.kind == .link {
             // The link's card, kept clear of the bars that float over the
             // full-bleed pages; a tap beside its Open button shows or hides
             // them, as on any other page.
@@ -291,7 +298,8 @@ private struct PreviewPage: View {
         // A link has no blob of its own — the page is the content, and
         // `LinkPreviewView` reads `object.sourceURL` directly rather than
         // waiting on a file that was never stored.
-        guard object.kind != .link else { return }
+        // Nor does a colour chip: the code is the whole of it.
+        guard object.kind != .link, object.kind != .color else { return }
         do {
             guard let url = try await model.library.service.originalURL(for: object.id,
                                                                         in: model.accessContext) else {
@@ -302,6 +310,53 @@ private struct PreviewPage: View {
         } catch {
             loadFailure = error.localizedDescription
         }
+    }
+}
+
+/// A colour chip, opened: the colour large, with its code and channels, and
+/// a button that copies the code back out.
+private struct ColorChipPreview: View {
+    let hex: String
+    let title: String
+
+    var body: some View {
+        VStack(spacing: 20) {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color(hex: hex) ?? .clear)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .frame(maxWidth: 360, maxHeight: 360)
+                .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+            VStack(spacing: 4) {
+                Text(title).font(.title2.weight(.semibold))
+                if title != hex {
+                    Text(hex).font(.headline.monospaced()).foregroundStyle(.secondary)
+                }
+                Text(channels).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Button("Copy Code", systemImage: "doc.on.doc") { copy() }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var channels: String {
+        guard let number = UInt32(hex.dropFirst(), radix: 16) else { return "" }
+        return "RGB \((number >> 16) & 0xFF) \((number >> 8) & 0xFF) \(number & 0xFF)"
+    }
+
+    private func copy() {
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(hex, forType: .string)
+        #else
+        UIPasteboard.general.string = hex
+        #endif
     }
 }
 

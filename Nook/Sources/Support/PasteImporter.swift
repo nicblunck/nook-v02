@@ -47,8 +47,9 @@ enum PasteImporter {
         if let data = pasteboard.data(forType: .tiff) {
             return [.data(data, contentType: .tiff, suggestedName: "Pasted Image.tiff")]
         }
-        if let string = pasteboard.string(forType: .string), let url = webURL(from: string) {
-            return [.link(url)]
+        if let string = pasteboard.string(forType: .string) {
+            if let codes = ColorCode.codes(in: string) { return codes.map { .color(hex: $0) } }
+            if let url = webURL(from: string) { return [.link(url)] }
         }
         return []
     }
@@ -68,8 +69,9 @@ enum PasteImporter {
                 return .data(data, contentType: .png, suggestedName: name)
             }
         }
-        if pasteboard.hasStrings, let string = pasteboard.string, let url = webURL(from: string) {
-            return [.link(url)]
+        if pasteboard.hasStrings, let string = pasteboard.string {
+            if let codes = ColorCode.codes(in: string) { return codes.map { .color(hex: $0) } }
+            if let url = webURL(from: string) { return [.link(url)] }
         }
         return []
     }
