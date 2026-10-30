@@ -373,6 +373,47 @@ struct PrivacyTests {
         await model.relockFolders()
         #expect(model.scope == .folder(gate.id))
         #expect(model.lockedLocation?.reference == gate.reference)
+
+        // Going back to the inner folder while the gate is closed shows the
+        // gate, not an empty folder, and opening the gate lets you through.
+        model.navigate(to: .scope(.folder(inner.id)))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(model.lockedLocation?.reference == gate.reference)
+        #expect(model.contents.folders.isEmpty)
+        await model.unlockCurrentLocation()
+        #expect(model.lockedLocation == nil)
+        #expect(model.accessContext.unlockedEntities == [gate.id.uuid])
+    }
+
+    @Test("Opening a folder behind a closed lock asks for the locked folder")
+    func openingAnInnerFolderOpensItsGate() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        await model.createFolder(named: "Secrets", in: nil)
+        let gate = try #require(model.folderTree.first?.folder)
+        await model.createFolder(named: "Taxes", in: gate.id)
+        model.navigate(to: .scope(.folder(gate.id)))
+        await model.refreshContents()
+        let inner = try #require(model.contents.folders.first)
+        await model.setLocked(true, forFolder: gate)
+        model.navigate(to: .scope(.inbox))
+        await model.loadPreferences()
+
+        harness.authenticator.outcome = .cancelled
+        await model.openFolder(inner.id)
+        #expect(model.scope == .inbox)
+
+        harness.authenticator.outcome = .succeeded
+        await model.openFolder(inner.id)
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(model.scope == .folder(inner.id))
+        #expect(model.lockedLocation == nil)
+        #expect(model.accessContext.unlockedEntities == [gate.id.uuid])
     }
 
     @Test("The idle timer closes an open locked folder")

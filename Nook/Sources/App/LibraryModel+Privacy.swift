@@ -157,26 +157,36 @@ extension LibraryModel {
         return true
     }
 
-    /// Whether the location on screen is one the user has yet to authenticate.
-    /// Only folders can be locked doors; collections never are.
+    /// The locked folder standing between the canvas and where it points,
+    /// if the user has yet to authenticate it. Only folders can be locked
+    /// gates; collections never are.
+    ///
+    /// That is the folder itself when it carries the lock, or the closed gate
+    /// above it when it sits behind one — reached by Back after the lock
+    /// closed, say. The breadcrumb path stops at that gate, since nothing
+    /// behind a closed gate is visible, so the last crumb is the gate.
     var lockedLocation: (reference: LibraryReference, name: String)? {
         guard !isShowingHome else { return nil }
         switch scope {
-        case .folder(let id), .folderTree(let id):
-            guard let folder = breadcrumbs.last, folder.id == id, folder.visibility.isRedacted else { return nil }
-            return (folder.reference, folder.name)
+        case .folder, .folderTree:
+            guard let gate = breadcrumbs.last, gate.visibility.isRedacted else { return nil }
+            return (gate.reference, gate.name)
         default:
             return nil
         }
     }
 
-    /// Opens a folder — authenticating first when it is itself a locked door,
-    /// so the canvas lands straight on its contents rather than showing the
-    /// door and waiting for a separate Unlock click. Declining authentication
-    /// opens nothing; the browsed location stays exactly where it was.
+    /// Opens a folder — authenticating first when it is a locked gate, or sits
+    /// behind a closed one, so the canvas lands straight on its contents
+    /// rather than showing the gate and waiting for a separate Open click.
+    /// Declining authentication opens nothing; the browsed location stays
+    /// exactly where it was.
     func openFolder(_ id: FolderID, startingPageStack: Bool = false) async {
-        if let folder = await library.service.folder(id, in: accessContext), folder.visibility.isRedacted {
-            guard await unlock(folder, named: folder.name, refreshing: false) else { return }
+        // The path stops at the first closed gate, so its last folder is that
+        // gate whenever one stands in the way.
+        let path = await library.service.folderPath(to: id, in: accessContext)
+        if let gate = path.last, gate.visibility.isRedacted {
+            guard await unlock(gate, named: gate.name, refreshing: false) else { return }
             // The sidebar shows this folder's own lock badge as open the
             // instant it's authenticated, rather than waiting on whatever
             // the navigation below happens to refresh.
@@ -185,12 +195,12 @@ extension LibraryModel {
         navigate(to: .scope(.folder(id)), startingPageStack: startingPageStack)
     }
 
-    /// Opens the lock on the folder currently being browsed.
+    /// Opens the locked gate in front of the folder currently being browsed.
     func unlockCurrentLocation() async {
         switch scope {
-        case .folder(let id), .folderTree(let id):
-            guard let folder = breadcrumbs.last, folder.id == id else { return }
-            await unlock(folder, named: folder.name)
+        case .folder, .folderTree:
+            guard let gate = breadcrumbs.last, gate.visibility.isRedacted else { return }
+            await unlock(gate, named: gate.name)
         default:
             break
         }
