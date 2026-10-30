@@ -10,6 +10,12 @@ if [[ -z "$CI_APP_STORE_SIGNED_APP_PATH" ]]; then
 fi
 
 cd "$CI_PRIMARY_REPOSITORY_PATH"
+
+# Hand-written notes committed to the repository win over the commit list.
+if git ls-files --error-unmatch TestFlight/WhatToTest.en-US.txt >/dev/null 2>&1; then
+    exit 0
+fi
+
 git fetch --quiet --tags --unshallow 2>/dev/null || git fetch --quiet --tags
 
 last_tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)

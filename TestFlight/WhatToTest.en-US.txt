@@ -1,0 +1,18 @@
+Thanks for testing Nook! This build changes locked folders and makes thumbnails faster.
+
+LOCKED FOLDERS
+• A locked folder now works like a gate. Open it once, and you can browse every folder inside it.
+• Only the folder you locked shows a lock. The folders inside it show no lock and show their real item counts.
+• While a locked folder is closed, the folders inside it stay closed too. Try reaching one with Back. Nook should ask you to open the locked folder first.
+• A locked folder closes again after the same idle time as Hidden items. If you close it from a subfolder, Nook takes you back to the locked folder.
+• New wording: "Lock" adds a lock. "Remove Lock" takes it off for good. "Open" opens a locked folder. "Lock Now" closes an open one straight away.
+• In the gallery, "Lock View" is now called "Keep for This Folder".
+
+THUMBNAILS
+• Thumbnails load faster.
+• Thumbnails no longer blink when you scroll back or change the card size.
+• Folders you open again show their thumbnails at once.
+
+PLEASE TELL US
+• If a locked folder opens when it should stay closed, or stays closed when it should open.
+• If any thumbnail stays blank, looks blurry, or shows the wrong picture.

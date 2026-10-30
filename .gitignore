@@ -21,4 +21,6 @@ xcuserdata/
 # Swift Package Manager
 # NOTE: Packages/ is NOT ignored - Packages/NookLibrary is this project's source.
 .build/
-TestFlight/
+# CI writes TestFlight notes here, but hand-written notes can be committed.
+TestFlight/*
+!TestFlight/WhatToTest.en-US.txt
