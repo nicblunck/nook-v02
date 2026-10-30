@@ -46,22 +46,20 @@ extension LibraryModel {
         guard isShowingHiddenContent else { return }
         let destination: LibraryScope? = isShowingHome ? nil : scope
         if let destination, await library.service.revealsHiddenContent(destination) { return }
-        hiddenRevealTask?.cancel()
-        hiddenRevealTask = nil
         if previewedObject?.isHidden == true { previewedObjectID = nil }
         accessContext = accessContext.leavingHiddenContext()
+        cancelCloseTimerIfNothingIsOpen()
         await refreshSidebar()
     }
 
     /// Filters hidden items out again without discarding authenticated locks.
     func rehideItems() async {
         guard isShowingHiddenContent else { return }
-        hiddenRevealTask?.cancel()
-        hiddenRevealTask = nil
 
         let previewWasHidden = previewedObject?.isHidden == true
         accessContext = accessContext.leavingHiddenContext()
         if previewWasHidden { previewedObjectID = nil }
+        cancelCloseTimerIfNothingIsOpen()
 
         await refreshSidebar()
         if case .folder(let id) = scope,
@@ -75,19 +73,36 @@ extension LibraryModel {
         await refreshContents()
     }
 
-    func appDidLoseFocus() async {
-        guard settings.rehidesWhenAppLosesFocus, isShowingHiddenContent else { return }
-        await rehideItems()
+    // MARK: Closing on idle and focus loss
+
+    /// Whether Hidden or any locked folder is open right now. Both follow the
+    /// same idle timer and the same focus rule, so one question covers both.
+    var isAnyProtectedPlaceOpen: Bool {
+        isShowingHiddenContent || !accessContext.unlockedEntities.isEmpty
     }
 
-    /// Restarts the hidden-content deadline while the owner is actively using
-    /// this window. Activity has no privacy side effects before authentication
-    /// or when the user has chosen to keep hidden items revealed indefinitely.
+    func appDidLoseFocus() async {
+        guard settings.rehidesWhenAppLosesFocus, isAnyProtectedPlaceOpen else { return }
+        await closeProtectedPlaces()
+    }
+
+    /// Restarts the close deadline while the owner is actively using this
+    /// window. Activity has no privacy side effects before authentication or
+    /// when the user has chosen to keep protected places open indefinitely.
     func appDidReceiveUserActivity() {
-        guard isShowingHiddenContent,
+        guard isAnyProtectedPlaceOpen,
               settings.hiddenRevealTimeout.duration != nil
         else { return }
         scheduleRehide()
+    }
+
+    /// Closes Hidden and every open locked folder together — what the idle
+    /// timer and focus loss do.
+    func closeProtectedPlaces() async {
+        // Hidden's own close refreshes the canvas, so the folders closing
+        // first leave that to it rather than refreshing twice.
+        await relockFolders(refreshing: !isShowingHiddenContent)
+        await rehideItems()
     }
 
     private func scheduleRehide() {
@@ -100,9 +115,17 @@ extension LibraryModel {
         hiddenRevealTask = Task { [weak self, sleep] in
             try? await sleep(timeout)
             guard !Task.isCancelled, let self else { return }
-            guard isShowingHiddenContent else { return }
-            await rehideItems()
+            guard isAnyProtectedPlaceOpen else { return }
+            await closeProtectedPlaces()
         }
+    }
+
+    /// Drops the pending deadline once neither Hidden nor any locked folder is
+    /// open, so a timer never outlives what it was set for.
+    private func cancelCloseTimerIfNothingIsOpen() {
+        guard !isAnyProtectedPlaceOpen else { return }
+        hiddenRevealTask?.cancel()
+        hiddenRevealTask = nil
     }
 
     // MARK: Locks
@@ -127,8 +150,9 @@ extension LibraryModel {
     func unlock(_ item: some PrivacyBearing, named name: String, refreshing: Bool = true) async -> Bool {
         guard let source = item.lockedSource else { return true }
         guard !accessContext.unlockedEntities.contains(source.uuid) else { return true }
-        guard await authenticate(reason: "Unlock “\(name)”.") else { return false }
+        guard await authenticate(reason: "Open “\(name)”.") else { return false }
         accessContext = accessContext.unlocking(source)
+        scheduleRehide()
         if refreshing { await refreshAll() }
         return true
     }
@@ -186,9 +210,38 @@ extension LibraryModel {
            let source = previewed.lockedSource, !stillOpen.contains(source.uuid) {
             previewedObjectID = nil
         }
+        cancelCloseTimerIfNothingIsOpen()
         // A folder that just re-locked shows that in the sidebar right away,
         // the same way `closeHidden()` refreshes it on the way out.
         await refreshSidebar()
+    }
+
+    /// Closes every open locked folder, wherever the canvas stands — what
+    /// Lock Now, the idle timer and focus loss do.
+    ///
+    /// A lock is a gate, so whoever is standing somewhere behind it when it
+    /// closes ends up back in front of the gate: the locked folder itself,
+    /// showing its locked screen, rather than a subfolder that has vanished.
+    func relockFolders(refreshing: Bool = true) async {
+        guard !accessContext.unlockedEntities.isEmpty else { return }
+        var gate: FolderID?
+        switch scope {
+        case .folder(let id), .folderTree(let id):
+            if !isShowingHome, let here = breadcrumbs.last, here.id == id,
+               case .folder(let source)? = here.lockedSource, source != id {
+                gate = source
+            }
+        default:
+            break
+        }
+
+        accessContext.unlockedEntities = []
+        if previewedObject?.isLocked == true { previewedObjectID = nil }
+        if let gate { scope = .folder(gate) }
+        cancelCloseTimerIfNothingIsOpen()
+        guard refreshing else { return }
+        await refreshSidebar()
+        await refreshContents()
     }
 
     // MARK: Setting privacy
@@ -251,9 +304,10 @@ extension LibraryModel {
     }
 
     func setLocked(_ isLocked: Bool, forFolder folder: FolderSnapshot) async {
-        guard await authenticate(reason: "\(isLocked ? "Lock" : "Unlock") “\(folder.name)”.") else { return }
+        let reason = isLocked ? "Lock “\(folder.name)”." : "Remove the lock from “\(folder.name)”."
+        guard await authenticate(reason: reason) else { return }
         await perform(
-            successToast: isLocked ? "Locked folder" : "Unlocked folder",
+            successToast: isLocked ? "Locked folder" : "Lock removed",
             systemImage: isLocked ? "lock.fill" : "lock.open.fill",
             tint: isLocked ? .orange : .green
         ) {

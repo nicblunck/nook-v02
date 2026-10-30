@@ -752,16 +752,17 @@ struct BrowseView: View {
         }
     }
 
-    /// A locked place is a door before it is a location, so it is drawn as
+    /// A locked place is a gate before it is a location, so it is drawn as
     /// one. Its name stays visible — the user has to be able to find what to
     /// authenticate against — while nothing it holds is drawn behind it.
+    /// "Open" lets them in for now; it never removes the lock.
     private func lockedState(_ location: (reference: LibraryReference, name: String)) -> some View {
         ContentUnavailableView {
             Label(location.name, systemImage: "lock.fill")
         } description: {
             Text("Authenticate to see what's in here.")
         } actions: {
-            Button("Unlock") {
+            Button("Open") {
                 Task { await model.unlockCurrentLocation() }
             }
         }

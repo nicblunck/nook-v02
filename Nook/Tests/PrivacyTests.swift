@@ -304,12 +304,11 @@ struct PrivacyTests {
         #expect(model.contents.folders.isEmpty)
     }
 
-    /// `rehideItems()` — what focus loss triggers — only ever narrows Hidden.
-    /// It never touches `unlockedEntities`, so a folder unlocked earlier and
-    /// still being browsed stays open across a focus loss; only navigating
-    /// away from its subtree re-locks it.
-    @Test("Losing focus re-hides Hidden without relocking a folder you're still browsing")
-    func focusLossRehidesAndPreservesLocks() async throws {
+    /// Focus loss closes Hidden and every open locked folder together: both
+    /// follow the same rule, so a locked folder never stays open longer than
+    /// Hidden would.
+    @Test("Losing focus closes Hidden and the locked folder you're browsing")
+    func focusLossClosesHiddenAndLocks() async throws {
         let harness = try await TestModel()
         defer { harness.cleanUp() }
         let model = harness.model
@@ -327,21 +326,78 @@ struct PrivacyTests {
         #expect(try #require(model.contents.objects.first { $0.id == lockedObject.id }).visibility == .full)
 
         // Enter Hidden's authenticated state directly, without navigating
-        // scope away from the folder — leaving its subtree is what re-locks
-        // it, and that is not what focus loss does.
+        // scope away from the folder, so only focus loss can close either.
         model.accessContext = model.accessContext.enteringHiddenContext()
         await model.appDidLoseFocus()
         #expect(!model.isShowingHiddenContent)
+        #expect(model.accessContext.unlockedEntities.isEmpty)
         #expect(model.scope == .folder(folder.id))
-
-        await model.refreshContents()
-        #expect(try #require(model.contents.objects.first { $0.id == lockedObject.id }).visibility == .full)
+        #expect(model.lockedLocation?.reference == folder.reference)
+        #expect(model.contents.objects.isEmpty)
 
         model.settings.rehidesWhenAppLosesFocus = false
-        await model.openHidden()
+        await model.unlockCurrentLocation()
         await model.appDidLoseFocus()
-        #expect(model.isShowingHiddenContent)
-        await model.rehideItems()
+        #expect(model.lockedLocation == nil)
+        await model.closeProtectedPlaces()
+        #expect(model.lockedLocation?.reference == folder.reference)
+    }
+
+    /// A lock is a gate: closing it while standing in a folder behind it puts
+    /// the canvas back in front of the gate rather than somewhere that has
+    /// just vanished.
+    @Test("Closing a lock from a subfolder returns to the locked folder")
+    func relockingFromInsideReturnsToTheGate() async throws {
+        let harness = try await TestModel()
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        await model.createFolder(named: "Secrets", in: nil)
+        let gate = try #require(model.folderTree.first?.folder)
+        await model.createFolder(named: "Taxes", in: gate.id)
+        await model.setLocked(true, forFolder: gate)
+
+        await model.openFolder(gate.id)
+        await model.refreshContents()
+        let inner = try #require(model.contents.folders.first)
+        // Only the gate carries a badge; what sits behind it shows its counts.
+        #expect(!inner.showsLockBadge)
+        #expect(Format.caption(for: inner) != "Locked")
+
+        model.navigate(to: .scope(.folder(inner.id)))
+        await model.loadPreferences()
+        await model.refreshContents()
+        #expect(model.accessContext.unlockedEntities == [gate.id.uuid])
+
+        await model.relockFolders()
+        #expect(model.scope == .folder(gate.id))
+        #expect(model.lockedLocation?.reference == gate.reference)
+    }
+
+    @Test("The idle timer closes an open locked folder")
+    func idleTimerClosesLockedFolder() async throws {
+        let sleeper = HiddenRevealSleepController()
+        let harness = try await TestModel { duration in
+            try await sleeper.sleep(for: duration)
+        }
+        defer { harness.cleanUp() }
+        let model = harness.model
+        model.navigate(to: .scope(.inbox))
+
+        await model.createFolder(named: "Secrets", in: nil)
+        let folder = try #require(model.folderTree.first?.folder)
+        await model.setLocked(true, forFolder: folder)
+
+        await model.openFolder(folder.id)
+        await sleeper.waitUntilStarted(1)
+        #expect(!model.accessContext.unlockedEntities.isEmpty)
+
+        await sleeper.resume(0)
+        for _ in 0..<100 where !model.accessContext.unlockedEntities.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(model.accessContext.unlockedEntities.isEmpty)
     }
 
     @Test("User activity restarts the hidden reveal timeout")

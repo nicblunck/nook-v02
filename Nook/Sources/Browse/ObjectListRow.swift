@@ -246,8 +246,8 @@ struct FolderListRow: View {
                     // No badge for being a folder: the coloured well beside
                     // this line has already said so. Only the states the
                     // well cannot show get a mark of their own.
-                    if folder.isLocked {
-                        ListRowBadge(symbolName: "lock.fill", tint: tint)
+                    if folder.showsLockBadge {
+                        ListRowBadge(symbolName: folder.lockSymbolName, tint: tint)
                     }
                     if folder.isHidden {
                         ListRowBadge(symbolName: "eye.slash")
@@ -642,8 +642,8 @@ private struct FolderMasonryMedia: View {
             // Same corner, same glyph treatment as a hidden, favorite or
             // typed object sitting beside it in the same wall of tiles.
             .overlay(alignment: .topTrailing) {
-                if folder.isLocked {
-                    GalleryBadge(symbolName: "lock.fill").padding(8)
+                if folder.showsLockBadge {
+                    GalleryBadge(symbolName: folder.lockSymbolName).padding(8)
                 }
             }
     }

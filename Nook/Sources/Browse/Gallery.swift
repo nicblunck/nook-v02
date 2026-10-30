@@ -1309,10 +1309,10 @@ private struct GalleryViewOptionsButton: View {
             // location quietly acquires a permanent exception.
             if model.canRememberLocation {
                 HStack {
-                    Text("Lock View")
+                    Text("Keep for This Folder")
                         .accessibilityHidden(true)
                     Spacer()
-                    Toggle("Lock View", isOn: rememberBinding)
+                    Toggle("Keep for This Folder", isOn: rememberBinding)
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }

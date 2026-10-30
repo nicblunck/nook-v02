@@ -138,7 +138,8 @@ struct FolderMenu: View {
         // gets promoted out from under whatever it was nested in.
         privacyMenuItems(for: folder,
                          hide: { await model.setHidden($0, forFolder: folder) },
-                         lock: { await model.setLocked($0, forFolder: folder) })
+                         lock: { await model.setLocked($0, forFolder: folder) },
+                         lockNow: folder.isLockOpen ? { await model.relockFolders() } : nil)
         Divider()
         Button("Move to Trash", systemImage: "trash", role: .destructive) {
             model.requestMoveToTrash(folder)
@@ -154,12 +155,22 @@ struct FolderMenu: View {
 /// hide-only sibling below.
 @MainActor
 @ViewBuilder
+///
+/// "Remove Lock" takes the lock off for good. Closing an open locked folder
+/// for now is "Lock Now", offered only while it is open, so neither word is
+/// ever asked to mean the other.
 func privacyMenuItems(for item: some PrivacyBearing,
                       hide: @escaping (Bool) async -> Void,
-                      lock: @escaping (Bool) async -> Void) -> some View {
+                      lock: @escaping (Bool) async -> Void,
+                      lockNow: (() async -> Void)? = nil) -> some View {
     hideMenuItem(for: item, hide: hide)
-    Button(item.isExplicitlyLocked ? "Unlock" : "Lock",
-           systemImage: item.isExplicitlyLocked ? "lock.open" : "lock") {
+    if let lockNow {
+        Button("Lock Now", systemImage: "lock.fill") {
+            Task { await lockNow() }
+        }
+    }
+    Button(item.isExplicitlyLocked ? "Remove Lock" : "Lock",
+           systemImage: item.isExplicitlyLocked ? "lock.slash" : "lock") {
         Task { await lock(!item.isExplicitlyLocked) }
     }
 }

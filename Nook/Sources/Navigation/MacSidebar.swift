@@ -687,8 +687,8 @@ extension MacSidebar {
                 title: folder.name,
                 icon: icon(for: folder.appearance, fallback: "folder"),
                 isHidden: folder.isHidden,
-                isLocked: folder.isLocked,
-                isLockOpen: folder.isLocked && folder.visibility == .full,
+                isLocked: folder.showsLockBadge,
+                isLockOpen: folder.isLockOpen,
                 destination: destination,
                 // Dropping onto a folder moves: this is the true hierarchy, so
                 // the drop is a real relocation. Files from outside are
@@ -911,7 +911,8 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
             menu.addItem(.separator())
             addPrivacyItems(to: menu, for: folder,
                             hide: { [model] in await model.setHidden($0, forFolder: folder) },
-                            lock: { [model] in await model.setLocked($0, forFolder: folder) })
+                            lock: { [model] in await model.setLocked($0, forFolder: folder) },
+                            lockNow: folder.isLockOpen ? { [model] in await model.relockFolders() } : nil)
             menu.addItem(.separator())
             menu.add("Move to Trash") { [model] in model.requestMoveToTrash(folder) }
         case .collection(let collection):
@@ -948,10 +949,14 @@ extension MacSidebar.Coordinator: NSOutlineViewDataSource, NSOutlineViewDelegate
     private func addPrivacyItems(to menu: NSMenu,
                                  for item: some PrivacyBearing,
                                  hide: @escaping (Bool) async -> Void,
-                                 lock: @escaping (Bool) async -> Void) {
+                                 lock: @escaping (Bool) async -> Void,
+                                 lockNow: (() async -> Void)? = nil) {
         addHideItem(to: menu, for: item, hide: hide)
+        if let lockNow {
+            menu.add("Lock Now") { Task { await lockNow() } }
+        }
         let locked = item.isExplicitlyLocked
-        menu.add(locked ? "Unlock" : "Lock") { Task { await lock(!locked) } }
+        menu.add(locked ? "Remove Lock" : "Lock") { Task { await lock(!locked) } }
     }
 
     /// Pin or unpin as a card above the outline; `PinMenuItem` in AppKit.

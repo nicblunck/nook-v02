@@ -141,17 +141,18 @@ enum Format {
         count == 1 ? "1 folder" : "\(count) folders"
     }
 
-    /// The one-line secondary caption under a folder card. A locked folder's
-    /// counts are always zero — they describe what the door withholds, not
-    /// what it holds — so "Locked" replaces them rather than sitting beside
-    /// a misleading "0 items".
+    /// The one-line secondary caption under a folder card. A closed locked
+    /// folder's counts are always zero — they describe what the gate
+    /// withholds, not what it holds — so "Locked" replaces them rather than
+    /// sitting beside a misleading "0 items". Once it is open, and for every
+    /// folder behind it, the real counts show.
     static func caption(for folder: FolderSnapshot) -> String {
-        folder.isLocked ? "Locked" : folderCaptionParts(for: folder).joined(separator: " · ")
+        folder.visibility.isRedacted ? "Locked" : folderCaptionParts(for: folder).joined(separator: " · ")
     }
 
     /// The same caption, phrased for speech.
     static func spokenCaption(for folder: FolderSnapshot) -> String {
-        guard !folder.isLocked else {
+        guard !folder.visibility.isRedacted else {
             return folder.isHidden ? "Locked, Hidden" : "Locked"
         }
         var parts = folderCaptionParts(for: folder)
@@ -181,4 +182,17 @@ extension Color {
             blue: Double(number & 0xFF) / 255
         )
     }
+}
+
+extension FolderSnapshot {
+    /// Whether this folder carries a lock badge. A lock is a gate, not a
+    /// chest: only the folder locked in its own right shows one, never the
+    /// folders that sit behind it.
+    var showsLockBadge: Bool { isExplicitlyLocked }
+
+    /// Whether that badge is drawn open — authenticated and being browsed.
+    var isLockOpen: Bool { isExplicitlyLocked && visibility == .full }
+
+    /// The badge's symbol, the same on every surface.
+    var lockSymbolName: String { isLockOpen ? "lock.open.fill" : "lock.fill" }
 }

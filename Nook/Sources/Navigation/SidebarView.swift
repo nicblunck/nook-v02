@@ -319,16 +319,16 @@ struct SidebarView: View {
             Label {
                 HStack {
                     Text(folder.name)
-                    privacyBadges(isHidden: folder.isHidden, isLocked: folder.isLocked,
-                                 isLockOpen: folder.isLocked && folder.visibility == .full)
+                    privacyBadges(isHidden: folder.isHidden, isLocked: folder.showsLockBadge,
+                                 isLockOpen: folder.isLockOpen)
                 }
             } icon: {
                 EntityIcon(appearance: folder.appearance, fallbackSymbol: "folder")
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(folder.name)
-            .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.isLocked,
-                                              isLockOpen: folder.isLocked && folder.visibility == .full)
+            .accessibilityValue(spokenPrivacy(isHidden: folder.isHidden, isLocked: folder.showsLockBadge,
+                                              isLockOpen: folder.isLockOpen)
                 .joined(separator: ", "))
         }
         .modifier(SidebarFolderDragSource(folderID: folder.id))
@@ -348,7 +348,8 @@ struct SidebarView: View {
             Divider()
             privacyMenuItems(for: folder,
                              hide: { await model.setHidden($0, forFolder: folder) },
-                             lock: { await model.setLocked($0, forFolder: folder) })
+                             lock: { await model.setLocked($0, forFolder: folder) },
+                             lockNow: folder.isLockOpen ? { await model.relockFolders() } : nil)
             Divider()
             Button("Move to Trash", role: .destructive) {
                 model.requestMoveToTrash(folder)
@@ -459,7 +460,7 @@ struct SidebarView: View {
     private func spokenPrivacy(isHidden: Bool, isLocked: Bool = false, isLockOpen: Bool = false) -> [String] {
         var parts: [String] = []
         if isHidden { parts.append("Hidden") }
-        if isLocked { parts.append(isLockOpen ? "Unlocked" : "Locked") }
+        if isLocked { parts.append(isLockOpen ? "Locked, open" : "Locked") }
         return parts
     }
 

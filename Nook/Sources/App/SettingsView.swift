@@ -126,16 +126,16 @@ struct SettingsView: View {
 
     private var privacySection: some View {
         Section {
-            Picker("Hide Revealed Items", selection: $settings.hiddenRevealTimeout) {
+            Picker("Close Automatically", selection: $settings.hiddenRevealTimeout) {
                 ForEach(HiddenRevealTimeout.allCases) { timeout in
                     Text(timeout.displayName).tag(timeout)
                 }
             }
-            Toggle("Re-hide When Nook Loses Focus", isOn: $settings.rehidesWhenAppLosesFocus)
+            Toggle("Close When Nook Loses Focus", isOn: $settings.rehidesWhenAppLosesFocus)
         } header: {
             Text("Privacy")
         } footer: {
-            Text("Hidden items stay visible while you use Nook, then hide after this much inactivity.")
+            Text("Hidden and locked folders stay open while you use Nook. They close after this much inactivity.")
         }
     }
 
@@ -298,7 +298,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .appearance: "Choose how Nook looks"
-        case .privacy: "Control how hidden items are protected"
+        case .privacy: "Control when Hidden and locked folders close"
         case .library: "Set the default order for your items"
         case .quickSave: "Choose where Quick Save puts things"
         }
