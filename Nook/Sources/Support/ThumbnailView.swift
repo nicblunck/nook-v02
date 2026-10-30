@@ -1,5 +1,4 @@
 import SwiftUI
-import ImageIO
 import NookLibrary
 #if os(macOS)
 import AVFoundation
@@ -21,6 +20,10 @@ struct ThumbnailView: View {
     /// Masonry presentation borrows color and transparency from the thumbnail
     /// already being loaded here, avoiding a second fetch for the same card.
     var onAppearanceChange: ((ThumbnailAppearance?) -> Void)? = nil
+    /// Holds the load back until the view is within about a screen of the
+    /// scroll view's visible area. For a container that builds every card at
+    /// once — the masonry wall — rather than lazily as they scroll in.
+    var defersLoadingUntilNearScreen = false
 
     @Environment(\.thumbnailLoader) private var loader
     @Environment(\.originalLocator) private var originals
@@ -30,8 +33,11 @@ struct ThumbnailView: View {
     @State private var isPlayingHoverPreview = false
     @State private var hoverDelay: Task<Void, Never>?
     #endif
-    @State private var image: Image?
+    /// The picture this view last loaded. Kept while a new size or a changed
+    /// picture loads, so the card goes straight from one to the next.
+    @State private var loaded: DecodedThumbnail?
     @State private var didAttempt = false
+    @State private var isNearScreen = false
     @State private var cacheRevision = 0
     /// Whether the picture was waited on, and so has a glyph to give way from.
     @State private var wasWaitedOn = false
@@ -86,10 +92,18 @@ struct ThumbnailView: View {
     }
     #endif
 
+    /// What to draw now. The store's memory is consulted while drawing, so a
+    /// card scrolled back into view, or rebuilt by its container, shows its
+    /// picture in its first frame rather than a glyph that blinks away.
+    private var displayed: DecodedThumbnail? {
+        guard object.isContentAccessible else { return nil }
+        return loaded ?? loader?.cachedImage(for: object, maximumSize: maximumSize)
+    }
+
     private var picture: some View {
         ZStack {
-            if let image {
-                image
+            if let displayed {
+                Image(decorative: displayed.image, scale: 1)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .transition(revealTransition)
@@ -108,10 +122,16 @@ struct ThumbnailView: View {
             id: object.id,
             isContentAccessible: object.isContentAccessible,
             blobAvailability: object.blobAvailability,
-            cacheRevision: cacheRevision
+            cacheRevision: cacheRevision,
+            isNearScreen: isNearScreen
         )) { await load() }
+        .modifier(NearScreenTracker(
+            isEnabled: defersLoadingUntilNearScreen,
+            isNearScreen: $isNearScreen
+        ))
         .onReceive(NotificationCenter.default.publisher(for: .nookThumbnailDidChange)) { notification in
             guard notification.object as? UUID == object.id.uuid else { return }
+            loader?.evictCachedImages(for: object)
             cacheRevision += 1
         }
         // The picture is the object, and the surface showing it already
@@ -144,42 +164,80 @@ struct ThumbnailView: View {
         let isContentAccessible: Bool
         let blobAvailability: BlobAvailability?
         let cacheRevision: Int
+        let isNearScreen: Bool
     }
 
     private func load() async {
-        image = nil
-        didAttempt = false
-        let requested = ContinuousClock.now
-        guard let data = await loader?.thumbnail(for: object, maximumSize: maximumSize) else {
+        guard object.isContentAccessible, let loader else {
+            loaded = nil
             onAppearanceChange?(nil)
             didAttempt = true
             return
         }
-        wasWaitedOn = ContinuousClock.now - requested > .milliseconds(60)
-        image = Image(platformData: data)
-        if let onAspectRatioChange,
-           let aspectRatio = displayAspectRatio(in: data) {
-            onAspectRatioChange(aspectRatio)
+
+        // Already decoded: show it and stop, unless it is only the borrowed
+        // picture, which is shown while this device tries for its own.
+        if let cached = loader.cachedImage(for: object, maximumSize: maximumSize) {
+            show(cached)
+            if !cached.isBorrowed {
+                didAttempt = true
+                return
+            }
         }
-        if onAppearanceChange != nil {
-            onAppearanceChange?(ThumbnailAppearance.analyze(data))
+
+        guard !defersLoadingUntilNearScreen || isNearScreen else { return }
+
+        let wasShowingPicture = displayed != nil
+        if !wasShowingPicture { didAttempt = false }
+        let requested = ContinuousClock.now
+        guard let thumbnail = await loader.image(for: object, maximumSize: maximumSize),
+              !Task.isCancelled
+        else {
+            if !Task.isCancelled {
+                loaded = nil
+                onAppearanceChange?(nil)
+                didAttempt = true
+            }
+            return
         }
+        if !wasShowingPicture {
+            wasWaitedOn = ContinuousClock.now - requested > .milliseconds(60)
+        }
+        show(thumbnail)
         didAttempt = true
     }
 
-    private func displayAspectRatio(in data: Data) -> Double? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
-              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
-              width > 0, height > 0
-        else { return nil }
+    /// The aspect ratio and colours were worked out with the decode, off the
+    /// main thread, so handing them on costs nothing here.
+    private func show(_ thumbnail: DecodedThumbnail) {
+        loaded = thumbnail
+        onAspectRatioChange?(thumbnail.aspectRatio)
+        onAppearanceChange?(ThumbnailAppearance(thumbnail.traits))
+    }
+}
 
-        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue
-        let ratio = orientation.map { (5...8).contains($0) } == true
-            ? height / width
-            : width / height
-        return ratio.isFinite ? ratio : nil
+/// Notices when a view comes within about a screen of its scroll view's
+/// visible area, and remembers that it has. A view not inside a scroll view
+/// counts as near at once.
+private struct NearScreenTracker: ViewModifier {
+    let isEnabled: Bool
+    @Binding var isNearScreen: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.onGeometryChange(for: Bool.self) { proxy in
+                guard let visible = proxy.bounds(of: .scrollView) else { return true }
+                return visible
+                    .insetBy(dx: -visible.width, dy: -visible.height)
+                    .intersects(CGRect(origin: .zero, size: proxy.size))
+            } action: { isNear in
+                // Once loaded, a card stays loaded: scrolling away should not
+                // cost a reload on the way back.
+                if isNear { isNearScreen = true }
+            }
+        } else {
+            content
+        }
     }
 }
 
@@ -241,85 +299,19 @@ struct ThumbnailAppearance: Hashable, Sendable {
     let predominantColor: ThumbnailColor?
     let hasTransparentBackground: Bool
 
-    /// Finds the most frequent quantized color family in a small rendering of
-    /// the thumbnail and notes whether a meaningful portion remains transparent.
-    /// The original pixels in the winning family are averaged, producing a
-    /// stable color without expensive clustering work for every visible item.
-    static func analyze(_ data: Data) -> ThumbnailAppearance? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { return nil }
+    init(predominantColor: ThumbnailColor?, hasTransparentBackground: Bool) {
+        self.predominantColor = predominantColor
+        self.hasTransparentBackground = hasTransparentBackground
+    }
 
-        let side = 32
-        let bytesPerPixel = 4
-        let bytesPerRow = side * bytesPerPixel
-        var pixels = [UInt8](repeating: 0, count: side * bytesPerRow)
-        let rendered = pixels.withUnsafeMutableBytes { storage -> Bool in
-            guard let context = CGContext(
-                data: storage.baseAddress,
-                width: side,
-                height: side,
-                bitsPerComponent: 8,
-                bytesPerRow: bytesPerRow,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                    | CGBitmapInfo.byteOrder32Big.rawValue
-            ) else { return false }
-            context.interpolationQuality = .low
-            context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
-            return true
-        }
-        guard rendered else { return nil }
-
-        struct Bucket {
-            var weight = 0
-            var red = 0
-            var green = 0
-            var blue = 0
-        }
-
-        var buckets: [Int: Bucket] = [:]
-        var transparentPixelCount = 0
-        let pixelCount = pixels.count / bytesPerPixel
-        for offset in stride(from: 0, to: pixels.count, by: bytesPerPixel) {
-            let alpha = Int(pixels[offset + 3])
-            if alpha < 250 { transparentPixelCount += 1 }
-            guard alpha >= 64 else { continue }
-            let red = Int(pixels[offset])
-            let green = Int(pixels[offset + 1])
-            let blue = Int(pixels[offset + 2])
-            let key = ((red >> 4) << 8) | ((green >> 4) << 4) | (blue >> 4)
-            var bucket = buckets[key, default: Bucket()]
-            bucket.weight += alpha
-            bucket.red += red * alpha
-            bucket.green += green * alpha
-            bucket.blue += blue * alpha
-            buckets[key] = bucket
-        }
-
-        let predominant = buckets.max(by: { first, second in
-            if first.value.weight == second.value.weight {
-                return first.key > second.key
-            }
-            return first.value.weight < second.value.weight
-        })?.value
-
-        let predominantColor: ThumbnailColor?
-        if let predominant, predominant.weight > 0 {
-            predominantColor = ThumbnailColor(
-                red: Double(predominant.red) / Double(predominant.weight) / 255,
-                green: Double(predominant.green) / Double(predominant.weight) / 255,
-                blue: Double(predominant.blue) / Double(predominant.weight) / 255
-            )
-        } else {
-            predominantColor = nil
-        }
-
-        return ThumbnailAppearance(
-            predominantColor: predominantColor,
-            // Ignore isolated antialiasing artifacts while still recognizing
-            // transparent canvases and cut-out artwork.
-            hasTransparentBackground: transparentPixelCount * 50 >= pixelCount
+    /// The store samples every picture as it decodes it; this only gives
+    /// those numbers a colour.
+    init(_ traits: ThumbnailTraits) {
+        self.init(
+            predominantColor: traits.predominantColor.map {
+                ThumbnailColor(red: $0.red, green: $0.green, blue: $0.blue)
+            },
+            hasTransparentBackground: traits.hasTransparentBackground
         )
     }
 }

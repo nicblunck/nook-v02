@@ -78,8 +78,8 @@ struct LinkPreviewView: View {
     }
 
     private func load() async {
-        if let data = await loader?.thumbnail(for: object) {
-            thumbnail = Image(platformData: data)
+        if let decoded = await loader?.image(for: object) {
+            thumbnail = Image(decorative: decoded.image, scale: 1)
         }
         didLoad = true
     }

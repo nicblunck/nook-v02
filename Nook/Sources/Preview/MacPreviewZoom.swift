@@ -138,8 +138,8 @@ final class MacPreviewZoom {
 
     private func picture(for object: ObjectSnapshot) async -> Image? {
         if let picture = pictures[object.id] { return picture }
-        guard let data = await loader?.thumbnail(for: object, maximumSize: 1024) else { return nil }
-        let picture = Image(platformData: data)
+        guard let thumbnail = await loader?.image(for: object, maximumSize: 1024) else { return nil }
+        let picture = Image(decorative: thumbnail.image, scale: 1)
         // A few are plenty: the one open and the few stepped through.
         if pictures.count > 8 { pictures.removeAll() }
         pictures[object.id] = picture

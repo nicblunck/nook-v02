@@ -456,7 +456,10 @@ private struct ObjectMasonryMedia: View {
                     object: object,
                     maximumSize: maximumThumbnailSize,
                     onAspectRatioChange: onAspectRatioChange,
-                    onAppearanceChange: onAppearanceChange
+                    onAppearanceChange: onAppearanceChange,
+                    // The wall builds every card at once; only those near the
+                    // screen need their pictures yet.
+                    defersLoadingUntilNearScreen: true
                 )
                 .clipped()
             }
